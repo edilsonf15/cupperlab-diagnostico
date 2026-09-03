@@ -595,7 +595,7 @@ def _ai_section(r: dict) -> str:
     gap_c = _clean_gap(ai.get("gap"))
     tactics = _geo_tactics(r)
     tac_lis = "".join(f'<li><span class="i" style="background:{CY6}">+</span>{t}</li>' for t in tactics)
-    gap_block = (f'<div class="block card"><div class="sectic" style="margin-bottom:8px">Que te falta para que la IA te recomiende (por corregir)</div>'
+    gap_block = (f'<div class="block card" style="border-color:{CY};border-width:2px"><div class="sectic" style="margin-bottom:8px;color:{CY6}">Todo lo que necesitas para salir en la IA (plan de mejora)</div>'
                  + (f'<p style="font-size:9.5px;color:#3d4855;line-height:1.55;margin-bottom:10px">{_esc(gap_c)}</p>' if gap_c else "")
                  + f'<ul class="chk">{tac_lis}</ul></div>')
 
@@ -621,9 +621,16 @@ def _index_block(r: dict) -> str:
         return ('<div class="block callout r"><b>Indexacion.</b> No encontramos tu sitio indexado en la muestra de '
                 + _esc(prov) + '. Hay que revisar que Google pueda rastrearte e indexarte.</div>')
     extra = f" Tu sitemap lista {tot} URLs." if tot else ""
-    return ('<div class="block callout o"><b>Indexacion.</b> Tu sitio aparece indexado (comprobado con '
+    bi = ix.get("broken_indexed") or []
+    base = ('<div class="block callout o"><b>Indexacion.</b> Tu sitio aparece indexado (comprobado con '
             + _esc(prov) + f' via site:, muestra de {n} paginas).{extra} El numero exacto de paginas indexadas '
             'se confirma con Search Console.</div>')
+    if bi:
+        trs = "".join(f'<tr><td class="u">{_esc(b["url"])}</td><td class="c">{b["status"]}</td></tr>' for b in bi[:6])
+        base += ('<div class="block callout r"><b>Paginas indexadas que dan error (404).</b> Google las tiene '
+                 'indexadas pero ya no existen: hay que redirigirlas o recuperarlas.</div>'
+                 f'<table class="t"><thead><tr><th>Pagina indexada</th><th class="c">Estado</th></tr></thead><tbody>{trs}</tbody></table>')
+    return base
 
 
 def _security_section(r: dict) -> str:
@@ -1024,7 +1031,7 @@ def build_report_html(r: dict, contact: dict, name: str = "") -> str:
 <section class="pg">
   <div class="eyebrow"><span class="bar"></span>01 · Estado general</div>
   <h2 class="sec">Como esta tu web hoy</h2>
-  <p class="sub"><b>Salud digital</b> = una nota 0-100 que resume que tan lista esta tu web para que Google te muestre y la IA te cite. La calculamos con lo verificado en vivo (tecnico 35%, on-page 35%, preparacion IA 30%). Es la valoracion de Cupperlab, no una metrica oficial de Google.</p>
+  <p class="sub"><b>Salud digital</b> = nota 0-100 calculada con <b>mediciones reales</b>: pruebas HTTP en vivo (HTTPS, robots, 404 sobre lo indexado), velocidad con <b>Lighthouse / Google PageSpeed</b>, datos estructurados y seguridad del servidor, y una <b>consulta real a la IA</b>. Ponderacion: tecnico 35% · on-page 35% · preparacion IA 30%.</p>
   <div class="block scorewrap">
     <div class="gauge">{_gauge(score, 'Salud digital')}</div>
     <div class="levels">{_levels(r)}</div>

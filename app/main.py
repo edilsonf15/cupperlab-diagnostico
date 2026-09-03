@@ -195,10 +195,19 @@ async def _run_job(job_id: str, url: str, email: str, name: str, lead: dict) -> 
                 data["google"] = None
         except Exception as exc:  # noqa: BLE001
             print(f"[search:ERROR] {exc}"); data["google"] = None
-        # Indexacion real con site:dominio (muestra) vs sitemap
+        # Indexacion real con site:dominio + 404 sobre lo INDEXADO en Google
         try:
             data["indexation"] = await check_indexation(
-                domain, (data.get("signals") or {}).get("sitemap_total", 0))
+                domain, (data.get("signals") or {}).get("sitemap_total", 0),
+                ai.get("gl", "es") if ai else "es")
+            ix = data.get("indexation") or {}
+            if ix.get("broken_indexed"):
+                ex = ", ".join(b["url"] for b in ix["broken_indexed"][:2])
+                data.setdefault("findings_improve", []).insert(0, {
+                    "title": f"{len(ix['broken_indexed'])} pagina(s) INDEXADA(s) en Google dan error 404",
+                    "detail": f"Google tiene indexadas paginas que ya no existen: {ex}. "
+                              "Restan confianza y desperdician rastreo; hay que redirigirlas o recuperarlas.",
+                    "severity": "alto"})
         except Exception as exc:  # noqa: BLE001
             print(f"[index:ERROR] {exc}"); data["indexation"] = None
 

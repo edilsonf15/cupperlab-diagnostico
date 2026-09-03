@@ -130,20 +130,79 @@ async def check_google(domain: str, brand: str, category_queries: list[str], gl:
     return out
 
 
-async def check_indexation(domain: str, sitemap_total: int = 0) -> dict | None:
-    """Estima que paginas ve el buscador con site:dominio (muestra) y lo contrasta
-    con el sitemap. El numero exacto se confirma con Search Console."""
+def _parse_uddg_urls(html: str) -> list[str]:
+    """URLs COMPLETAS (no solo dominios) de los resultados de DuckDuckGo."""
+    out = []
+    for enc in re.findall(r'uddg=([^&"]+)', html):
+        u = unquote(enc).split("#")[0]
+        if u.startswith("http") and "duckduckgo.com" not in u and u not in out:
+            out.append(u)
+    if not out:
+        for u in re.findall(r'href="(https?://[^"#]+)"', html):
+            if "duckduckgo.com" not in u and u not in out:
+                out.append(u)
+    return out[:15]
+
+
+async def _indexed_urls(client: httpx.AsyncClient, prov: str, domain: str, gl: str) -> list[str]:
+    q = f"site:{domain}"
+    if prov == "serper":
+        try:
+            r = await client.post("https://google.serper.dev/search",
+                                  headers={"X-API-KEY": os.getenv("SERPER_API_KEY", "").strip(),
+                                           "Content-Type": "application/json"},
+                                  json={"q": q, "gl": gl, "num": 15}, timeout=TIMEOUT)
+            r.raise_for_status()
+            return [o.get("link", "") for o in r.json().get("organic", []) if o.get("link")]
+        except Exception as exc:  # noqa: BLE001
+            print(f"[serper-index:ERROR] {exc}")
+            return []
+    kl = _KL.get(gl, "wt-wt")
+    for url in ("https://html.duckduckgo.com/html/", "https://lite.duckduckgo.com/lite/"):
+        try:
+            r = await client.post(url, data={"q": q, "kl": kl}, headers=HEADERS,
+                                  timeout=TIMEOUT, follow_redirects=True)
+            if r.status_code == 200:
+                urls = _parse_uddg_urls(r.text)
+                if urls:
+                    return urls
+            await asyncio.sleep(1.0)
+        except Exception as exc:  # noqa: BLE001
+            print(f"[ddg-index:ERROR] {exc}")
+    return []
+
+
+async def check_indexation(domain: str, sitemap_total: int = 0, gl: str = "es") -> dict | None:
+    """Paginas que el buscador tiene indexadas (con site:dominio) y comprueba si
+    alguna de esas paginas INDEXADAS da error 404 (peor que un 404 del sitemap)."""
     prov = provider()
+    dr = domain.replace("www.", "").lower()
+    broken_indexed: list[dict] = []
     try:
-        async with httpx.AsyncClient() as client:
-            found = await _run(client, prov, f"site:{domain}", "es")
+        async with httpx.AsyncClient(headers=HEADERS) as client:
+            urls = await _indexed_urls(client, prov, domain, gl)
+            own = [u for u in urls if dr in _root(u)]
+            # comprueba el estado HTTP real de una muestra de lo indexado
+            sem = asyncio.Semaphore(6)
+
+            async def chk(u):
+                async with sem:
+                    try:
+                        rr = await client.get(u, timeout=10.0, follow_redirects=True)
+                        if rr.status_code >= 400:
+                            broken_indexed.append({"url": u, "status": rr.status_code})
+                    except Exception:  # noqa: BLE001
+                        pass
+            if own:
+                await asyncio.gather(*(chk(u) for u in own[:10]))
     except Exception as exc:  # noqa: BLE001
         print(f"[index:ERROR] {exc}")
         return None
-    indexed = domain.replace("www.", "") in [f.replace("www.", "") for f in found] or bool(found)
     return {
-        "indexed": indexed,
-        "sample_count": len(found),
+        "indexed": bool(own),
+        "sample_count": len(own),
+        "indexed_urls": own[:10],
+        "broken_indexed": broken_indexed,
         "sitemap_total": sitemap_total,
         "provider": "Google (Serper)" if prov == "serper" else "DuckDuckGo",
     }
