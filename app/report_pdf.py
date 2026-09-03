@@ -1000,7 +1000,7 @@ def build_report_html(r: dict, contact: dict, name: str = "") -> str:
             ai_bit = " Le preguntamos a la <b>IA</b>: te reconoce y te recomienda en tu sector."
     psi = r.get("psi_full") or {}
     mob = (psi.get("mobile") or {})
-    speed_bit = f" Medimos la velocidad en movil y escritorio con PageSpeed (movil {mob.get('performance')}/100)." if mob.get("performance") is not None else ""
+    speed_bit = f" Medimos la velocidad real en movil y escritorio (movil {mob.get('performance')}/100)." if mob.get("performance") is not None else ""
     n404 = s.get("links_broken", 0)
     tec_bit = (f" Rastreamos {s.get('links_checked',0)} direcciones una a una"
                + (f" y encontramos {n404} enlace(s) roto(s)." if n404 else " sin enlaces rotos."))
@@ -1031,7 +1031,7 @@ def build_report_html(r: dict, contact: dict, name: str = "") -> str:
 <section class="pg">
   <div class="eyebrow"><span class="bar"></span>01 · Estado general</div>
   <h2 class="sec">Como esta tu web hoy</h2>
-  <p class="sub"><b>Salud digital</b> = nota 0-100 calculada con <b>mediciones reales</b>: pruebas HTTP en vivo (HTTPS, robots, 404 sobre lo indexado), velocidad con <b>Lighthouse / Google PageSpeed</b>, datos estructurados y seguridad del servidor, y una <b>consulta real a la IA</b>. Ponderacion: tecnico 35% · on-page 35% · preparacion IA 30%.</p>
+  <p class="sub"><b>Salud digital</b> = nota 0-100 calculada con <b>mediciones reales</b>: pruebas en vivo de tu web (HTTPS, robots, enlaces rotos), <b>velocidad de carga real</b>, datos estructurados, seguridad del servidor y una <b>consulta real a la IA</b>. Ponderacion: tecnico 35% · on-page 35% · preparacion IA 30%.</p>
   <div class="block scorewrap">
     <div class="gauge">{_gauge(score, 'Salud digital')}</div>
     <div class="levels">{_levels(r)}</div>

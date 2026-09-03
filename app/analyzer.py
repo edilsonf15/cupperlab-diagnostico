@@ -29,7 +29,7 @@ FILE_TIMEOUT = 8.0
 LINK_TIMEOUT = 9.0
 PSI_TIMEOUT = 60.0
 AI_WAIT = float(os.getenv("AI_GEO_WAIT", "26"))
-LINK_SAMPLE = 14          # URLs de sitemap a muestrear para 404
+LINK_SAMPLE = 22          # URLs (enlaces internos + sitemap) a comprobar para 404
 LINK_CONCURRENCY = 8
 
 UA = (
@@ -696,18 +696,21 @@ async def analyze(raw_url: str) -> Result:
             else:
                 sample = []
 
-            # incluir enlaces internos del home si hay pocos del sitemap
-            if len(sample) < 6 and home_html:
+            # SIEMPRE: enlaces internos reales del home (lo que navega un visitante).
+            # Es lo mas util para 404 y no depende de ningun servicio externo.
+            internal = []
+            if home_html:
                 soup = BeautifulSoup(home_html, "html.parser")
-                internal = []
+                base_net = urlparse(res.final_url).netloc
+                base_norm = res.final_url.split("#")[0].split("?")[0].rstrip("/")
                 for a in soup.find_all("a", href=True):
-                    href = urljoin(res.final_url, a["href"])
-                    if urlparse(href).netloc == urlparse(res.final_url).netloc:
-                        internal.append(href.split("#")[0])
+                    href = urljoin(res.final_url, a["href"]).split("#")[0].split("?")[0]
+                    if urlparse(href).netloc == base_net and href.rstrip("/") != base_norm \
+                            and not re.search(r"\.(jpg|jpeg|png|gif|webp|svg|pdf|zip|css|js)$", href, re.I):
+                        internal.append(href)
                 internal = list(dict.fromkeys(internal))
-                sample += internal[: (8 - len(sample))]
-
-            sample = list(dict.fromkeys(sample))[:LINK_SAMPLE]
+            # combina enlaces internos (prioridad) + muestra del sitemap
+            sample = list(dict.fromkeys(internal[:LINK_SAMPLE] + sample))[:LINK_SAMPLE]
             if sample:
                 sem = asyncio.Semaphore(LINK_CONCURRENCY)
 

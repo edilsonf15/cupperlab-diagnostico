@@ -181,6 +181,8 @@ async def check_indexation(domain: str, sitemap_total: int = 0, gl: str = "es") 
     try:
         async with httpx.AsyncClient(headers=HEADERS) as client:
             urls = await _indexed_urls(client, prov, domain, gl)
+            if not urls:
+                return None  # el buscador no devolvio: no podemos determinar (no inventar)
             own = [u for u in urls if dr in _root(u)]
             # comprueba el estado HTTP real de una muestra de lo indexado
             sem = asyncio.Semaphore(6)
