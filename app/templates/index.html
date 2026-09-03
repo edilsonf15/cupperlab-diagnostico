@@ -211,27 +211,14 @@
         </div>
       </div>
 
-      <!-- Dimensiones + hallazgos -->
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:0 56px;margin-top:52px">
-        <div>
-          <h3 class="sora" style="font-weight:600;font-size:20px;letter-spacing:-0.02em;margin:0 0 22px">Cómo estás por área</h3>
-          <div id="dims"></div>
-        </div>
-        <div>
-          <h3 class="sora" style="font-weight:600;font-size:20px;letter-spacing:-0.02em;margin:0 0 22px">Hallazgos, por orden de impacto</h3>
-          <div id="findings"></div>
-          <p class="mono" style="margin:18px 0 0;font-size:12px;line-height:1.6;color:rgba(10,16,20,0.42)">Lectura en vivo sobre datos públicos de tu web. El informe completo, con el plan de acción, va en el PDF.</p>
-        </div>
+      <!-- Áreas (resumen en pantalla) -->
+      <div style="margin-top:48px">
+        <h3 class="sora" style="font-weight:600;font-size:20px;letter-spacing:-0.02em;margin:0 0 22px">Cómo estás por área</h3>
+        <div id="dims" style="max-width:760px"></div>
       </div>
 
-      <!-- Cómo te ve la IA -->
-      <div id="aihi" class="hidden" style="margin-top:44px;border-top:1px solid rgba(10,16,20,0.09);padding-top:36px"></div>
-
-      <!-- Competencia -->
-      <div id="compe" class="hidden" style="margin-top:36px"></div>
-
       <!-- Aviso correo -->
-      <div id="mailed" style="margin-top:40px;background:#F7F9FB;border:1px solid rgba(28,188,228,0.35);border-left:3px solid #1CBCE4;border-radius:12px;padding:20px 22px;font-size:15.5px;line-height:1.6;color:rgba(10,16,20,0.75)"></div>
+      <div id="mailed" style="margin-top:44px;background:#F7F9FB;border:1px solid rgba(28,188,228,0.35);border-left:3px solid #1CBCE4;border-radius:12px;padding:22px 24px;font-size:15.5px;line-height:1.6;color:rgba(10,16,20,0.75)"></div>
 
       <button id="againBtn" type="button" class="mono" style="margin-top:34px;background:none;border:none;padding:0;cursor:pointer;font-size:12px;color:rgba(10,16,20,0.5)">← revisar otro sitio</button>
     </div>
@@ -398,64 +385,7 @@
     }).join("");
     document.getElementById("dims").innerHTML=dh;
 
-    // Hallazgos REALES (findings_improve)
-    var sevRank={alto:0,medio:1,bajo:2}, sevTag={alto:"PRIORIDAD ALTA",medio:"PRIORIDAD MEDIA",bajo:"PRIORIDAD BAJA"};
-    var imp=(r.findings_improve||[]).filter(function(f){ return f && f.title; }).slice();
-    imp.sort(function(a,b){ return (sevRank[a.severity]==null?9:sevRank[a.severity])-(sevRank[b.severity]==null?9:sevRank[b.severity]); });
-    var fh=imp.slice(0,3).map(function(f){
-      return '<div style="background:#F7F9FB;border:1px solid rgba(10,16,20,0.09);border-radius:12px;padding:22px 24px;margin-bottom:14px;animation:cl-rise .5s ease-out both">'+
-        '<p class="mono" style="font-size:11.5px;color:#0E8FB0;margin:0 0 10px">'+esc(sevTag[f.severity]||"HALLAZGO")+'</p>'+
-        '<p class="sora" style="font-weight:600;font-size:16.5px;letter-spacing:-0.015em;margin:0 0 8px">'+esc(f.title)+'</p>'+
-        '<p style="margin:0;font-size:15.5px;line-height:1.6;color:rgba(10,16,20,0.64)">'+esc(f.detail||"")+'</p>'+
-      '</div>';
-    }).join("");
-    document.getElementById("findings").innerHTML=fh||'<p style="font-size:15px;color:rgba(10,16,20,0.55)">Sin incidencias graves detectadas. El detalle completo va en el informe.</p>';
-
-    // Cómo te ve la IA (real)
-    var ai=r.geo_ai, aihi=document.getElementById("aihi");
-    if(ai && ai.available && !ai.error && (ai.answered_names||[]).length){
-      var comp=(ai.competitors||[]).slice(0,3).map(function(c){ return c&&c.name?c.name:c; }).join(", ");
-      var qs=ai.questions||[];
-      var qhtml="";
-      if(qs.length){
-        qhtml='<div style="margin-top:26px">'+
-          '<p class="mono" style="font-size:11.5px;color:#0E8FB0;margin:0 0 6px">◆ LAS 3 PREGUNTAS QUE LE HICIMOS A LA IA</p>'+
-          '<p style="margin:0 0 10px;font-size:13.5px;color:rgba(10,16,20,0.55)">Búsquedas reales de un cliente en '+esc(ai.country||"tu país")+'. Comprobamos en vivo si apareces:</p>'+
-          qs.map(function(q){
-            var ap=q.appears===true, no=q.appears===false;
-            var icon=ap?"✓":(no?"✕":"—"), col=ap?"#0E8FB0":(no?WARN:"#9aa4b0");
-            var lab=ap?"apareces":(no?"no apareces":"sin dato");
-            var named=(q.named&&q.named.length)?'<div style="margin-top:4px;font-size:13px;color:rgba(10,16,20,0.5)">Nombra a: '+esc(q.named.join(", "))+'</div>':"";
-            return '<div style="padding:12px 0;border-top:1px solid rgba(10,16,20,0.07)">'+
-              '<div style="display:flex;gap:10px;align-items:baseline">'+
-                '<span style="color:'+col+';font-weight:700;flex-shrink:0">'+icon+'</span>'+
-                '<div><span style="font-size:15px">“'+esc(q.q)+'”</span> <span class="mono" style="font-size:12px;color:'+col+'">· '+lab+'</span>'+named+'</div>'+
-              '</div></div>';
-          }).join("")+'</div>';
-      }
-      aihi.innerHTML=
-        '<p class="mono" style="font-size:11.5px;color:#0E8FB0;margin:0 0 16px">◆ CÓMO TE VE LA IA (EN VIVO)</p>'+
-        '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:20px">'+
-          '<div><p style="margin:0;font-size:15.5px;line-height:1.6"><b style="color:'+(ai.knows_brand?"#0E8FB0":WARN)+'">'+(ai.knows_brand?"✓":"✕")+' ¿La IA sabe quién eres?</b><br>'+(ai.knows_brand?"Sí, te describe.":"No tiene información fiable de tu sitio.")+'</p></div>'+
-          '<div><p style="margin:0;font-size:15.5px;line-height:1.6"><b style="color:'+(ai.recommended?"#0E8FB0":WARN)+'">'+(ai.recommended?"✓":"✕")+' ¿Te recomienda al pedir tu servicio?</b><br>'+(ai.recommended?"Sí, te incluye.":(ai.recommended===false?("No: nombra a otros, no a ti."):"Solo a veces / no es consistente."))+'</p></div>'+
-        '</div>'+qhtml;
-      aihi.classList.remove("hidden");
-    } else { aihi.classList.add("hidden"); }
-
-    // Competencia real
-    var compe=document.getElementById("compe");
-    var comps=(ai&&ai.competitors)?ai.competitors.slice(0,5):[];
-    if(comps.length){
-      compe.innerHTML='<p class="mono" style="font-size:11.5px;color:#0E8FB0;margin:0 0 14px">◆ TU COMPETENCIA REAL SEGÚN LA IA</p>'+
-        '<p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:rgba(10,16,20,0.6);max-width:60ch">Empresas de tu sector que la IA recomienda cuando alguien pide tu servicio y tu marca no aparece:</p>'+
-        '<div style="display:flex;flex-wrap:wrap;gap:10px">'+comps.map(function(c){
-          var nm=(c&&c.name)?c.name:c, dm=(c&&c.domain)?'<span class="mono" style="opacity:0.55;margin-left:7px;font-size:11.5px">'+esc(c.domain)+'</span>':"";
-          return '<span style="display:inline-flex;align-items:center;background:#F7F9FB;border:1px solid rgba(10,16,20,0.12);border-radius:999px;padding:8px 14px;font-size:14px;font-weight:500">'+esc(nm)+dm+'</span>';
-        }).join("")+'</div>';
-      compe.classList.remove("hidden");
-    } else { compe.classList.add("hidden"); }
-
-    document.getElementById("mailed").innerHTML="📬 Te enviamos a tu correo un <b>análisis aún más completo</b>, con tu competencia real, la velocidad detallada y el <b>plan de acción en PDF</b>. Revisa también la carpeta de spam.";
+    document.getElementById("mailed").innerHTML="📬 Este es un vistazo rápido. Te enviamos a tu correo el <b>análisis completo en PDF</b>: cómo te ve la IA, tu competencia real de tu país, los hallazgos y el <b>plan de acción</b>. Revisa también la carpeta de spam.";
 
     submitBtn.disabled=false; submitBtn.textContent="Analizar mi web gratis →";
     results.scrollIntoView({behavior:"smooth"});

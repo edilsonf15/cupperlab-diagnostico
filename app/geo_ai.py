@@ -245,7 +245,7 @@ async def run_ai_geo(domain: str, meta: dict) -> dict | None:
     full_url = domain if domain.startswith("http") else f"https://{domain}"
 
     # Pais REAL: primero lo detectado por contenido (telefono/menciones) en el crawl;
-    # si no, por TLD; si no, lo infiere el modelo (PAIS: xx).
+    # si no, por TLD; si no, se lo preguntamos a ChatGPT (entra al sitio y lo deduce).
     meta_country = (meta.get("country") or "").strip()
     meta_gl = (meta.get("gl") or "").strip()
     det = _country_from_domain(domain)
@@ -254,7 +254,7 @@ async def run_ai_geo(domain: str, meta: dict) -> dict | None:
     elif det:
         country, gl = det
     else:
-        country, gl = "", "es"
+        country, gl = "", ""
     have_country = bool(country)
 
     q_know = (
@@ -263,22 +263,44 @@ async def run_ai_geo(domain: str, meta: dict) -> dict | None:
         f"descríbelo en 2-3 frases. Si NO encuentras información fiable de ESE sitio en concreto, "
         f"responde EXACTAMENTE con NO_LA_CONOZCO y nada más. No inventes datos."
     )
-    ctx_pais = f"en {country}" if country else "en su país"
-    q_queries = (
-        f"Para el negocio de \"{brand}\" (sitio {full_url}; contexto: \"{service}\"), "
-        f"escribe EXACTAMENTE 3 búsquedas que un cliente {ctx_pais} escribiría para encontrar ese tipo "
-        f"de servicio SIN conocer la marca (búsquedas de categoría, con ciudad/país si aplica). "
-        f"Una por línea, sin numerar."
-        + ("" if have_country else " Luego una última línea 'PAIS: xx' con el código de país de 2 letras del mercado.")
-    )
-    q_gap = (
-        f"Usa búsqueda web sobre {full_url}. En 2 frases y en lenguaje sencillo de negocio: "
-        f"¿qué le falta a \"{brand}\" para que la IA la reconozca y la recomiende cuando alguien pide su "
-        f"tipo de servicio {ctx_pais} (sin nombrar la marca)? Sé concreto y accionable. Sin viñetas."
+    q_country = (
+        f"Usa búsqueda web y entra en {full_url}. ¿En qué PAÍS está basado y opera principalmente este "
+        f"negocio? Fíjate en el idioma, el prefijo telefónico, las direcciones o ciudades, la moneda y el "
+        f"dominio. Responde SOLO así, sin nada más: Nombre del país|cc  (cc = código ISO de 2 letras, "
+        f"p. ej. España|es, México|mx, Colombia|co, Argentina|ar). Si dudas, deduce por el idioma y el dominio."
     )
 
     try:
         async with httpx.AsyncClient() as client:
+            # Ronda 0: si no sabemos el pais por TLD/contenido, ChatGPT lo determina mirando el sitio
+            if not have_country:
+                try:
+                    rc = await _ask(client, prov, key, model, q_country, max_tokens=60, grounded=True)
+                    mc = re.search(r"([A-Za-zÁÉÍÓÚÑÜáéíóúñü .'-]{2,40})\|\s*([A-Za-z]{2})", rc or "")
+                    if mc:
+                        country = mc.group(1).strip(" .|-")[:40]
+                        gl = mc.group(2).lower()
+                        have_country = bool(country)
+                except Exception:  # noqa: BLE001
+                    pass
+            if not gl:
+                gl = "es"
+            ctx_pais = f"en {country}" if country else "en su país"
+            pais_txt = country or "su país"
+
+            # Las busquedas SIEMPRE enfocadas al pais real del negocio
+            q_queries = (
+                f"Para el negocio de \"{brand}\" (sitio {full_url}; contexto: \"{service}\"), "
+                f"escribe EXACTAMENTE 3 búsquedas que un cliente {ctx_pais} escribiría para encontrar ese tipo "
+                f"de servicio SIN conocer la marca (búsquedas de categoría). Enfócalas SIEMPRE en {pais_txt}; "
+                f"no uses otro país. Una por línea, sin numerar y sin la palabra PAIS."
+            )
+            q_gap = (
+                f"Usa búsqueda web sobre {full_url}. En 2 frases y en lenguaje sencillo de negocio: "
+                f"¿qué le falta a \"{brand}\" para que la IA la reconozca y la recomiende cuando alguien pide su "
+                f"tipo de servicio {ctx_pais} (sin nombrar la marca)? Sé concreto y accionable. Sin viñetas."
+            )
+
             # Ronda 1: genera las 3 busquedas + reconocimiento de marca + gap (en paralelo)
             r_queries, r_know, r_gap = await asyncio.gather(
                 _ask(client, prov, key, model, q_queries, max_tokens=250, grounded=False),
@@ -290,18 +312,13 @@ async def run_ai_geo(domain: str, meta: dict) -> dict | None:
             know_txt = "" if isinstance(r_know, Exception) else (r_know or "")
             gap_txt = "" if isinstance(r_gap, Exception) else (r_gap or "")
 
-            # Parseo de las 3 busquedas (+ PAIS si el dominio era generico)
+            # Parseo de las 3 busquedas de categoria
             cat_queries = []
             for ln in queries_txt.splitlines():
                 ln = ln.strip(" -•\t0123456789.)")
-                mp = re.match(r"(?i)PAIS:\s*([a-z]{2})", ln)
-                if mp and not have_country:
-                    gl = mp.group(1).lower()
-                    country = next((v[0] for v in CCTLD.values() if v[1] == gl), country)
-                elif 4 < len(ln) < 90 and "PAIS" not in ln.upper():
+                if 4 < len(ln) < 90 and "PAIS" not in ln.upper():
                     cat_queries.append(ln)
             cat_queries = cat_queries[:3]
-            pais_txt = country or "su país"
 
             # Ronda 2: por cada busqueda de categoria, ¿aparece la marca? ¿a quien nombra?
             def _q_cat(search: str) -> str:
