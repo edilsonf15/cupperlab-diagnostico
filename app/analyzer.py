@@ -276,12 +276,15 @@ def detect_country(html: str, domain: str) -> dict:
     h = (html or "")
     low = h.lower()
 
-    # 1) Telefonos: cuenta votos por prefijo (+CC o 00CC)
+    # 1) Telefonos REALES: prefijo internacional + un numero de 8-15 digitos.
+    #    (evita falsos positivos con "+100", "+1.000", "+50%", etc. de marketing)
     votes: dict[tuple, int] = {}
-    for m in re.finditer(r"(?:\+|\b00)\s?(\d{1,4})", h):
-        digits = m.group(1)
+    for m in re.finditer(r"(?:\+|\b00)\s?(\d[\d\s().\-]{6,}\d)", h):
+        digs = re.sub(r"\D", "", m.group(1))
+        if not (8 <= len(digs) <= 15):
+            continue
         for code, name, gl in _CALL_CODES:
-            if digits.startswith(code):
+            if digs.startswith(code):
                 votes[(name, gl)] = votes.get((name, gl), 0) + 1
                 break
     if votes:
