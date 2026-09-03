@@ -241,6 +241,123 @@ def categorize_sitemap(locs: list[str]) -> dict:
     return comp
 
 
+# ---- Deteccion de pais real (por contenido, NO solo por TLD) -----------------
+
+# Prefijos telefonicos -> (pais, codigo gl). Orden: mas largos primero.
+_CALL_CODES = [
+    ("593", "Ecuador", "ec"), ("591", "Bolivia", "bo"), ("595", "Paraguay", "py"),
+    ("598", "Uruguay", "uy"), ("502", "Guatemala", "gt"), ("503", "El Salvador", "sv"),
+    ("504", "Honduras", "hn"), ("505", "Nicaragua", "ni"), ("506", "Costa Rica", "cr"),
+    ("507", "Panamá", "pa"), ("509", "Haití", "ht"), ("351", "Portugal", "pt"),
+    ("52", "México", "mx"), ("57", "Colombia", "co"), ("54", "Argentina", "ar"),
+    ("56", "Chile", "cl"), ("51", "Perú", "pe"), ("58", "Venezuela", "ve"),
+    ("55", "Brasil", "br"), ("34", "España", "es"), ("44", "Reino Unido", "gb"),
+    ("33", "Francia", "fr"), ("39", "Italia", "it"), ("49", "Alemania", "de"),
+    ("1", "Estados Unidos", "us"),
+]
+
+# Menciones de pais/ciudad como respaldo (cuando no hay telefono claro).
+_GEO_HINTS = {
+    "es": ("España", ["españa", "madrid", "barcelona", "valencia", "sevilla", "málaga", "€", " iva", "cif ", " dni"]),
+    "mx": ("México", ["méxico", "mexico", "cdmx", "guadalajara", "monterrey", "puebla", "querétaro", " rfc", " mxn"]),
+    "co": ("Colombia", ["colombia", "bogotá", "bogota", "medellín", "medellin", "cali", "barranquilla", " nit", " cop"]),
+    "ar": ("Argentina", ["argentina", "buenos aires", "córdoba", "rosario", "mendoza", " cuit", " ars"]),
+    "cl": ("Chile", ["chile", "santiago", "valparaíso", "concepción", " rut", " clp"]),
+    "pe": ("Perú", ["perú", "peru", "lima", "arequipa", "trujillo", " ruc", " pen", "soles"]),
+    "pa": ("Panamá", ["panamá", "panama", "ciudad de panamá"]),
+    "us": ("Estados Unidos", ["united states", "u.s.a", "new york", "miami", "los angeles", "texas", "california"]),
+}
+
+
+def detect_country(html: str, domain: str) -> dict:
+    """Detecta el pais REAL de operacion mirando el contenido de la pagina
+    (telefono del footer, menciones de pais/ciudad, moneda). El TLD es el ultimo
+    recurso. Devuelve {name, gl, source}."""
+    h = (html or "")
+    low = h.lower()
+
+    # 1) Telefonos: cuenta votos por prefijo (+CC o 00CC)
+    votes: dict[tuple, int] = {}
+    for m in re.finditer(r"(?:\+|\b00)\s?(\d{1,4})", h):
+        digits = m.group(1)
+        for code, name, gl in _CALL_CODES:
+            if digits.startswith(code):
+                votes[(name, gl)] = votes.get((name, gl), 0) + 1
+                break
+    if votes:
+        (name, gl), _ = max(votes.items(), key=lambda kv: kv[1])
+        return {"name": name, "gl": gl, "source": "telefono"}
+
+    # 2) Menciones de pais/ciudad/moneda
+    hint_votes: dict[str, int] = {}
+    for gl, (name, kws) in _GEO_HINTS.items():
+        c = sum(low.count(kw) for kw in kws)
+        if c:
+            hint_votes[gl] = c
+    if hint_votes:
+        gl = max(hint_votes, key=hint_votes.get)
+        return {"name": _GEO_HINTS[gl][0], "gl": gl, "source": "contenido"}
+
+    # 3) TLD de pais como ultimo recurso
+    host = (domain or "").lower().split("/")[0]
+    tld = host.rsplit(".", 1)[-1] if "." in host else ""
+    tld_map = {"es": ("España", "es"), "mx": ("México", "mx"), "co": ("Colombia", "co"),
+               "ar": ("Argentina", "ar"), "cl": ("Chile", "cl"), "pe": ("Perú", "pe"),
+               "pa": ("Panamá", "pa"), "pt": ("Portugal", "pt")}
+    if tld in tld_map:
+        return {"name": tld_map[tld][0], "gl": tld_map[tld][1], "source": "tld"}
+    return {"name": "", "gl": "", "source": "desconocido"}
+
+
+# ---- Deteccion de analitica/pixeles (y duplicados = plus) --------------------
+
+def detect_analytics(html: str) -> dict:
+    h = html or ""
+    ga4 = sorted(set(re.findall(r"G-[A-Z0-9]{6,}", h)))
+    ua = sorted(set(re.findall(r"UA-\d{4,}-\d+", h)))
+    gtm = sorted(set(re.findall(r"GTM-[A-Z0-9]{5,}", h)))
+    aw = sorted(set(re.findall(r"AW-\d{6,}", h)))
+    fb_ids = sorted(set(re.findall(r"fbq\(\s*['\"]init['\"]\s*,\s*['\"](\d{6,})['\"]", h)))
+    gtag_loads = len(re.findall(r"gtag/js\?id=", h))
+
+    tools = []
+    if ga4:
+        tools.append("Google Analytics 4")
+    if ua:
+        tools.append("Universal Analytics (obsoleto)")
+    if gtm:
+        tools.append("Google Tag Manager")
+    if aw:
+        tools.append("Google Ads")
+    if fb_ids or re.search(r"connect\.facebook\.net|fbq\(", h):
+        tools.append("Meta Pixel")
+    if re.search(r"clarity\.ms|clarity\(", h):
+        tools.append("Microsoft Clarity")
+    if re.search(r"static\.hotjar\.com|hotjar", h):
+        tools.append("Hotjar")
+    if re.search(r"analytics\.tiktok\.com", h):
+        tools.append("TikTok Pixel")
+    if re.search(r"snap\.licdn\.com|_linkedin_partner_id", h):
+        tools.append("LinkedIn Insight")
+
+    dup = []
+    if len(ga4) > 1:
+        dup.append(f"{len(ga4)} mediciones GA4 distintas ({', '.join(ga4)})")
+    if gtag_loads > 1:
+        dup.append(f"la libreria de Google (gtag.js) se carga {gtag_loads} veces")
+    if ga4 and gtm:
+        dup.append("GA4 cargado directo Y por Tag Manager (posible doble conteo)")
+    if len(fb_ids) > 1:
+        dup.append(f"{len(fb_ids)} Meta Pixel distintos")
+    for _id in ga4:
+        if len(re.findall(re.escape(_id), h)) >= 3:
+            dup.append(f"el ID {_id} aparece repetido en la pagina")
+            break
+
+    return {"tools": tools, "ga4": ga4, "ua": ua, "gtm": gtm, "fb": fb_ids,
+            "has_any": bool(tools), "duplicated": bool(dup), "dup_notes": dup[:3]}
+
+
 # ---- PageSpeed Insights (opcional, requiere API key) -------------------------
 
 async def fetch_psi(client: httpx.AsyncClient, url: str, strategy: str = "mobile") -> dict | None:
@@ -276,28 +393,41 @@ async def fetch_psi(client: httpx.AsyncClient, url: str, strategy: str = "mobile
         return None
 
 
-async def fetch_psi_full(url: str) -> dict | None:
-    """Movil + escritorio con metricas. Pensado para segundo plano (crea su
-    propio cliente). Devuelve None si no hay API key."""
+async def _psi_desktop(url: str, tries: int = 2) -> dict | None:
+    """Escritorio con PageSpeed (Lighthouse). None si no hay API key."""
     if not os.getenv("GOOGLE_PSI_API_KEY", "").strip():
         return None
-    async def _one(client, strat, tries=2):
-        for i in range(tries):
-            r = await fetch_psi(client, url, strat)
+    async with httpx.AsyncClient(headers=HEADERS) as client:
+        for _ in range(tries):
+            r = await fetch_psi(client, url, "desktop")
             if r:
                 return r
             await asyncio.sleep(1.5)
-        return None
+    return None
+
+
+async def fetch_psi_full(url: str) -> dict | None:
+    """Velocidad movil + escritorio.
+
+    - MOVIL: medido con dispositivo propio (Playwright, iPhone), SIN el throttling
+      4G de PageSpeed, para una lectura justa de movil en buena conexion.
+    - ESCRITORIO: PageSpeed / Lighthouse (no aplica throttling agresivo).
+    """
+    import perf  # noqa: PLC0415
     try:
-        # movil y escritorio EN PARALELO (con API key se permite); timeout amplio
-        async with httpx.AsyncClient(headers=HEADERS) as client:
-            m, d = await asyncio.gather(
-                _one(client, "mobile"),
-                _one(client, "desktop"),
-                return_exceptions=True,
-            )
+        m, d = await asyncio.gather(
+            perf.measure_device(url, mobile=True),
+            _psi_desktop(url),
+            return_exceptions=True,
+        )
         m = m if isinstance(m, dict) else None
         d = d if isinstance(d, dict) else None
+        # si el escritorio (PSI) falla pero tenemos Chromium, lo medimos tambien con dispositivo
+        if not d:
+            try:
+                d = await perf.measure_device(url, mobile=False)
+            except Exception:  # noqa: BLE001
+                d = None
         if not m and not d:
             return None
         return {"mobile": m, "desktop": d}
@@ -332,6 +462,13 @@ async def analyze(raw_url: str) -> Result:
         https_ok = str(home.url).lower().startswith("https://")
 
         meta = parse_home(home_html, res.final_url)
+        # Pais real por contenido (telefono/menciones), no solo por TLD
+        country = detect_country(home_html, res.domain)
+        meta["country"] = country.get("name", "")
+        meta["gl"] = country.get("gl", "")
+        meta["country_source"] = country.get("source", "")
+        # Analitica / pixeles instalados (y si estan duplicados)
+        analytics = detect_analytics(home_html)
         res.meta = meta
 
         # Archivos clave en paralelo
@@ -425,6 +562,7 @@ async def analyze(raw_url: str) -> Result:
         "links_broken": broken,
         "broken_ratio": round(broken_ratio, 2),
         "broken_examples": broken_examples,
+        "analytics": analytics,
     }
 
     _score(res)
@@ -545,6 +683,21 @@ def _score(res: Result) -> None:
                         "severity": "alto" if s["broken_ratio"] > 0.2 else "medio"})
     elif s["links_checked"]:
         good.append("En nuestra muestra no encontramos enlaces rotos.")
+
+    # ---------- Analitica / medicion ----------
+    an = s.get("analytics") or {}
+    if an.get("duplicated"):
+        improve.append({"title": "Tu analitica esta duplicada",
+                        "detail": "Detectamos medicion repetida (" + "; ".join(an.get("dup_notes", [])) +
+                                  "). Eso infla visitas y conversiones y ensucia tus decisiones. Hay que dejar una sola.",
+                        "severity": "medio"})
+    elif not an.get("has_any"):
+        improve.append({"title": "No detectamos analitica web",
+                        "detail": "Sin Google Analytics 4 ni Tag Manager no sabes que paginas te traen clientes "
+                                  "ni de donde llegan. Es lo primero para poder mejorar con datos.",
+                        "severity": "medio"})
+    else:
+        good.append("Tienes analitica instalada (" + ", ".join(an.get("tools", [])[:3]) + ").")
 
     if not m["description"]:
         improve.append({"title": "Falta la descripcion de la pagina",

@@ -121,22 +121,38 @@ async def _ask(client: httpx.AsyncClient, provider: str, key: str, model: str,
     return "".join(b.get("text", "") for b in data.get("content", [])).strip()
 
 
-def _engines() -> list[dict]:
-    """Motores de IA disponibles segun las keys. Gemini usa busqueda en vivo."""
-    engines = []
-    gk = os.getenv("GEMINI_API_KEY", "").strip()
-    if gk:
-        engines.append({"name": "Gemini", "provider": "gemini", "key": gk,
-                        "model": GEMINI_MODEL, "grounded": True})
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+
+# ccTLD -> (nombre de pais, codigo gl). El pais se toma del dominio real.
+CCTLD = {
+    "es": ("España", "es"), "mx": ("México", "mx"), "ar": ("Argentina", "ar"),
+    "cl": ("Chile", "cl"), "co": ("Colombia", "co"), "pe": ("Perú", "pe"),
+    "uy": ("Uruguay", "uy"), "ec": ("Ecuador", "ec"), "bo": ("Bolivia", "bo"),
+    "py": ("Paraguay", "py"), "ve": ("Venezuela", "ve"), "pa": ("Panamá", "pa"),
+    "gt": ("Guatemala", "gt"), "cr": ("Costa Rica", "cr"), "sv": ("El Salvador", "sv"),
+    "hn": ("Honduras", "hn"), "ni": ("Nicaragua", "ni"), "do": ("República Dominicana", "do"),
+    "pr": ("Puerto Rico", "pr"), "us": ("Estados Unidos", "us"), "pt": ("Portugal", "pt"),
+    "br": ("Brasil", "br"), "fr": ("Francia", "fr"), "it": ("Italia", "it"),
+    "de": ("Alemania", "de"), "uk": ("Reino Unido", "gb"), "gb": ("Reino Unido", "gb"),
+}
+
+
+def _country_from_domain(domain: str) -> tuple[str, str] | None:
+    """Detecta (pais, codigo) por el TLD de pais. None si es un TLD generico."""
+    host = (domain or "").strip().lower().split("/")[0].split(":")[0]
+    tld = host.rsplit(".", 1)[-1] if "." in host else ""
+    if tld in CCTLD and tld not in ("com", "net", "org"):
+        return CCTLD[tld]
+    return None
+
+
+def _openai_engine() -> dict | None:
+    """Unico motor: ChatGPT (OpenAI) con busqueda web en vivo."""
     ok = os.getenv("OPENAI_API_KEY", "").strip()
-    if ok:
-        engines.append({"name": "ChatGPT", "provider": "openai", "key": ok,
-                        "model": os.getenv("OPENAI_MODEL", "gpt-4o-mini"), "grounded": True})
-    ak = os.getenv("ANTHROPIC_API_KEY", "").strip()
-    if ak:
-        engines.append({"name": "Claude", "provider": "anthropic", "key": ak,
-                        "model": ANTHROPIC_MODEL, "grounded": False})
-    return engines
+    if not ok:
+        return None
+    return {"name": "ChatGPT", "provider": "openai", "key": ok,
+            "model": OPENAI_MODEL, "grounded": True}
 
 
 def _parse_know(txt: str) -> tuple[bool, str]:
@@ -212,106 +228,152 @@ async def _query_engine(client, eng: dict, q_know: str, q_reco: str, brand: str)
 
 
 async def run_ai_geo(domain: str, meta: dict) -> dict | None:
-    engines = _engines()
-    if not engines:
+    """GEO con UN solo motor: ChatGPT (OpenAI) con busqueda web en vivo.
+
+    Hace 3 preguntas de CATEGORIA reales (las que escribiria un cliente en su pais)
+    y comprueba en cada una si la marca aparece. Al probar el mismo sitio con 3
+    fraseos, el veredicto deja de contradecirse. Competencia enfocada en el pais
+    del dominio real.
+    """
+    eng = _openai_engine()
+    if not eng:
         return None
+    prov, key, model = eng["provider"], eng["key"], eng["model"]
 
     brand = derive_brand(meta, domain)
     service = derive_service(meta) or f"servicios de {brand}"
+    full_url = domain if domain.startswith("http") else f"https://{domain}"
+
+    # Pais REAL: primero lo detectado por contenido (telefono/menciones) en el crawl;
+    # si no, por TLD; si no, lo infiere el modelo (PAIS: xx).
+    meta_country = (meta.get("country") or "").strip()
+    meta_gl = (meta.get("gl") or "").strip()
+    det = _country_from_domain(domain)
+    if meta_country:
+        country, gl = meta_country, (meta_gl or (det[1] if det else "es"))
+    elif det:
+        country, gl = det
+    else:
+        country, gl = "", "es"
+    have_country = bool(country)
 
     q_know = (
-        f"¿Conoces la empresa o marca \"{brand}\" (sitio web {domain})? Si la conoces con "
-        f"certeza, describe en 2-3 frases a que se dedica. Si NO tienes informacion fiable, "
-        f"responde EXACTAMENTE con NO_LA_CONOZCO y nada mas. No te inventes datos."
+        f"Usa búsqueda web. Visita y consulta el sitio {full_url}. "
+        f"¿Qué es \"{brand}\" y a qué se dedica? Si encuentras el sitio y su información, "
+        f"descríbelo en 2-3 frases. Si NO encuentras información fiable de ESE sitio en concreto, "
+        f"responde EXACTAMENTE con NO_LA_CONOZCO y nada más. No inventes datos."
     )
-    q_reco = (
-        f"Busca en la web TIENDAS o EMPRESAS REALES que compitan DIRECTAMENTE con \"{brand}\" ({domain}): "
-        f"el mismo tipo de negocio y la misma zona. Contexto del negocio: \"{service}\". "
-        f"Dame 4 o 5 competidores REALES. Para cada uno, una linea con este formato exacto: "
-        f"Nombre de la empresa | dominio.com  (su sitio web). "
-        f"MUY IMPORTANTE: solo empresas/tiendas reales con web propia. NO listes tipos de producto, "
-        f"materiales ni categorias (por ejemplo 'nylon', 'algodon', 'muebles') — eso NO son empresas. "
-        f"Al final, en una linea aparte, escribe \"INCLUIDA: SI\" si recomendarias a \"{brand}\", o \"INCLUIDA: NO\"."
+    ctx_pais = f"en {country}" if country else "en su país"
+    q_queries = (
+        f"Para el negocio de \"{brand}\" (sitio {full_url}; contexto: \"{service}\"), "
+        f"escribe EXACTAMENTE 3 búsquedas que un cliente {ctx_pais} escribiría para encontrar ese tipo "
+        f"de servicio SIN conocer la marca (búsquedas de categoría, con ciudad/país si aplica). "
+        f"Una por línea, sin numerar."
+        + ("" if have_country else " Luego una última línea 'PAIS: xx' con el código de país de 2 letras del mercado.")
     )
     q_gap = (
-        f"En 2 frases y en lenguaje sencillo de negocio: ¿que le falta a la empresa \"{brand}\" ({domain}) "
-        f"para que la IA la reconozca y la recomiende cuando alguien pide su tipo de servicio (sin nombrarla)? "
-        f"Se concreto y accionable. No uses vinetas."
-    )
-    q_queries = (
-        f"Para la empresa \"{brand}\" ({service}), genera lo que un cliente escribiria en Google "
-        f"para encontrar ese servicio SIN conocer la marca. Devuelve EXACTAMENTE 3 busquedas de "
-        f"categoria, una por linea, sin numerar. Luego una ultima linea \"PAIS: xx\" con el codigo "
-        f"de pais de 2 letras del mercado (es, us, mx, co, ar...). Nada mas."
+        f"Usa búsqueda web sobre {full_url}. En 2 frases y en lenguaje sencillo de negocio: "
+        f"¿qué le falta a \"{brand}\" para que la IA la reconozca y la recomiende cuando alguien pide su "
+        f"tipo de servicio {ctx_pais} (sin nombrar la marca)? Sé concreto y accionable. Sin viñetas."
     )
 
     try:
         async with httpx.AsyncClient() as client:
-            # genera las busquedas con un motor fiable (OpenAI si esta; si no, el primero)
-            gen = next((e for e in engines if e["provider"] == "openai"), engines[0])
-            g_ground = gen["grounded"]
-            tasks = [_query_engine(client, e, q_know, q_reco, brand) for e in engines]
-            tasks.append(_ask(client, gen["provider"], gen["key"], gen["model"], q_queries, max_tokens=250))
-            tasks.append(_ask(client, gen["provider"], gen["key"], gen["model"], q_gap, max_tokens=280, grounded=g_ground))
-            results = await asyncio.gather(*tasks, return_exceptions=True)
+            # Ronda 1: genera las 3 busquedas + reconocimiento de marca + gap (en paralelo)
+            r_queries, r_know, r_gap = await asyncio.gather(
+                _ask(client, prov, key, model, q_queries, max_tokens=250, grounded=False),
+                _ask(client, prov, key, model, q_know, max_tokens=600, grounded=True),
+                _ask(client, prov, key, model, q_gap, max_tokens=300, grounded=True),
+                return_exceptions=True,
+            )
+            queries_txt = "" if isinstance(r_queries, Exception) else (r_queries or "")
+            know_txt = "" if isinstance(r_know, Exception) else (r_know or "")
+            gap_txt = "" if isinstance(r_gap, Exception) else (r_gap or "")
+
+            # Parseo de las 3 busquedas (+ PAIS si el dominio era generico)
+            cat_queries = []
+            for ln in queries_txt.splitlines():
+                ln = ln.strip(" -•\t0123456789.)")
+                mp = re.match(r"(?i)PAIS:\s*([a-z]{2})", ln)
+                if mp and not have_country:
+                    gl = mp.group(1).lower()
+                    country = next((v[0] for v in CCTLD.values() if v[1] == gl), country)
+                elif 4 < len(ln) < 90 and "PAIS" not in ln.upper():
+                    cat_queries.append(ln)
+            cat_queries = cat_queries[:3]
+            pais_txt = country or "su país"
+
+            # Ronda 2: por cada busqueda de categoria, ¿aparece la marca? ¿a quien nombra?
+            def _q_cat(search: str) -> str:
+                return (
+                    f"Usa búsqueda web. Un cliente en {pais_txt} busca en un asistente de IA: \"{search}\". "
+                    f"Respóndele como lo harías de verdad: nombra 4-5 EMPRESAS REALES (con su dominio) que "
+                    f"recomendarías en {pais_txt}, una por línea con formato 'Nombre | dominio.com'. "
+                    f"Solo empresas reales con web propia; NADA de tipos de producto, materiales ni categorías. "
+                    f"Al final, en una línea aparte, escribe 'INCLUIDA: SI' si entre ellas está \"{brand}\" "
+                    f"({domain}), o 'INCLUIDA: NO'."
+                )
+            cat_tasks = [_ask(client, prov, key, model, _q_cat(s), max_tokens=700, grounded=True)
+                         for s in cat_queries] or \
+                        [_ask(client, prov, key, model, _q_cat(service), max_tokens=700, grounded=True)]
+            cat_results = await asyncio.gather(*cat_tasks, return_exceptions=True)
     except Exception as exc:  # noqa: BLE001
         return {"available": True, "error": str(exc), "brand": brand}
 
-    gap_txt = "" if isinstance(results[-1], Exception) else (results[-1] or "")
-    per_engine = [r for r in results[:-2] if isinstance(r, dict) and "name" in r]
-    answered = [e for e in per_engine if not e.get("error") and e.get("knows") is not None]
-    if not per_engine:
-        return {"available": True, "error": "sin respuesta de los motores", "brand": brand}
-    if not answered:
-        # todos los motores fallaron (p.ej. limite temporal): no fingimos un veredicto
-        return {"available": True, "error": "limite temporal de la IA", "brand": brand,
-                "engines": {e["name"]: e for e in per_engine},
-                "engine_names": [e["name"] for e in per_engine]}
-    queries_txt = "" if isinstance(results[-2], Exception) else (results[-2] or "")
+    if not know_txt.strip() and all(isinstance(x, Exception) or not x for x in cat_results):
+        low = (str(r_know) if isinstance(r_know, Exception) else "").lower()
+        limited = any(t in low for t in ("429", "quota", "rate"))
+        return {"available": True, "brand": brand,
+                "error": "límite temporal de la IA" if limited else "sin respuesta de la IA"}
 
-    # Busquedas de categoria + mercado
-    cat_queries = []
-    gl = "es"
-    for ln in queries_txt.splitlines():
-        ln = ln.strip(" -•\t")
-        mp = re.match(r"(?i)PAIS:\s*([a-z]{2})", ln)
-        if mp:
-            gl = mp.group(1).lower()
-        elif 4 < len(ln) < 80 and "PAIS" not in ln.upper():
-            cat_queries.append(ln)
-    cat_queries = cat_queries[:3]
+    knows_brand, know_raw = _parse_know(know_txt)
 
-    # Agregado: SOLO motores que respondieron de verdad
-    engines_map = {e["name"]: e for e in per_engine}   # incluye estado de los que fallaron
-    knows_any = any(e["knows"] for e in answered)
-    reco_any = any(e.get("recommended") is True for e in answered)
-    reco_all_no = all(e.get("recommended") is False for e in answered if e.get("recommended") is not None)
-    knower = next((e for e in answered if e["knows"]), None)
-    comps = []
-    seen = set()
-    for e in answered:
-        for c in e.get("competitors", []):
+    # Agrega los 3 fraseos: aparece / no aparece + competencia (union, del pais)
+    questions = []
+    comps, seen = [], set()
+    appears = 0
+    valid = 0
+    for i, search in enumerate(cat_queries or [service]):
+        res = cat_results[i] if i < len(cat_results) else None
+        txt = "" if (res is None or isinstance(res, Exception)) else (res or "")
+        if not txt.strip():
+            questions.append({"q": search, "appears": None, "named": []})
+            continue
+        included, qcomps, _ = _parse_reco(txt, brand)
+        valid += 1
+        if included is True:
+            appears += 1
+        named = []
+        for c in qcomps:
             nm = (c.get("name") if isinstance(c, dict) else str(c)).strip()
-            if nm and nm.lower() not in seen:
+            named.append(nm)
+            if nm and nm.lower() not in seen and brand.lower() not in nm.lower():
                 seen.add(nm.lower())
                 comps.append(c if isinstance(c, dict) else {"name": nm, "domain": None})
+        questions.append({"q": search, "appears": included, "named": named[:4]})
 
+    if valid == 0 and not know_txt.strip():
+        return {"available": True, "brand": brand, "error": "sin respuesta de la IA"}
+
+    recommended = None
+    if valid:
+        recommended = True if appears >= 2 else (False if appears == 0 else None)
+    reco_frac = (appears / valid) if valid else 0.0
+    score = round(100 * (0.5 * (1 if knows_brand else 0) + 0.5 * reco_frac))
     gap = re.sub(r"\s+", " ", gap_txt).strip()[:400]
-    n = len(answered)
-    score = round(100 * (sum(1 for e in answered if e["knows"]) * 0.5 +
-                         sum(1 for e in answered if e.get("recommended") is True) * 0.5) / n)
 
     return {
         "available": True,
         "brand": brand,
         "service": service,
-        "engines": engines_map,
-        "engine_names": [e["name"] for e in per_engine],
-        "answered_names": [e["name"] for e in answered],
-        "knows_brand": knows_any,
-        "brand_description": (knower or answered[0]).get("know_raw", "")[:400] if knower else "",
-        "recommended": True if reco_any else (False if reco_all_no else None),
+        "country": country or "",
+        "engine_names": ["ChatGPT"],
+        "answered_names": ["ChatGPT"],
+        "knows_brand": knows_brand,
+        "brand_description": know_raw[:400] if knows_brand else "",
+        "recommended": recommended,
         "competitors": comps[:6],
+        "questions": questions,
         "gap": gap,
         "category_queries": cat_queries,
         "gl": gl,

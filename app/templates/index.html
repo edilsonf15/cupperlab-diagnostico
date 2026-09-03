@@ -375,12 +375,30 @@
     var ai=r.geo_ai, aihi=document.getElementById("aihi");
     if(ai && ai.available && !ai.error && (ai.answered_names||[]).length){
       var comp=(ai.competitors||[]).slice(0,3).map(function(c){ return c&&c.name?c.name:c; }).join(", ");
+      var qs=ai.questions||[];
+      var qhtml="";
+      if(qs.length){
+        qhtml='<div style="margin-top:26px">'+
+          '<p class="mono" style="font-size:11.5px;color:#0E8FB0;margin:0 0 6px">◆ LAS 3 PREGUNTAS QUE LE HICIMOS A CHATGPT</p>'+
+          '<p style="margin:0 0 10px;font-size:13.5px;color:rgba(10,16,20,0.55)">Búsquedas reales de un cliente en '+esc(ai.country||"tu país")+'. Comprobamos en vivo si apareces:</p>'+
+          qs.map(function(q){
+            var ap=q.appears===true, no=q.appears===false;
+            var icon=ap?"✓":(no?"✕":"—"), col=ap?"#0E8FB0":(no?WARN:"#9aa4b0");
+            var lab=ap?"apareces":(no?"no apareces":"sin dato");
+            var named=(q.named&&q.named.length)?'<div style="margin-top:4px;font-size:13px;color:rgba(10,16,20,0.5)">Nombra a: '+esc(q.named.join(", "))+'</div>':"";
+            return '<div style="padding:12px 0;border-top:1px solid rgba(10,16,20,0.07)">'+
+              '<div style="display:flex;gap:10px;align-items:baseline">'+
+                '<span style="color:'+col+';font-weight:700;flex-shrink:0">'+icon+'</span>'+
+                '<div><span style="font-size:15px">“'+esc(q.q)+'”</span> <span class="mono" style="font-size:12px;color:'+col+'">· '+lab+'</span>'+named+'</div>'+
+              '</div></div>';
+          }).join("")+'</div>';
+      }
       aihi.innerHTML=
-        '<p class="mono" style="font-size:11.5px;color:#0E8FB0;margin:0 0 16px">◆ CÓMO TE VE LA IA</p>'+
+        '<p class="mono" style="font-size:11.5px;color:#0E8FB0;margin:0 0 16px">◆ CÓMO TE VE LA IA (CHATGPT, EN VIVO)</p>'+
         '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:20px">'+
-          '<div><p style="margin:0;font-size:15.5px;line-height:1.6"><b style="color:'+(ai.knows_brand?"#0E8FB0":WARN)+'">'+(ai.knows_brand?"✓":"✕")+' ¿La IA sabe quién eres?</b><br>'+(ai.knows_brand?"Sí, te describe.":"No tiene información fiable de ti.")+'</p></div>'+
-          '<div><p style="margin:0;font-size:15.5px;line-height:1.6"><b style="color:'+(ai.recommended?"#0E8FB0":WARN)+'">'+(ai.recommended?"✓":"✕")+' ¿Te recomienda al pedir tu servicio?</b><br>'+(ai.recommended?"Sí, te incluye.":(ai.recommended===false?("No: nombra a "+esc(comp)+", no a ti."):"No se pudo determinar."))+'</p></div>'+
-        '</div>';
+          '<div><p style="margin:0;font-size:15.5px;line-height:1.6"><b style="color:'+(ai.knows_brand?"#0E8FB0":WARN)+'">'+(ai.knows_brand?"✓":"✕")+' ¿ChatGPT sabe quién eres?</b><br>'+(ai.knows_brand?"Sí, te describe.":"No tiene información fiable de tu sitio.")+'</p></div>'+
+          '<div><p style="margin:0;font-size:15.5px;line-height:1.6"><b style="color:'+(ai.recommended?"#0E8FB0":WARN)+'">'+(ai.recommended?"✓":"✕")+' ¿Te recomienda al pedir tu servicio?</b><br>'+(ai.recommended?"Sí, te incluye.":(ai.recommended===false?("No: nombra a otros, no a ti."):"Solo a veces / no es consistente."))+'</p></div>'+
+        '</div>'+qhtml;
       aihi.classList.remove("hidden");
     } else { aihi.classList.add("hidden"); }
 
