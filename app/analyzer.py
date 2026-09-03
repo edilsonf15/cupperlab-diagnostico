@@ -309,6 +309,45 @@ def detect_country(html: str, domain: str) -> dict:
     return {"name": "", "gl": "", "source": "desconocido"}
 
 
+# ---- Analisis de robots.txt (que bloquea, que conviene bloquear) -------------
+
+def analyze_robots(robots_text: str) -> dict:
+    txt = robots_text or ""
+    disallow, allow = [], []
+    blocks_all = False
+    for raw in txt.splitlines():
+        l = raw.strip()
+        if not l or l.startswith("#"):
+            continue
+        low = l.lower()
+        if low.startswith("disallow:"):
+            path = l.split(":", 1)[1].strip()
+            if path:
+                disallow.append(path)
+                if path == "/":
+                    blocks_all = True
+        elif low.startswith("allow:"):
+            allow.append(l.split(":", 1)[1].strip())
+    has_sitemap = bool(re.search(r"(?im)^\s*sitemap:", txt))
+    joined = " ".join(d.lower() for d in disallow)
+    common = {
+        "el carrito y el checkout": ["cart", "checkout", "carrito", "basket", "pedido"],
+        "el buscador interno": ["?s=", "/search", "/buscar", "?q=", "/?s"],
+        "los filtros con parametros (?)": ["*?", "/*?", "?"],
+        "las paginas de etiqueta/tag": ["/tag", "/etiqueta", "/label", "/categoria/"],
+        "el area de administracion": ["wp-admin", "/admin", "wp-login", "/login"],
+    }
+    suggest = [name for name, kws in common.items() if not any(k in joined for k in kws)]
+    return {
+        "present": bool(txt.strip()),
+        "disallow_count": len(disallow),
+        "blocks_all": blocks_all,
+        "has_sitemap": has_sitemap,
+        "disallow_sample": disallow[:6],
+        "suggest_block": suggest[:4],
+    }
+
+
 # ---- Deteccion de analitica/pixeles (y duplicados = plus) --------------------
 
 def detect_analytics(html: str) -> dict:
@@ -565,6 +604,7 @@ async def analyze(raw_url: str) -> Result:
         "broken_ratio": round(broken_ratio, 2),
         "broken_examples": broken_examples,
         "analytics": analytics,
+        "robots_info": analyze_robots(robots_text if robots_ok else ""),
     }
 
     _score(res)

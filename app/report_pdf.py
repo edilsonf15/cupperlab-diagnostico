@@ -75,45 +75,75 @@ def build_plan(r: dict) -> list[dict]:
     def add(text, impacto, esfuerzo, fase):
         plan.append({"text": text, "impacto": impacto, "esfuerzo": esfuerzo, "fase": fase})
 
-    if ai.get("available") and not ai.get("error"):
-        if not ai.get("knows_brand"):
-            add("Hacer que la IA te reconozca: ficha de empresa clara, perfiles consistentes y rastro externo "
-                "(directorios, prensa, resenas) que la IA pueda citar.", "Alto", "Medio", 2)
-        if ai.get("recommended") is False:
-            add("Entrar en las recomendaciones de la IA: una pagina por servicio con el vocabulario del cliente "
-                "y senales de autoridad para que te mencione junto a tu competencia.", "Alto", "Medio", 2)
+    rb = s.get("robots_info") or {}
+    an = s.get("analytics") or {}
+    # --- Base tecnica (que exista y sea rastreable) ---
+    if not s.get("https"):
+        add("Activar la conexion segura (HTTPS): sin candado Google penaliza y el navegador avisa de web no segura.",
+            "Alto", "Bajo", 1)
+    if not m.get("viewport"):
+        add("Adaptar la web a movil (viewport): la mayoria de tus clientes te abren desde el celular.", "Alto", "Medio", 1)
+    if rb.get("blocks_all"):
+        add("URGENTE: tu robots.txt bloquea TODO el sitio (Disallow: /). Google no puede rastrearte. Quitar ese bloqueo.",
+            "Alto", "Bajo", 1)
+    elif not rb.get("present"):
+        add("Publicar un robots.txt que guie el rastreo de Google y declare el mapa del sitio.", "Medio", "Bajo", 1)
+    if rb.get("present") and rb.get("suggest_block"):
+        add("Afinar el robots.txt: bloquear " + ", ".join(rb["suggest_block"]) +
+            " para que Google no gaste rastreo en paginas sin valor y priorice las que venden.", "Medio", "Bajo", 2)
+    if not s.get("sitemap"):
+        add("Crear el mapa del sitio (sitemap.xml) para que Google y la IA descubran todas tus paginas.", "Alto", "Bajo", 1)
+    elif not s.get("sitemap_in_robots"):
+        add("Declarar el mapa del sitio dentro del robots.txt para que Google lo encuentre antes.", "Bajo", "Bajo", 2)
+    if s.get("links_broken", 0) > 0:
+        add(f"Reparar los {s['links_broken']} enlace(s) roto(s) (404) y limpiar el mapa del sitio (quitar etiquetas y paginas vacias).",
+            "Medio", "Medio", 2)
+    # --- On-page (que Google entienda y muestre) ---
+    if not m.get("title") or not (25 <= len(m.get("title", "")) <= 65):
+        add("Escribir titulos unicos por pagina (55-60 caracteres) con el servicio y la ciudad.", "Alto", "Bajo", 1)
     if not m.get("description"):
-        add("Escribir titulo y descripcion unicos por pagina, con servicio y ciudad: es lo que Google muestra "
-            "y lo que la IA cita.", "Alto", "Bajo", 1)
-    if not m.get("schema_types"):
-        add("Anadir las etiquetas invisibles del negocio (datos estructurados: organizacion, servicios, "
-            "preguntas frecuentes) para que Google y la IA te entiendan.", "Alto", "Bajo", 1)
+        add("Escribir una meta descripcion por pagina: es el resumen que Google muestra y que la IA cita.", "Alto", "Bajo", 1)
     if m.get("h1_count", 0) != 1:
         add("Marcar un titular principal (H1) claro y unico en cada pagina.", "Medio", "Bajo", 1)
+    if not m.get("canonical"):
+        add("Anadir la URL canonica para que Google no vea paginas duplicadas.", "Medio", "Bajo", 2)
+    if not m.get("lang"):
+        add("Declarar el idioma de la web (atributo lang) para paises e IA.", "Bajo", "Bajo", 2)
+    if m.get("word_count", 0) < 300:
+        add("Ampliar el contenido de las paginas clave: texto propio que responda lo que busca el cliente.", "Medio", "Medio", 2)
     if not (m.get("og_title") and m.get("og_image")):
-        add("Poner la vista previa al compartir (Open Graph) para ganar clics al enlazarte.", "Medio", "Bajo", 1)
+        add("Poner la vista previa al compartir (Open Graph) para ganar clics al enlazarte en redes y chats.", "Medio", "Bajo", 1)
     it = m.get("img_total", 0); ia = m.get("img_alt", 0)
     if it and ia / it < 0.7:
         add(f"Describir las imagenes (texto ALT): hoy {ia} de {it} lo tienen. Ayuda al SEO y a la accesibilidad.",
             "Medio", "Bajo", 2)
-    if mob is not None and mob < 60:
-        add(f"Acelerar el movil (hoy {mob}/100): comprimir el peso de las imagenes y aligerar la portada "
-            f"para bajar de 2,5 s de carga.", "Alto", "Medio", 1)
-    if not s.get("sitemap_in_robots") and s.get("sitemap"):
-        add("Declarar el mapa del sitio (sitemap) dentro del robots.txt para que Google lo encuentre antes.",
-            "Bajo", "Bajo", 2)
-    if s.get("links_broken", 0) > 0:
-        add("Reparar los enlaces rotos y limpiar el mapa del sitio (quitar etiquetas y paginas vacias).",
-            "Medio", "Medio", 2)
+    # --- GEO / IA ---
+    if not m.get("schema_types"):
+        add("Anadir los datos estructurados (schema: organizacion, servicios, preguntas frecuentes) para que "
+            "Google y la IA entiendan tu negocio.", "Alto", "Bajo", 1)
+    if not m.get("has_sameas"):
+        add("Conectar tu marca como entidad (perfiles y sameAs) para que la IA sepa que eres una empresa real.",
+            "Medio", "Bajo", 2)
     if not s.get("llms_txt"):
         add("Publicar una guia para los buscadores con IA (llms.txt).", "Medio", "Bajo", 2)
-    if not s.get("https"):
-        add("Activar la conexion segura (HTTPS).", "Alto", "Bajo", 1)
-    if not m.get("viewport"):
-        add("Optimizar la web para movil.", "Alto", "Medio", 1)
-    add("Medir cada semana tu posicion en buscadores y si la IA ya te reconoce y te recomienda.",
-        "Medio", "Bajo", 2)
-    return plan[:8]
+    if ai.get("available") and not ai.get("error"):
+        if not ai.get("knows_brand"):
+            add("Hacer que la IA te reconozca: ficha de empresa clara, perfiles consistentes y rastro externo "
+                "(directorios, prensa, resenas) que la IA pueda citar.", "Alto", "Medio", 2)
+        if ai.get("recommended") is not True:
+            add("Entrar en las recomendaciones de la IA: una pagina por servicio con el vocabulario del cliente "
+                "y senales de autoridad para que te mencione junto a tu competencia.", "Alto", "Medio", 2)
+    # --- Datos y velocidad ---
+    if not an.get("has_any"):
+        add("Instalar analitica (Google Analytics 4 + Tag Manager) para saber que paginas te traen clientes.",
+            "Medio", "Bajo", 1)
+    elif an.get("duplicated"):
+        add("Corregir la analitica duplicada: dejar una sola medicion para que tus datos sean fiables.", "Medio", "Bajo", 1)
+    if mob is not None and mob < 60:
+        add(f"Acelerar el movil (hoy {mob}/100): comprimir imagenes y aligerar la portada para bajar de 2,5 s de carga.",
+            "Alto", "Medio", 1)
+    add("Medir cada semana tu posicion en buscadores y si la IA ya te reconoce y te recomienda.", "Medio", "Bajo", 2)
+    return plan
 
 
 def _pill(status: str, label: str) -> str:
@@ -203,7 +233,7 @@ def _priority_segbar(r: dict) -> str:
 
 def _plan_two_col(r: dict) -> str:
     """Un solo cuadro con todos los pasos juntos (2 columnas dentro del mismo box, sin fechas)."""
-    plan = build_plan(r)[:8]
+    plan = build_plan(r)
     mid = (len(plan) + 1) // 2
     cols = [plan[:mid], plan[mid:]]
 
@@ -222,8 +252,8 @@ def _plan_two_col(r: dict) -> str:
 def _que_esperamos(r: dict) -> str:
     score = r.get("score", 0); tgt = _target(score)
     ai = r.get("geo_ai") or {}
-    reconoce = "que ChatGPT, Gemini y las demas IA te reconozcan y te recomienden al pedir tu servicio" \
-        if not (ai.get("knows_brand") and ai.get("recommended")) else "consolidar tu presencia en las IA y ganar la categoria"
+    reconoce = "que la IA te reconozca y te recomiende al pedir tu servicio" \
+        if not (ai.get("knows_brand") and ai.get("recommended")) else "consolidar tu presencia en la IA y ganar la categoria"
     return f"""<div class="two" style="margin-top:2px">
       {_objetivo_box(score)}
       <div class="card"><h3>Que esperamos ver</h3>
@@ -232,24 +262,27 @@ def _que_esperamos(r: dict) -> str:
 
 
 def _porque_como(r: dict) -> str:
-    """Dos tarjetas: por que importa / como se corrige (como el informe)."""
+    """Por que importa cada carencia (el 'como se corrige' va en el Plan de accion)."""
     m = r.get("meta", {}); s = r.get("signals", {})
+    an = s.get("analytics") or {}
     por = []
-    if not m.get("description") or (m.get("h1_count", 0) != 1):
-        por.append(("no", "Sin titulo, descripcion y H1 unicos, Google <b>no sabe por que palabra mostrarte</b> ni la IA que citar de ti."))
+    if not m.get("title") or not (25 <= len(m.get("title", "")) <= 65):
+        por.append(("no", "Con el <b>titulo</b> mal dimensionado, Google recorta o ignora como te presenta en los resultados."))
+    if not m.get("description"):
+        por.append(("no", "Sin <b>meta descripcion</b>, Google inventa el resumen y la IA no tiene una frase clara con que citarte."))
+    if m.get("h1_count", 0) != 1:
+        por.append(("mid", "El <b>H1</b> le dice a Google de que va la pagina; si falta o hay varios, se diluye el mensaje."))
     if not m.get("schema_types"):
-        por.append(("no", "Sin datos estructurados, la IA tiene <b>cero etiquetas</b> con que entender tu negocio."))
+        por.append(("no", "Sin <b>datos estructurados</b>, la IA tiene cero etiquetas con que entender tu negocio y a quien sirves."))
+    if not m.get("has_sameas"):
+        por.append(("mid", "Tu <b>marca no esta conectada como entidad</b>: la IA no sabe si eres una empresa real y verificable."))
     if (m.get("img_total", 0) and m.get("img_alt", 0) / max(m["img_total"], 1) < 0.7):
-        por.append(("mid", "Imagenes sin texto ALT: <b>menos resultados enriquecidos</b> y menos accesibilidad."))
+        por.append(("mid", "Imagenes <b>sin texto ALT</b>: menos resultados enriquecidos en Google y menos accesibilidad."))
     if not s.get("llms_txt"):
-        por.append(("mid", "Sin guia para IA (llms.txt), los buscadores con IA no saben que mostrar de ti."))
-    por = por[:3] or [("mid", "Detalles finos por pulir; la base esta bien.")]
-
-    como = [
-        ("ok", "Escribir <b>titulo, descripcion y H1 unicos</b> por pagina, con el servicio y la ciudad."),
-        ("ok", "Anadir las <b>etiquetas invisibles</b> del negocio y la vista previa al compartir."),
-        ("ok", "Describir las imagenes y publicar la <b>guia para los buscadores con IA</b>."),
-    ]
+        por.append(("mid", "Sin <b>guia para IA (llms.txt)</b>, los buscadores con IA no saben que priorizar de tu sitio."))
+    if not an.get("has_any"):
+        por.append(("mid", "Sin <b>analitica</b> no sabes que paginas convierten, asi que no puedes mejorar con datos."))
+    por = por[:5] or [("ok", "La base on-page esta bien; quedan ajustes finos que refuerzan lo que ya funciona.")]
 
     def lis(items):
         out = ""
@@ -258,21 +291,44 @@ def _porque_como(r: dict) -> str:
             ico = {"no": "&#10005;", "mid": "!", "ok": "&#10003;"}[kind]
             out += f'<li><span class="i" style="background:{col}">{ico}</span>{txt}</li>'
         return out
-    return f"""<div class="block two">
-      <div class="mini"><h4><span class="d" style="background:{RED}"></span>Por que importa</h4><ul class="chk">{lis(por)}</ul></div>
-      <div class="mini"><h4><span class="d" style="background:{GREEN}"></span>Como se corrige</h4><ul class="chk">{lis(como)}</ul></div>
-    </div>"""
+    return f"""<div class="block card">
+      <div class="sectic" style="margin-bottom:8px">Por que importa cada carencia (como se corrige, en el plan de accion)</div>
+      <ul class="chk">{lis(por)}</ul></div>"""
+
+
+_STAT = {"crit": (RED, "&#10005;"), "hi": (OR7, "!"), "med": (AMBER, "!"), "ok": (GREEN, "&#10003;")}
+_ORD = {"crit": 0, "hi": 1, "med": 2, "ok": 3}
+
+
+def _check_list(items: list) -> str:
+    """Checklist en tarjetas (2 columnas), fallos primero."""
+    items = sorted(items, key=lambda x: _ORD.get(x[2], 2))
+    out = ""
+    for name, code, st, obs in items:
+        col, ico = _STAT.get(st, (AMBER, "!"))
+        out += (f'<div class="ck"><span class="cki" style="background:{col}">{ico}</span>'
+                f'<div class="ckb"><div class="ckt">{name} <span class="ckc" style="color:{col}">{code}</span></div>'
+                f'<div class="cko">{obs}</div></div></div>')
+    return f'<div class="cklist">{out}</div>'
 
 
 def _tech_rows(r: dict) -> str:
     s = r["signals"]; m = r["meta"]
+    rb = s.get("robots_info") or {}
+    if rb.get("blocks_all"):
+        robots_st, robots_code, robots_obs = "crit", "Bloquea todo", "Disallow: / — Google no puede rastrear el sitio"
+    elif not s["robots"]:
+        robots_st, robots_code, robots_obs = "hi", "Falta", "Sin robots.txt: no guias el rastreo de Google"
+    else:
+        extra = f'{rb.get("disallow_count",0)} reglas' + (", declara sitemap" if rb.get("has_sitemap") else ", no declara el sitemap")
+        robots_st = "ok" if rb.get("has_sitemap") else "med"
+        robots_code, robots_obs = "OK", extra
     rows = [
         ("Conexion segura (HTTPS)", "OK" if s["https"] else "Falla", "ok" if s["https"] else "crit",
          "Certificado valido" if s["https"] else "Sin candado de seguridad"),
         ("Respuesta del servidor", f'{s["home_status"]}', "ok" if s["home_status"] < 300 else "hi",
          f'Responde en {s["home_time"]}s'),
-        ("robots.txt", "OK" if s["robots"] else "Falta", "ok" if s["robots"] else "hi",
-         "Presente" + (", declara sitemap" if s["sitemap_in_robots"] else ", no declara el sitemap")),
+        ("robots.txt", robots_code, robots_st, robots_obs),
         ("Mapa del sitio (sitemap)", "OK" if s["sitemap"] else "Falta", "ok" if s["sitemap"] else "hi",
          f'{s["sitemap_total"]} URLs listadas' if s["sitemap"] else "No encontrado"),
         ("llms.txt (guia para IA)", "OK" if s["llms_txt"] else "404", "ok" if s["llms_txt"] else "hi",
@@ -283,10 +339,28 @@ def _tech_rows(r: dict) -> str:
         ("Preparada para movil", "OK" if m["viewport"] else "Falta", "ok" if m["viewport"] else "med",
          "Etiqueta viewport presente" if m["viewport"] else "Sin viewport movil"),
     ]
-    out = ""
-    for name, code, pill, obs in rows:
-        out += f'<tr><td>{name}</td><td class="c">{_pill(pill, code)}</td><td>{obs}</td></tr>'
-    return out
+    return _check_list(rows)
+
+
+def _robots_block(r: dict) -> str:
+    """Recuadro con el analisis del robots.txt: que bloquea y que conviene bloquear."""
+    rb = (r.get("signals") or {}).get("robots_info") or {}
+    if not rb.get("present"):
+        return ('<div class="block callout o"><b>robots.txt.</b> No encontramos robots.txt. Conviene publicarlo '
+                'para guiar a Google (que rastree lo importante) y declarar ahi tu mapa del sitio.</div>')
+    parts = []
+    if rb.get("blocks_all"):
+        parts.append('<span style="color:' + RED + '"><b>Bloquea TODO el sitio (Disallow: /)</b>: Google no puede rastrearte. Corregir ya.</span>')
+    if rb.get("disallow_sample"):
+        parts.append("Hoy bloquea: <b>" + ", ".join(rb["disallow_sample"]) + "</b>.")
+    if rb.get("suggest_block"):
+        parts.append("Convendria bloquear tambien " + ", ".join(rb["suggest_block"]) +
+                     " para que Google no gaste rastreo en paginas sin valor.")
+    if not rb.get("has_sitemap"):
+        parts.append("No declara el <b>sitemap</b> dentro del robots: anadirlo ayuda a que lo descubra antes.")
+    if not parts:
+        parts.append("Bien configurado: guia el rastreo y declara el sitemap.")
+    return '<div class="block callout o"><b>Analisis del robots.txt.</b> ' + " ".join(parts) + "</div>"
 
 
 def _onpage_rows(r: dict) -> str:
@@ -315,12 +389,9 @@ def _onpage_rows(r: dict) -> str:
                  "ok" if cov >= 70 else ("med" if cov >= 30 else "hi"),
                  f"{ia}/{it} imagenes con ALT ({cov}%)" if it else "sin imagenes"))
     hl = m.get("hreflangs", [])
-    rows.append(("Idiomas / hreflang", "OK" if hl else "Uno", "ok" if hl else "low",
+    rows.append(("Idiomas / hreflang", "OK" if hl else "Uno", "ok" if hl else "med",
                  (", ".join(hl[:6]) if hl else "Web en un solo idioma (sin hreflang)")))
-    out = ""
-    for name, st, pill, obs in rows:
-        out += f'<tr><td>{name}</td><td class="c">{_pill(pill, st)}</td><td>{obs}</td></tr>'
-    return out
+    return _check_list(rows)
 
 
 def _sitemap_comp_block(r: dict) -> str:
@@ -508,33 +579,12 @@ def _speed_section(r: dict) -> str:
 
     m = psi.get("mobile"); d = psi.get("desktop")
 
-    # Tabla de lectura (que mide Google · movil · escritorio · lectura)
-    read_rows = ""
-    if m or d:
-        def cell(x):
-            return x if x not in (None, "") else "-"
-        mp = (m or {}).get("performance"); dp = (d or {}).get("performance")
-        read = [
-            ("Rendimiento (0-100)", cell(mp), cell(dp),
-             "Google posiciona con la version movil primero; tu cliente te busca desde el celular"),
-            ("Contenido principal (LCP)", cell((m or {}).get("lcp")), cell((d or {}).get("lcp")),
-             "El umbral sano de Google es 2,5 s: por encima, pierdes al visitante y posiciones"),
-            ("Bloqueo por codigo (TBT)", cell((m or {}).get("tbt")), cell((d or {}).get("tbt")),
-             "Cuanto tarda la pagina en volverse usable; cuanto menos, mejor"),
-        ]
-        trs = "".join(
-            f'<tr><td>{lab}</td><td class="c"><b>{mv}</b></td><td class="c"><b>{dv}</b></td><td>{lec}</td></tr>'
-            for lab, mv, dv, lec in read)
-        read_rows = f"""<table class="t" style="margin-top:8px"><thead><tr><th>Que mide Google</th>
-          <th class="c">Movil</th><th class="c">Escritorio</th><th>Lectura</th></tr></thead><tbody>{trs}</tbody></table>"""
-
     return f"""
     <div class="eyebrow" style="margin-top:16px"><span class="bar"></span>Rendimiento · movil frente a escritorio</div>
     <h2 class="sec">Velocidad real: movil en dispositivo y escritorio con PageSpeed</h2>
     <p class="sub">El movil se mide en un dispositivo real en buena conexion (sin la penalizacion de red 4G que aplica
     PageSpeed); el escritorio, con Google PageSpeed. El umbral sano de carga principal (LCP) es 2,5 s.</p>
-    <div class="block two">{card('Movil (dispositivo real)', m, True)}{card('Escritorio (PageSpeed)', d, False)}</div>
-    {read_rows}"""
+    <div class="block two">{card('Movil (dispositivo real)', m, True)}{card('Escritorio (PageSpeed)', d, False)}</div>"""
 
 
 def _google_section(r: dict) -> str:
@@ -552,10 +602,13 @@ def _google_section(r: dict) -> str:
         cat_rows += f'<tr><td>{c.get("query","")}</td><td class="c">{badge}</td><td class="u">{top}</td></tr>'
     if not cat_rows:
         return ""
+    ai = r.get("geo_ai") or {}
+    pais = ai.get("country") or ""
+    pais_txt = f" en {pais}" if pais else ""
     return f"""
     <div class="eyebrow" style="margin-top:16px"><span class="bar"></span>Como te ve Google</div>
     <h2 class="sec">En que posicion apareces, busqueda a busqueda</h2>
-    <p class="sub">Busquedas reales en Google (mercado {g.get('provider','') and ''} detectado). En tu marca {brand_verdict}.</p>
+    <p class="sub">Busquedas reales de un cliente de tu sector{pais_txt} (el mercado donde opera tu web). En tu propia marca {brand_verdict}.</p>
     <table class="t"><thead><tr><th>Lo que busca un cliente (categoria)</th><th class="c">¿Apareces?</th><th>Quien sale en tu lugar</th></tr></thead>
     <tbody>{cat_rows}</tbody></table>"""
 
@@ -576,6 +629,40 @@ def _competitors_block(r: dict) -> str:
     <h2 class="sec">Tu competencia real, la que la IA sí recomienda</h2>
     <p class="sub">Negocios de tu mismo sector que la IA nombra cuando alguien pide tu servicio y tu marca no aparece. No tienen mejor producto: tienen mejor rastro digital, y por eso la IA los cita.</p>
     <table class="t"><thead><tr><th>Competidor</th><th>Su web</th><th>Por que aparece (y tu no)</th></tr></thead><tbody>{trs}</tbody></table>"""
+
+
+def _estado_resumen(r: dict) -> str:
+    """Resumen ejecutivo especifico de ESTE sitio: punto fuerte, punto debil y las
+    carencias concretas detectadas (para que ningun informe se lea igual a otro)."""
+    cats = r.get("categories", {}); s = r.get("signals", {}); m = r.get("meta", {})
+    named = {"la salud tecnica": cats.get("tecnico", {}).get("score", 0),
+             "el SEO on-page": cats.get("onpage", {}).get("score", 0),
+             "la preparacion para la IA (GEO)": cats.get("geo", {}).get("score", 0)}
+    best = max(named, key=named.get); worst = min(named, key=named.get)
+    weak = []
+    if not s.get("https"):
+        weak.append("no tiene HTTPS")
+    if (s.get("robots_info") or {}).get("blocks_all"):
+        weak.append("el robots.txt bloquea todo el sitio")
+    if not m.get("schema_types"):
+        weak.append("le faltan los datos estructurados (schema)")
+    if not m.get("description"):
+        weak.append("no tiene meta descripcion")
+    if m.get("h1_count", 0) != 1:
+        weak.append(f"el H1 no esta bien definido ({m.get('h1_count',0)})")
+    if s.get("links_broken", 0) > 0:
+        weak.append(f"{s['links_broken']} enlace(s) roto(s)")
+    mob = (r.get("psi_full") or {}).get("mobile") or {}
+    if mob.get("performance") is not None and mob["performance"] < 60:
+        weak.append(f"el movil es lento ({mob['performance']}/100)")
+    an = s.get("analytics") or {}
+    if not an.get("has_any"):
+        weak.append("no detectamos analitica")
+    weak_txt = ("; ".join(weak[:4]) + ".") if weak else "no encontramos fallos graves; toca pulir y consolidar."
+    return (f'<div class="block callout {"g" if named[worst] >= 60 else "o"}">'
+            f'<b>En concreto para {r.get("domain","tu web")}:</b> tu punto mas fuerte es <b>{best}</b> '
+            f'({named[best]}/100) y donde mas pierdes es <b>{worst}</b> ({named[worst]}/100). '
+            f'Lo que hay que corregir: {weak_txt}</div>')
 
 
 def _gauge(score: int, label: str) -> str:
@@ -722,6 +809,13 @@ def build_report_html(r: dict, contact: dict, name: str = "") -> str:
     .actcol li .k{{position:absolute;left:0;top:6px;width:16px;height:16px;border-radius:5px;background:{CY6};color:#fff;font-family:"JetBrains Mono",monospace;font-size:8px;font-weight:700;display:flex;align-items:center;justify-content:center}}
     .actcol li b{{color:{INK9}}}
     .card{{border:1px solid #dee3e9;border-radius:14px;padding:14px 16px}}
+    .cklist{{display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;margin-top:6px}}
+    .ck{{display:flex;gap:9px;align-items:flex-start;padding:9px 11px;border:1px solid #e6ebf0;border-radius:11px;background:#fbfcfd;break-inside:avoid}}
+    .ck .cki{{width:16px;height:16px;border-radius:5px;color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex:none;margin-top:1px}}
+    .ck .ckb{{flex:1;min-width:0}}
+    .ck .ckt{{font-family:"Sora",sans-serif;font-weight:700;font-size:9.5px;color:{INK9}}}
+    .ck .ckc{{font-family:"JetBrains Mono",monospace;font-size:7.5px;font-weight:700;margin-left:4px}}
+    .ck .cko{{font-size:8.5px;color:#5a6675;margin-top:2px;line-height:1.4}}
     .hbars{{display:flex;flex-direction:column;gap:8px}}
     .hbar{{display:flex;align-items:center;gap:10px}}
     .hbar .l{{width:52%;font-size:9.5px;color:#283038}}.hbar .l b{{color:{INK9}}}
@@ -805,13 +899,12 @@ def build_report_html(r: dict, contact: dict, name: str = "") -> str:
 <section class="pg">
   <div class="eyebrow"><span class="bar"></span>01 · Estado general</div>
   <h2 class="sec">Como esta tu web hoy</h2>
-  <p class="sub">Indice Cupperlab de diagnostico (0-100), valoracion propia sobre lo verificado en vivo. No es una metrica oficial de Google.</p>
+  <p class="sub"><b>Salud digital</b> = una nota 0-100 que resume que tan lista esta tu web para que Google te muestre y la IA te cite. La calculamos con lo verificado en vivo (tecnico 35%, on-page 35%, preparacion IA 30%). Es la valoracion de Cupperlab, no una metrica oficial de Google.</p>
   <div class="block scorewrap">
     <div class="gauge">{_gauge(score, 'Salud digital')}</div>
     <div class="levels">{_levels(r)}</div>
   </div>
-  <div class="block critband"><span class="badge">NOTA {grade}</span>
-    <div class="tx">{band_p}</div></div>
+  {_estado_resumen(r)}
   <div class="block stats3">{stats3}</div>
   {_severity_bars(r)}
 </section>
@@ -819,17 +912,16 @@ def build_report_html(r: dict, contact: dict, name: str = "") -> str:
 <section class="pg">
   <div class="eyebrow"><span class="bar"></span>02 · Salud tecnica de tu web</div>
   <h2 class="sec">Que falla (y que funciona) por dentro</h2>
-  <p class="sub">Revisamos lo tecnico que Google mira para decidir si te muestra: seguridad, velocidad de respuesta, mapa del sitio y enlaces rotos.</p>
-  <table class="t"><thead><tr><th>Elemento probado</th><th class="c">Estado</th><th>Observacion</th></tr></thead>
-  <tbody>{_tech_rows(r)}</tbody></table>
+  <p class="sub">Lo tecnico que Google mira para decidir si te muestra: seguridad, respuesta del servidor, robots, mapa del sitio y enlaces rotos. En rojo lo que falla, en verde lo que ya funciona.</p>
+  {_tech_rows(r)}
+  {_robots_block(r)}
   {(''.join('<div class="block callout r"><b>Enlaces rotos.</b> Ejemplos reales encontrados: ' + ', '.join(e["url"] for e in s["broken_examples"][:3]) + '.</div>' for _ in [0]) if s.get("broken_examples") else '')}
   {_sitemap_comp_block(r)}
 
   <div class="eyebrow" style="margin-top:16px"><span class="bar"></span>03 · SEO on-page</div>
   <h2 class="sec">Que le falta a tus paginas para posicionar</h2>
-  <p class="sub">El titulo, la descripcion, el encabezado y las etiquetas invisibles que deciden si Google te muestra y si la IA te cita. Aqui esta lo que hay que corregir.</p>
-  <table class="t"><thead><tr><th>Elemento</th><th class="c">Estado</th><th>Que encontramos en vivo</th></tr></thead>
-  <tbody>{_onpage_rows(r)}</tbody></table>
+  <p class="sub">Primero lo que falla y hay que corregir; despues lo que ya esta bien. Son las senales que deciden si Google te muestra y si la IA te cita.</p>
+  {_onpage_rows(r)}
   {_porque_como(r)}
 </section>
 
@@ -838,25 +930,18 @@ def build_report_html(r: dict, contact: dict, name: str = "") -> str:
   {_speed_section(r)}
 </section>
 
-<section class="pg">
+{(f'''<section class="pg">
   {_google_section(r)}
-  {_competitors_block(r)}
-</section>
+</section>''') if _google_section(r) else ''}
 
 <section class="pg">
-  <div class="eyebrow"><span class="bar"></span>06 · Prioridad y potencial</div>
-  <h2 class="sec">Que pesa mas y cuanto se puede ganar</h2>
-  <p class="sub">Reparto de los arreglos por impacto, esfuerzo y fase, con el diagnostico ya cerrado.</p>
-  {_priority_segbar(r)}
+  <div class="eyebrow"><span class="bar"></span>06 · Plan de accion</div>
+  <h2 class="sec">Todo lo que hay que mejorar, por orden de impacto</h2>
+  <p class="sub">La lista completa de lo que corregir para posicionar en Google y en la IA: base tecnica y robots primero (que puedan leerte), luego on-page y contenido, y por ultimo las senales para que la IA te reconozca y te recomiende.</p>
   {_priority_table(r)}
-
-  <div class="eyebrow" style="margin-top:16px"><span class="bar"></span>07 · Plan de accion</div>
-  <h2 class="sec">Que hariamos, por orden de impacto</h2>
-  <p class="sub">Primero existir: que Google y todas las IA puedan leerte y encontrar tu nombre. Despues competir: contenido y senales para captar la demanda de tu categoria.</p>
-  {_plan_two_col(r)}
   {_que_esperamos(r)}
   <div class="closeband">
-    <div class="l"><b>¿Damos el siguiente paso?</b><p>El informe premium incluye las respuestas literales de la IA, tu competencia y el plan priorizado con impacto estimado. Te lo preparamos gratis.</p></div>
+    <div class="l"><b>¿Damos el siguiente paso?</b><p>Ponemos en marcha este plan contigo: base tecnica, on-page, contenido y las senales que hacen que la IA te recomiende. Primera revision sin costo.</p></div>
     <div class="r">Tel <b>{contact.get('phone','')}</b><br>{contact.get('email','')}<br>Mejoramos tu rentabilidad.</div>
   </div>
 </section>

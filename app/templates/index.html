@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Diagnóstico web gratuito para tu negocio · Cupperlab</title>
 <meta name="description" content="Diagnóstico gratuito de tu sitio: qué tan visible eres en Google y en las respuestas de la IA. Resultado en pantalla y el informe completo en PDF a tu correo.">
+<link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg">
+<link rel="apple-touch-icon" href="/static/img/favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -31,6 +33,19 @@
   @keyframes cl-blip{0%,100%{opacity:.5}50%{opacity:1}}
   .hidden{display:none!important}
   .hero-img,.cta-img{background-size:cover;background-position:center;background-repeat:no-repeat;background-color:#F7F9FB}
+  /* Tarjetas de urgencia interactivas */
+  .ucard{position:relative;background:#fff;border:1px solid rgba(10,16,20,0.09);border-top:3px solid #1CBCE4;border-radius:14px;padding:26px 22px 20px;transition:transform .22s ease,box-shadow .22s ease,border-color .22s ease;overflow:hidden}
+  .ucard.orange{border-top-color:#F46434}
+  .ucard:hover{transform:translateY(-6px);box-shadow:0 14px 34px rgba(10,16,20,0.10);border-color:rgba(28,188,228,0.5)}
+  .ucard.orange:hover{border-color:rgba(244,100,52,0.55)}
+  .ucard .unum{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:#1CBCE4;letter-spacing:.08em}
+  .ucard.orange .unum{color:#F46434}
+  .ucard p{margin:12px 0 0;font-size:16px;line-height:1.6;color:rgba(10,16,20,0.72)}
+  .ucard p b{color:#0A1014;font-weight:600}
+  .ucard::after{content:"";position:absolute;right:-40px;top:-40px;width:120px;height:120px;border-radius:50%;background:radial-gradient(circle,rgba(28,188,228,0.10),transparent 70%);opacity:0;transition:opacity .3s ease}
+  .ucard:hover::after{opacity:1}
+  .reveal{opacity:0;transform:translateY(16px);transition:opacity .6s ease,transform .6s ease}
+  .reveal.in{opacity:1;transform:none}
 </style>
 </head>
 <body>
@@ -50,10 +65,6 @@
 <section style="background:#FFFFFF;border-bottom:1px solid rgba(10,16,20,0.08)">
   <div class="wrap" style="padding:76px 24px 84px;display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:60px;align-items:center">
     <div>
-      <p class="mono" style="display:inline-flex;align-items:center;gap:9px;margin:0 0 22px;background:rgba(28,188,228,0.12);color:#0A1014;font-size:11.5px;padding:8px 13px;border-radius:999px">
-        <span style="width:6px;height:6px;border-radius:50%;background:#1CBCE4;animation:cl-blip 1.4s ease-in-out infinite"></span>
-        GRATIS · DIAGNÓSTICO INICIAL EN VIVO
-      </p>
       <h1 class="sora" style="font-weight:700;font-size:clamp(34px,4.6vw,58px);line-height:1.06;letter-spacing:-0.03em;margin:0 0 22px;text-wrap:pretty">
         Diagnóstico gratuito de tu sitio: <span style="color:#1CBCE4">qué tan visible eres en Google y en las respuestas de IA.</span>
       </h1>
@@ -61,7 +72,7 @@
         Tu próximo cliente ya empezó a buscar: escribe lo que necesita en Google o se lo pregunta a la IA. Alguien va a aparecer en esa respuesta — revisemos si eres tú.
       </p>
       <p style="max-width:54ch;font-size:16px;line-height:1.65;color:rgba(10,16,20,0.55);margin:0 0 34px">
-        Pones tu sitio, tu sector y tu ciudad. Analizamos tu web <strong style="font-weight:600;color:#0A1014">en vivo</strong> y te devolvemos un índice de visibilidad, cómo te ve la IA y los arreglos que más mueven la aguja. Además te enviamos el informe completo en PDF al correo. Sin costo.
+        Pones tu sitio y tus datos. Analizamos tu web <strong style="font-weight:600;color:#0A1014">en vivo</strong> y te devolvemos un índice de visibilidad, cómo te ve la IA y los arreglos que más mueven la aguja. Además te enviamos el informe completo en PDF al correo. Sin costo.
       </p>
       <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:center">
         <a href="#motor" class="btn-cy" style="font-size:15.5px;padding:16px 26px">
@@ -77,15 +88,17 @@
 
 <!-- URGENCIA -->
 <section style="background:#F7F9FB;border-bottom:1px solid rgba(10,16,20,0.08)">
-  <div class="wrap" style="padding:56px 24px">
-    <div style="display:flex;align-items:center;gap:18px;margin-bottom:34px">
-      <svg viewBox="0 0 120 60" width="86" height="43" fill="none" stroke="#1CBCE4" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 30a14 14 0 1028 0 14 14 0 10-28 0 M52 44l14 12 M84 20h24 M84 32h18 M84 44h24"/></svg>
-      <p class="sora" style="margin:0;font-weight:600;font-size:17px;letter-spacing:-0.01em">Lo que está pasando mientras lees esto</p>
+  <div class="wrap" style="padding:60px 24px">
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:34px">
+      <span class="mono" style="display:inline-flex;align-items:center;gap:8px;background:rgba(28,188,228,0.12);color:#0A1014;font-size:11px;padding:7px 12px;border-radius:999px">
+        <span style="width:6px;height:6px;border-radius:50%;background:#1CBCE4;animation:cl-blip 1.4s ease-in-out infinite"></span>AHORA MISMO
+      </span>
+      <p class="sora" style="margin:0;font-weight:600;font-size:19px;letter-spacing:-0.01em">Lo que está pasando mientras lees esto</p>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:28px">
-      <div style="border-top:2px solid #1CBCE4;padding-top:16px"><p style="margin:0;font-size:16px;line-height:1.6;color:rgba(10,16,20,0.72)">Nadie compara diez opciones: se revisan las primeras y se contacta a una.</p></div>
-      <div style="border-top:2px solid #1CBCE4;padding-top:16px"><p style="margin:0;font-size:16px;line-height:1.6;color:rgba(10,16,20,0.72)">Los asistentes de IA ya recomiendan proveedores por nombre, citando muy pocas fuentes.</p></div>
-      <div style="border-top:2px solid #F5842A;padding-top:16px"><p style="margin:0;font-size:16px;line-height:1.6;color:rgba(10,16,20,0.72)">Un sitio lento o mal indexado no se penaliza en público: simplemente deja de aparecer.</p></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:22px">
+      <div class="ucard reveal"><span class="unum">01</span><p>Nadie compara diez opciones: se revisan las <b>primeras</b> y se contacta a una.</p></div>
+      <div class="ucard reveal" style="transition-delay:.08s"><span class="unum">02</span><p>Los asistentes de <b>IA</b> ya recomiendan proveedores por nombre, citando muy pocas fuentes.</p></div>
+      <div class="ucard reveal orange" style="transition-delay:.16s"><span class="unum">03</span><p>Un sitio lento o mal indexado <b>no se penaliza en público</b>: simplemente deja de aparecer.</p></div>
     </div>
   </div>
 </section>
@@ -100,34 +113,20 @@
       <p style="margin:0 0 36px;font-size:16px;line-height:1.65;color:rgba(10,16,20,0.6)">Datos reales, comprobados en vivo. El resultado aparece en esta misma pantalla y el informe completo te llega al correo.</p>
       <form id="diagForm" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:22px 24px">
         <label class="field" style="grid-column:1/-1">
-          <span class="lab">SITIO DE TU NEGOCIO</span>
-          <input id="url" name="url" type="text" placeholder="www.tusitio.com" autocomplete="url">
+          <span class="lab">SITIO DE TU NEGOCIO *</span>
+          <input id="url" name="url" type="text" placeholder="www.tusitio.com" autocomplete="url" required>
         </label>
         <label class="field">
-          <span class="lab">SECTOR</span>
-          <select id="sector" name="sector">
-            <option>Servicios legales</option>
-            <option>Odontología</option>
-            <option>Salud y especialidades médicas</option>
-            <option>Seguros</option>
-            <option>Asesoría financiera</option>
-            <option>Servicios profesionales</option>
-            <option>Comercio local</option>
-            <option>Inmobiliaria</option>
-            <option>Otro</option>
-          </select>
+          <span class="lab">TU NOMBRE *</span>
+          <input id="name" name="name" type="text" placeholder="Nombre y apellido" autocomplete="name" required>
         </label>
         <label class="field">
-          <span class="lab">CIUDAD</span>
-          <input id="city" name="city" type="text" placeholder="Tu ciudad">
+          <span class="lab">CORREO *</span>
+          <input id="email" name="email" type="email" placeholder="nombre@tusitio.com" autocomplete="email" required>
         </label>
-        <label class="field">
-          <span class="lab">CORREO</span>
-          <input id="email" name="email" type="email" placeholder="nombre@tusitio.com" autocomplete="email">
-        </label>
-        <label class="field">
-          <span class="lab">WHATSAPP <span style="opacity:0.5">(opcional)</span></span>
-          <input id="phone" name="phone" type="tel" placeholder="+34 600 000 000" autocomplete="tel">
+        <label class="field" style="grid-column:1/-1">
+          <span class="lab">TELÉFONO *</span>
+          <input id="phone" name="phone" type="tel" placeholder="+34 600 000 000" autocomplete="tel" required>
         </label>
         <label style="grid-column:1/-1;display:flex;align-items:flex-start;gap:10px;font-size:13.5px;line-height:1.5;color:rgba(10,16,20,0.6);cursor:pointer">
           <input id="consent" type="checkbox" style="margin-top:2px;width:16px;height:16px;accent-color:#1CBCE4;flex-shrink:0">
@@ -208,11 +207,17 @@
     <div>
       <h2 class="sora" style="font-weight:700;font-size:clamp(28px,3.6vw,46px);line-height:1.12;letter-spacing:-0.03em;margin:0 0 20px;text-wrap:pretty">Media hora, tu sitio en pantalla y una lista de qué mover primero.</h2>
       <p style="margin:0 0 30px;font-size:17px;line-height:1.7;color:rgba(247,249,251,0.7);max-width:46ch">Sin presentación corporativa. Abrimos tu sitio, vemos qué busca tu cliente y decidimos si tiene sentido trabajar juntos.</p>
-      <div style="display:flex;flex-wrap:wrap;gap:18px;align-items:center">
-        {% if calendly %}<a href="{{ calendly }}" target="_blank" rel="noopener" class="btn-cy" style="font-size:16px;padding:17px 28px">Agendar en el calendario</a>{% else %}<a href="#motor" class="btn-cy" style="font-size:16px;padding:17px 28px">Empezar el diagnóstico</a>{% endif %}
-        {% if phone %}<a href="https://wa.me/{{ phone|replace('+','')|replace(' ','')|replace('-','') }}" target="_blank" rel="noopener" style="font-family:'Sora',sans-serif;font-weight:500;font-size:15.5px;color:#F7F9FB;text-decoration:none;border-bottom:1px solid rgba(247,249,251,0.35);padding-bottom:3px">Escribir por WhatsApp</a>{% endif %}
+      <a href="#motor" class="btn-cy" style="font-size:16px;padding:16px 26px;margin-bottom:28px">Empezar el diagnóstico</a>
+      <div style="border-top:1px solid rgba(247,249,251,0.15);padding-top:24px;display:flex;flex-wrap:wrap;gap:34px 48px">
+        <a href="tel:+34914952585" style="display:flex;align-items:center;gap:14px;text-decoration:none;color:#F7F9FB">
+          <span style="width:46px;height:46px;border-radius:50%;background:#F46434;display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;flex-shrink:0">↗</span>
+          <span><span class="sora" style="display:block;font-size:18px;font-weight:600">Llámanos</span><span class="mono" style="font-size:12.5px;color:#a3adba">+34 91 495 2585</span></span>
+        </a>
+        <a href="mailto:clientes@cupperlab.com" style="display:flex;align-items:center;gap:14px;text-decoration:none;color:#F7F9FB">
+          <span style="width:46px;height:46px;border-radius:50%;background:#F46434;display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;flex-shrink:0">↗</span>
+          <span><span class="sora" style="display:block;font-size:18px;font-weight:600">Escríbenos</span><span class="mono" style="font-size:12.5px;color:#a3adba">clientes@cupperlab.com</span></span>
+        </a>
       </div>
-      {% if phone %}<p class="mono" style="margin:24px 0 0;font-size:12.5px;line-height:1.7;color:rgba(247,249,251,0.5)">O llámanos: <b style="color:#1CBCE4">{{ phone }}</b></p>{% endif %}
     </div>
     <div class="cta-img" style="width:100%;height:clamp(230px,26vw,320px);border-radius:14px;background-image:url('/static/img/cta-generic.webp')"></div>
   </div>
@@ -273,19 +278,16 @@
     e.preventDefault();
     err.style.display="none";
     var url=document.getElementById("url").value.trim();
+    var name=document.getElementById("name").value.trim();
     var email=document.getElementById("email").value.trim();
+    var phone=document.getElementById("phone").value.trim();
     if(!url){ err.textContent="Falta la dirección de tu sitio."; err.style.display="inline"; return; }
+    if(!name){ err.textContent="Falta tu nombre."; err.style.display="inline"; return; }
     if(!/.+@.+\..+/.test(email)){ err.textContent="Necesitamos un correo válido para enviarte el resultado."; err.style.display="inline"; return; }
+    if(!phone){ err.textContent="Falta tu teléfono."; err.style.display="inline"; return; }
     if(!document.getElementById("consent").checked){ err.textContent="Marca la casilla para que podamos analizar tu web."; err.style.display="inline"; return; }
 
-    var sector=document.getElementById("sector").value;
-    var city=document.getElementById("city").value.trim();
-    var payload={
-      url:url, email:email,
-      name:"",
-      phone:document.getElementById("phone").value.trim(),
-      company:(sector||"")+(city?(" · "+city):"")
-    };
+    var payload={ url:url, email:email, name:name, phone:phone, company:"" };
     submitBtn.disabled=true; submitBtn.textContent="Analizando…";
     startLoading(url.replace(/^https?:\/\//,"").replace(/\/$/,""));
 
@@ -379,7 +381,7 @@
       var qhtml="";
       if(qs.length){
         qhtml='<div style="margin-top:26px">'+
-          '<p class="mono" style="font-size:11.5px;color:#0E8FB0;margin:0 0 6px">◆ LAS 3 PREGUNTAS QUE LE HICIMOS A CHATGPT</p>'+
+          '<p class="mono" style="font-size:11.5px;color:#0E8FB0;margin:0 0 6px">◆ LAS 3 PREGUNTAS QUE LE HICIMOS A LA IA</p>'+
           '<p style="margin:0 0 10px;font-size:13.5px;color:rgba(10,16,20,0.55)">Búsquedas reales de un cliente en '+esc(ai.country||"tu país")+'. Comprobamos en vivo si apareces:</p>'+
           qs.map(function(q){
             var ap=q.appears===true, no=q.appears===false;
@@ -394,9 +396,9 @@
           }).join("")+'</div>';
       }
       aihi.innerHTML=
-        '<p class="mono" style="font-size:11.5px;color:#0E8FB0;margin:0 0 16px">◆ CÓMO TE VE LA IA (CHATGPT, EN VIVO)</p>'+
+        '<p class="mono" style="font-size:11.5px;color:#0E8FB0;margin:0 0 16px">◆ CÓMO TE VE LA IA (EN VIVO)</p>'+
         '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:20px">'+
-          '<div><p style="margin:0;font-size:15.5px;line-height:1.6"><b style="color:'+(ai.knows_brand?"#0E8FB0":WARN)+'">'+(ai.knows_brand?"✓":"✕")+' ¿ChatGPT sabe quién eres?</b><br>'+(ai.knows_brand?"Sí, te describe.":"No tiene información fiable de tu sitio.")+'</p></div>'+
+          '<div><p style="margin:0;font-size:15.5px;line-height:1.6"><b style="color:'+(ai.knows_brand?"#0E8FB0":WARN)+'">'+(ai.knows_brand?"✓":"✕")+' ¿La IA sabe quién eres?</b><br>'+(ai.knows_brand?"Sí, te describe.":"No tiene información fiable de tu sitio.")+'</p></div>'+
           '<div><p style="margin:0;font-size:15.5px;line-height:1.6"><b style="color:'+(ai.recommended?"#0E8FB0":WARN)+'">'+(ai.recommended?"✓":"✕")+' ¿Te recomienda al pedir tu servicio?</b><br>'+(ai.recommended?"Sí, te incluye.":(ai.recommended===false?("No: nombra a otros, no a ti."):"Solo a veces / no es consistente."))+'</p></div>'+
         '</div>'+qhtml;
       aihi.classList.remove("hidden");
@@ -427,6 +429,17 @@
     err.style.display="none";
     document.getElementById("motor").scrollIntoView({behavior:"smooth"});
   });
+
+  // Animación de entrada al hacer scroll
+  var revealEls=document.querySelectorAll(".reveal");
+  if("IntersectionObserver" in window && revealEls.length){
+    var io=new IntersectionObserver(function(entries){
+      entries.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add("in"); io.unobserve(e.target); } });
+    },{threshold:0.12});
+    revealEls.forEach(function(el){ io.observe(el); });
+    // red de seguridad: si por lo que sea no dispara, se muestran igual
+    setTimeout(function(){ revealEls.forEach(function(el){ el.classList.add("in"); }); }, 1500);
+  } else { revealEls.forEach(function(el){ el.classList.add("in"); }); }
 })();
 </script>
 </body>
