@@ -28,7 +28,8 @@ from fastapi.templating import Jinja2Templates
 
 load_dotenv()
 
-from analyzer import analyze, result_to_dict, normalize_url, apply_ai_to_result, fetch_psi_full  # noqa: E402
+from analyzer import (analyze, result_to_dict, normalize_url, apply_ai_to_result,  # noqa: E402
+                      apply_analytics, fetch_psi_full)
 from geo_ai import run_ai_geo  # noqa: E402
 from search import check_google  # noqa: E402
 import emailer  # noqa: E402
@@ -201,6 +202,12 @@ async def _run_job(job_id: str, url: str, email: str, name: str, lead: dict) -> 
             data["psi_full"] = await psi_task
         except Exception as exc:  # noqa: BLE001
             print(f"[psi:ERROR] {exc}"); data["psi_full"] = None
+        # analitica real detectada con el navegador (ajusta el hallazgo)
+        try:
+            if isinstance(data.get("psi_full"), dict):
+                apply_analytics(data, data["psi_full"].get("analytics"))
+        except Exception as exc:  # noqa: BLE001
+            print(f"[analytics:ERROR] {exc}")
 
         # 5) Resultado LISTO para la pantalla (mismos datos que el correo)
         _set(job_id, 96, "Preparando tu diagnostico...")

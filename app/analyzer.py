@@ -422,6 +422,8 @@ async def fetch_psi_full(url: str) -> dict | None:
         )
         m = m if isinstance(m, dict) else None
         d = d if isinstance(d, dict) else None
+        # analitica detectada con el navegador real (network + variables JS)
+        analytics = m.pop("analytics", None) if isinstance(m, dict) else None
         # si el escritorio (PSI) falla pero tenemos Chromium, lo medimos tambien con dispositivo
         if not d:
             try:
@@ -430,7 +432,7 @@ async def fetch_psi_full(url: str) -> dict | None:
                 d = None
         if not m and not d:
             return None
-        return {"mobile": m, "desktop": d}
+        return {"mobile": m, "desktop": d, "analytics": analytics}
     except Exception:  # noqa: BLE001
         return None
 
@@ -737,6 +739,41 @@ def result_to_dict(res: Result) -> dict:
 def _grade(overall: int) -> str:
     return ("A" if overall >= 85 else "B" if overall >= 70 else
             "C" if overall >= 55 else "D" if overall >= 40 else "E")
+
+
+def apply_analytics(data: dict, detected: dict | None) -> dict:
+    """Reconcilia la analitica con lo detectado por el navegador real (mas fiable
+    que el HTML estatico) y reescribe el hallazgo correspondiente."""
+    if not detected:
+        return data
+    sig = data.setdefault("signals", {})
+    static = sig.get("analytics") or {}
+    # el render manda si detecto algo; si no, conserva lo estatico
+    merged = detected if detected.get("has_any") else (static if static.get("has_any") else detected)
+    # une herramientas de ambas fuentes
+    tools = list(dict.fromkeys((merged.get("tools") or []) + (static.get("tools") or [])))
+    merged = {**merged, "tools": tools, "has_any": bool(tools) or merged.get("has_any")}
+    sig["analytics"] = merged
+
+    imp = data.setdefault("findings_improve", [])
+    good = data.setdefault("findings_good", [])
+    imp[:] = [f for f in imp if not (isinstance(f, dict) and
+              str(f.get("title", "")).startswith(("Tu analitica esta duplicada", "No detectamos analitica")))]
+    good[:] = [g for g in good if not (isinstance(g, str) and g.startswith("Tienes analitica instalada"))]
+
+    if merged.get("duplicated"):
+        imp.insert(0, {"title": "Tu analitica esta duplicada",
+                       "detail": "Detectamos medicion repetida (" + "; ".join(merged.get("dup_notes", [])) +
+                                 "). Eso infla visitas y conversiones y ensucia tus decisiones. Hay que dejar una sola.",
+                       "severity": "medio"})
+    elif not merged.get("has_any"):
+        imp.append({"title": "No detectamos analitica web",
+                    "detail": "Sin Google Analytics 4 ni Tag Manager no sabes que paginas te traen clientes "
+                              "ni de donde llegan. Es lo primero para poder mejorar con datos.",
+                    "severity": "medio"})
+    else:
+        good.insert(0, "Tienes analitica instalada (" + ", ".join(tools[:3]) + ").")
+    return data
 
 
 def apply_ai_to_result(data: dict, ai: dict | None) -> dict:

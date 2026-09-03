@@ -352,7 +352,7 @@ def _levels(r: dict) -> str:
         ("Preparacion para la IA (GEO / LLMO)", geo.get("score", 0)),
         ("Enlaces y rastreo (404, sitemap)", round((100 * (1 - s["broken_ratio"]) + (100 if s["sitemap"] else 0)) / 2)),
         ("Datos estructurados (schema)", _chk_pct(geo, "schema")),
-        ("Velocidad de respuesta", 100 if s["home_time"] < 1.5 else 60 if s["home_time"] < 3 else 30),
+        ("Respuesta del servidor", 100 if s["home_time"] < 1.5 else 60 if s["home_time"] < 3 else 30),
     ]
     if ai.get("available") and not ai.get("error"):
         lv.append(("Reconocimiento real por la IA", ai.get("ai_score", 0)))
@@ -368,11 +368,14 @@ def _levels(r: dict) -> str:
 _ICO = {"Gemini": "GEM", "ChatGPT": "GPT", "Claude": "CLD"}
 
 
+def _esc(t) -> str:
+    return str(t or "").replace("<", "&lt;").replace(">", "&gt;")
+
+
 def _ai_section(r: dict) -> str:
     ai = r.get("geo_ai") or {}
-    engines = ai.get("engines") if isinstance(ai.get("engines"), dict) else None
     answered = ai.get("answered_names") or []
-    if not (ai.get("available") and not ai.get("error") and engines and answered):
+    if not (ai.get("available") and not ai.get("error") and answered):
         geo = r["categories"].get("geo", {})
         return f"""
         <div class="eyebrow"><span class="bar"></span>04 · Como te ve la inteligencia artificial</div>
@@ -382,10 +385,12 @@ def _ai_section(r: dict) -> str:
         <div class="levels">{_levels(r)}</div></div>"""
 
     brand = ai.get("brand", r["domain"])
+    country = ai.get("country") or ""
     knows = ai.get("knows_brand"); reco = ai.get("recommended")
-    # respuesta textual (del motor que respondio), presentada como "la IA"
-    ans = next((engines[n] for n in answered if engines[n].get("know_raw")), engines[answered[0]])
-    raw = (ans.get("know_raw") or "").replace("NO_LA_CONOZCO", "No tengo informacion fiable sobre esta empresa.")
+    # respuesta textual sobre la marca (de ChatGPT), presentada como "la IA"
+    raw = (ai.get("brand_description") or "").strip()
+    if not raw:
+        raw = "Te reconoce y te describe." if knows else "No tengo informacion fiable sobre esta empresa."
     comps = _comp_names(ai) or "otras firmas de tu sector"
 
     card1 = f"""
@@ -412,6 +417,24 @@ def _ai_section(r: dict) -> str:
         <tr><td>Por tu servicio, sin nombrarte (categoria)</td><td class="c">{"<span class=yes>Te incluye</span>" if reco else ("<span class=no>Nombra a otros, no a ti</span>" if reco is False else "-")}</td></tr>
       </tbody></table>"""
 
+    # Las 3 busquedas reales que probamos (el corazon de la prueba GEO)
+    questions = ai.get("questions") or []
+    q_table = ""
+    if questions:
+        q_rows = ""
+        for q in questions[:3]:
+            ap = q.get("appears")
+            res = ("<span class=yes>Apareces</span>" if ap is True
+                   else "<span class=no>No apareces</span>" if ap is False else "-")
+            named = ", ".join(q.get("named", [])[:3])
+            q_rows += (f'<tr><td>"{_esc(q.get("q",""))}"</td><td class="c">{res}</td>'
+                       f'<td class="u">{_esc(named) or "-"}</td></tr>')
+        q_table = (f'<div class="sectic" style="margin-top:10px">Las 3 busquedas reales que probamos'
+                   f'{(" en " + _esc(country)) if country else ""}</div>'
+                   f'<table class="t"><thead><tr><th>Lo que escribe un cliente</th>'
+                   f'<th class="c">¿Sales?</th><th>Quien sale en tu lugar</th></tr></thead>'
+                   f'<tbody>{q_rows}</tbody></table>')
+
     knows_any = knows; reco_any = reco
     verdict = ("La IA te reconoce y te recomienda: vas por delante de la mayoria." if knows_any and reco_any
                else f"La IA te describe, pero cuando alguien pide tu servicio nombra a {comps}, no a ti: pierdes a los clientes que aun no te conocen." if knows_any
@@ -436,7 +459,7 @@ def _ai_section(r: dict) -> str:
     <h2 class="sec">Como te ve la IA cuando preguntan por ti</h2>
     <p class="sub">Hicimos pruebas con la IA, en vivo: le preguntamos por tu marca y por tu servicio, y citamos su respuesta. Cada vez mas clientes buscan asi antes de decidir.</p>
     <div class="block callout {'g' if (knows_any and reco_any) else 'r'}">{topnote}</div>
-    {cards}{table}
+    {cards}{q_table}{table}
     <div class="block callout {'g' if (knows_any and reco_any) else 'o' if knows_any else 'r'}"><b>Veredicto IA.</b> {verdict}</div>
     {gap_block}"""
 
@@ -507,9 +530,10 @@ def _speed_section(r: dict) -> str:
 
     return f"""
     <div class="eyebrow" style="margin-top:16px"><span class="bar"></span>Rendimiento · movil frente a escritorio</div>
-    <h2 class="sec">Velocidad medida con Google PageSpeed</h2>
-    <p class="sub">Prueba de laboratorio en vivo. El umbral sano de carga principal (LCP) es 2,5 s. Google posiciona con la version movil primero.</p>
-    <div class="block two">{card('Movil', m, True)}{card('Escritorio', d, False)}</div>
+    <h2 class="sec">Velocidad real: movil en dispositivo y escritorio con PageSpeed</h2>
+    <p class="sub">El movil se mide en un dispositivo real en buena conexion (sin la penalizacion de red 4G que aplica
+    PageSpeed); el escritorio, con Google PageSpeed. El umbral sano de carga principal (LCP) es 2,5 s.</p>
+    <div class="block two">{card('Movil (dispositivo real)', m, True)}{card('Escritorio (PageSpeed)', d, False)}</div>
     {read_rows}"""
 
 
