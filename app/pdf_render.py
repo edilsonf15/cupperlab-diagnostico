@@ -13,8 +13,14 @@ from playwright.sync_api import sync_playwright
 def html_to_pdf(html: str) -> bytes | None:
     try:
         with sync_playwright() as p:
-            browser = p.chromium.launch(args=["--no-sandbox", "--disable-dev-shm-usage"])
-            page = browser.new_page()
+            browser = p.chromium.launch(args=[
+                "--no-sandbox", "--disable-dev-shm-usage",
+                "--force-device-scale-factor=2", "--high-dpi-support=1",
+                "--font-render-hinting=none",
+            ])
+            # device_scale_factor 2 = raster (gradientes, sombras, logo) nitido, sin pixelado
+            ctx = browser.new_context(device_scale_factor=2)
+            page = ctx.new_page()
             page.set_content(html, wait_until="networkidle")
             page.emulate_media(media="print")
             pdf = page.pdf(

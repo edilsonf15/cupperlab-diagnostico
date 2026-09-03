@@ -145,7 +145,10 @@ def build_plan(r: dict) -> list[dict]:
     if not m.get("has_contact"):
         add("Mostrar ficha de contacto clara (nombre, telefono, direccion) y marcarla con schema: la IA confia en negocios verificables.",
             "Medio", "Bajo", 2)
-    if m.get("has_contact"):
+    if ai.get("gbp") is False:
+        add("Crear y verificar tu ficha de Google Business (hoy no la encontramos): clave para el mapa, las busquedas locales y la IA local.",
+            "Alto", "Bajo", 1)
+    elif ai.get("gbp") is not True and m.get("has_contact"):
         add("Verificar y optimizar tu ficha de Google Business (categoria, fotos, resenas): clave para mapas y para la IA local.",
             "Medio", "Bajo", 1)
     if m.get("word_count", 0) < 500:
@@ -545,7 +548,7 @@ def _ai_section(r: dict) -> str:
     card1 = f"""
     <div class="aiq">
       <div class="q"><div class="ico">IA</div><div>
-        <div class="ask">Le preguntamos a la IA (sin darle tu web): "¿Conoces la marca {brand}?"</div>
+        <div class="ask">Le preguntamos a la IA (sin darle tu web): "¿Conoces la marca {brand} ({r.get('domain','')})?"</div>
         <div class="qt">"{raw[:320]}"</div></div></div>
       <div class="src"><span>¿La IA te conoce de por si, sin buscar tu web?</span>
         <span class="v {'yes' if knows else 'no'}">{'TE RECONOCE' if knows else 'NO TE RECONOCE'}</span></div>
@@ -714,9 +717,11 @@ def _speed_section(r: dict) -> str:
     m = psi.get("mobile"); d = psi.get("desktop")
 
     return f"""
-    <div class="eyebrow" style="margin-top:16px"><span class="bar"></span>Rendimiento · movil frente a escritorio</div>
-    <h2 class="sec">Velocidad de tu web</h2>
-    <div class="block two">{card('Movil', m, True)}{card('Escritorio', d, False)}</div>"""
+    <div style="break-inside:avoid">
+      <div class="eyebrow" style="margin-top:16px"><span class="bar"></span>Rendimiento · movil frente a escritorio</div>
+      <h2 class="sec">Velocidad de tu web</h2>
+      <div class="block two" style="margin-top:8px">{card('Movil', m, True)}{card('Escritorio', d, False)}</div>
+    </div>"""
 
 
 def _google_section(r: dict) -> str:

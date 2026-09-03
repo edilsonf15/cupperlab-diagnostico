@@ -588,24 +588,35 @@ async def _psi_desktop(url: str, tries: int = 2) -> dict | None:
 
 
 async def fetch_psi_full(url: str) -> dict | None:
-    """Velocidad movil + escritorio.
-
-    - MOVIL: medido con dispositivo propio (Playwright, iPhone), SIN el throttling
-      4G de PageSpeed, para una lectura justa de movil en buena conexion.
-    - ESCRITORIO: PageSpeed / Lighthouse (no aplica throttling agresivo).
-    """
+    """Velocidad movil + escritorio medidas IGUAL (misma metodologia real) para que
+    sean comparables. El navegador propio se usa solo para detectar analitica y como
+    respaldo si la medicion oficial falla."""
     import perf  # noqa: PLC0415
+    key = os.getenv("GOOGLE_PSI_API_KEY", "").strip()
+
+    async def _psi(strat, tries=2):
+        if not key:
+            return None
+        async with httpx.AsyncClient(headers=HEADERS) as client:
+            for _ in range(tries):
+                r = await fetch_psi(client, url, strat)
+                if r:
+                    return r
+                await asyncio.sleep(1.5)
+        return None
+
     try:
-        m, d = await asyncio.gather(
-            perf.measure_device(url, mobile=True),
-            _psi_desktop(url),
+        m, d, dev = await asyncio.gather(
+            _psi("mobile"), _psi("desktop"), perf.measure_device(url, mobile=True),
             return_exceptions=True,
         )
         m = m if isinstance(m, dict) else None
         d = d if isinstance(d, dict) else None
-        # analitica detectada con el navegador real (network + variables JS)
-        analytics = m.pop("analytics", None) if isinstance(m, dict) else None
-        # si el escritorio (PSI) falla pero tenemos Chromium, lo medimos tambien con dispositivo
+        dev = dev if isinstance(dev, dict) else None
+        analytics = dev.pop("analytics", None) if dev else None
+        # respaldo con dispositivo propio SOLO si la medicion oficial falla
+        if not m and dev:
+            m = dev
         if not d:
             try:
                 d = await perf.measure_device(url, mobile=False)
@@ -1049,4 +1060,13 @@ def apply_ai_to_result(data: dict, ai: dict | None) -> dict:
             "detail": "Al pedirle recomendaciones de tu sector, la IA nombra a otras empresas antes que a la tuya: "
                       "pierdes a los clientes que aun no te conocen.",
             "severity": "alto"})
+    # Ficha de Google Business (investigado con busqueda real)
+    if ai.get("gbp") is False:
+        improve.append({
+            "title": "No encontramos tu ficha de Google Business",
+            "detail": "Buscamos tu negocio en Google/Maps y no aparece una ficha activa. Crearla y verificarla es "
+                      "clave para salir en el mapa, en las busquedas locales y en la IA local.",
+            "severity": "medio"})
+    elif ai.get("gbp") is True:
+        good.append("Tienes ficha de Google Business activa.")
     return data

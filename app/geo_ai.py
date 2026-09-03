@@ -306,17 +306,24 @@ async def run_ai_geo(domain: str, meta: dict) -> dict | None:
                 f"¿qué le falta a \"{brand}\" para que la IA la reconozca y la recomiende cuando alguien pide su "
                 f"tipo de servicio {ctx_pais} (sin nombrar la marca)? Sé concreto y accionable. Sin viñetas."
             )
+            q_gbp = (
+                f"Usa búsqueda web (Google Maps). ¿La empresa \"{brand}\" ({full_url}) tiene una ficha de "
+                f"Google Business / Google Maps activa {ctx_pais}? Responde SOLO una palabra: SI, NO o DUDOSO."
+            )
 
-            # Ronda 1: genera las 3 busquedas + reconocimiento de marca + gap (en paralelo)
-            r_queries, r_know, r_gap = await asyncio.gather(
+            # Ronda 1: 3 busquedas + reconocimiento de marca + gap + ficha Google Business
+            r_queries, r_know, r_gap, r_gbp = await asyncio.gather(
                 _ask(client, prov, key, model, q_queries, max_tokens=250, grounded=False),
                 _ask(client, prov, key, model, q_know, max_tokens=500, grounded=False),
                 _ask(client, prov, key, model, q_gap, max_tokens=300, grounded=True),
+                _ask(client, prov, key, model, q_gbp, max_tokens=20, grounded=True),
                 return_exceptions=True,
             )
             queries_txt = "" if isinstance(r_queries, Exception) else (r_queries or "")
             know_txt = "" if isinstance(r_know, Exception) else (r_know or "")
             gap_txt = "" if isinstance(r_gap, Exception) else (r_gap or "")
+            gbp_up = ("" if isinstance(r_gbp, Exception) else (r_gbp or "")).strip().upper()
+            gbp = True if gbp_up.startswith(("SI", "SÍ", "YES")) else (False if gbp_up.startswith("NO") else None)
 
             # Parseo de las 3 busquedas de categoria
             cat_queries = []
@@ -352,6 +359,9 @@ async def run_ai_geo(domain: str, meta: dict) -> dict | None:
     knows_brand, know_raw = _parse_know(know_txt)
 
     # Agrega los 3 fraseos: aparece / no aparece + competencia (union, del pais)
+    brand_l = brand.lower().strip()
+    dom_root = domain.lower().split("/")[0].replace("www.", "")
+    brand_re = re.compile(r"(?:^|[^a-z0-9])" + re.escape(brand_l) + r"(?:[^a-z0-9]|$)") if brand_l else None
     questions = []
     comps, seen = [], set()
     appears = 0
@@ -362,9 +372,13 @@ async def run_ai_geo(domain: str, meta: dict) -> dict | None:
         if not txt.strip():
             questions.append({"q": search, "appears": None, "named": []})
             continue
-        included, qcomps, _ = _parse_reco(txt, brand)
+        _included, qcomps, _ = _parse_reco(txt, brand)
         valid += 1
-        if included is True:
+        # NO confiamos en 'INCLUIDA': comprobamos nosotros si la marca aparece en
+        # la LISTA de recomendadas (antes de la linea INCLUIDA).
+        body = re.split(r"\bINCLUIDA:", txt, 1)[0].lower()
+        appears_here = bool(dom_root and dom_root in body) or bool(brand_re and brand_re.search(body))
+        if appears_here:
             appears += 1
         named = []
         for c in qcomps:
@@ -373,7 +387,7 @@ async def run_ai_geo(domain: str, meta: dict) -> dict | None:
             if nm and nm.lower() not in seen and brand.lower() not in nm.lower():
                 seen.add(nm.lower())
                 comps.append(c if isinstance(c, dict) else {"name": nm, "domain": None})
-        questions.append({"q": search, "appears": included, "named": named[:4]})
+        questions.append({"q": search, "appears": appears_here, "named": named[:4]})
 
     if valid == 0 and not know_txt.strip():
         return {"available": True, "brand": brand, "error": "sin respuesta de la IA"}
@@ -395,6 +409,7 @@ async def run_ai_geo(domain: str, meta: dict) -> dict | None:
         "knows_brand": knows_brand,
         "brand_description": know_raw[:400] if knows_brand else "",
         "recommended": recommended,
+        "gbp": gbp,
         "competitors": comps[:6],
         "questions": questions,
         "gap": gap,
