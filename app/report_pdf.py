@@ -476,27 +476,34 @@ def _clean_gap(t: str) -> str:
 def _geo_tactics(r: dict) -> list[str]:
     """Todo lo que hay que inyectarle a la IA para que te lea y te recomiende,
     guiado por las senales reales del sitio."""
-    m = r.get("meta", {}); s = r.get("signals", {})
+    m = r.get("meta", {}); s = r.get("signals", {}); ai = r.get("geo_ai") or {}
     rb = s.get("robots_info") or {}
     st = [x.lower() for x in (m.get("schema_types") or [])]
     tips = []
     if rb.get("ai_blocked"):
         tips.append("<b>Permitir el rastreo de los bots de IA</b> (hoy bloqueas " + ", ".join(rb["ai_blocked"][:4]) +
-                    "): si no pueden leerte, no pueden citarte.")
-    if "faqpage" not in st:
+                    "): si no pueden leerte, no pueden citarte. Es lo primero.")
+    if ai.get("knows_brand") is False:
+        tips.append("<b>Construir presencia de marca para la IA</b>: ficha, contenido propio y menciones externas para que la IA sepa quien eres (hoy no te reconoce sin darle tu web).")
+    if not any(x in st for x in ("organization", "localbusiness", "professionalservice")) or not m.get("has_sameas"):
+        tips.append("Marcar tu <b>ficha de empresa (Organization/LocalBusiness + sameAs)</b>: nombre, direccion, telefono, zona y perfiles oficiales.")
+    if "faqpage" not in st and not m.get("has_faq"):
         tips.append("Anadir <b>Preguntas frecuentes con datos estructurados (FAQ schema)</b>: la IA cita respuestas directas de ahi.")
-    if not any(x in st for x in ("organization", "localbusiness", "professionalservice")):
-        tips.append("Marcar tu <b>ficha de empresa (Organization/LocalBusiness schema)</b>: nombre, direccion, telefono y zona.")
-    if not m.get("has_sameas"):
-        tips.append("Conectar tus <b>perfiles oficiales (sameAs)</b> para que la IA te reconozca como entidad real y verificable.")
+    if not st or not (set(st) & {"faqpage", "organization", "localbusiness", "product", "article", "service"}):
+        tips.append("Poner <b>datos estructurados utiles (schema)</b> de tus servicios/productos para que la IA entienda tu oferta.")
+    if m.get("word_count", 0) < 500:
+        tips.append("Crear <b>una pagina por servicio</b> con contenido propio que responda las preguntas reales del cliente (la IA necesita texto que citar).")
+    if not (m.get("h1_count") == 1 and m.get("h2_count", 0) >= 3):
+        tips.append("Ordenar la <b>estructura de titulares</b> (un H1 claro y varios H2 por tema) para que la IA extraiga tus respuestas.")
     if not m.get("has_contact"):
         tips.append("Mostrar una <b>ficha de contacto clara</b> (nombre, telefono, direccion): la IA prioriza negocios verificables.")
-    if m.get("word_count", 0) < 500:
-        tips.append("Crear <b>una pagina por servicio</b> con contenido propio que responda las preguntas reales del cliente.")
+    dlen = len(m.get("description") or "")
+    if not (70 <= dlen <= 165):
+        tips.append("Escribir un <b>resumen citable (meta descripcion)</b> de 70-160 caracteres por pagina: es lo que la IA usa para citarte.")
     if not s.get("llms_txt"):
         tips.append("Publicar <b>llms.txt</b> como guia para los buscadores con IA.")
-    tips.append("Sumar <b>resenas y menciones externas</b> (Google, directorios, prensa) que la IA pueda citar.")
-    return tips[:6]
+    tips.append("Sumar <b>resenas y casos de exito verificables</b> (Google, directorios, prensa): la IA cita fuentes con reputacion.")
+    return tips[:8]
 
 
 def _ai_section(r: dict) -> str:
@@ -523,9 +530,9 @@ def _ai_section(r: dict) -> str:
     card1 = f"""
     <div class="aiq">
       <div class="q"><div class="ico">IA</div><div>
-        <div class="ask">Le preguntamos a la IA: "¿Que es {brand} y a que se dedica?"</div>
+        <div class="ask">Le preguntamos a la IA (sin darle tu web): "¿Conoces la marca {brand}?"</div>
         <div class="qt">"{raw[:320]}"</div></div></div>
-      <div class="src"><span>Consulta a la IA en vivo · sobre tu marca</span>
+      <div class="src"><span>¿La IA te conoce de por si, sin buscar tu web?</span>
         <span class="v {'yes' if knows else 'no'}">{'TE RECONOCE' if knows else 'NO TE RECONOCE'}</span></div>
     </div>"""
     card2 = f"""

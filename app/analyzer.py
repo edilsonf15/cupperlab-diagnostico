@@ -884,8 +884,9 @@ def apply_ai_to_result(data: dict, ai: dict | None) -> dict:
     cats = data["categories"]
     geo = cats.get("geo", {})
     if ai.get("ai_score") is not None and geo:
-        # la prueba REAL a la IA manda (60%); la heuristica tecnica complementa (40%)
-        geo["score"] = round(0.4 * geo["score"] + 0.6 * ai["ai_score"])
+        # las senales tecnicas reales (que varian por sitio) pesan 60%; la prueba a
+        # la IA (reconocimiento + recomendacion) 40%. Asi la nota discrimina de verdad.
+        geo["score"] = round(0.6 * geo["score"] + 0.4 * ai["ai_score"])
         geo["ai"] = True
         overall = round(0.35 * cats["tecnico"]["score"] +
                         0.35 * cats["onpage"]["score"] +

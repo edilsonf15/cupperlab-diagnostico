@@ -257,11 +257,13 @@ async def run_ai_geo(domain: str, meta: dict) -> dict | None:
         country, gl = "", ""
     have_country = bool(country)
 
+    # SIN búsqueda web a proposito: mide si la IA CONOCE la marca de por si (no si
+    # encuentra la URL). Es el reconocimiento real que importa para el GEO.
     q_know = (
-        f"Usa búsqueda web. Visita y consulta el sitio {full_url}. "
-        f"¿Qué es \"{brand}\" y a qué se dedica? Si encuentras el sitio y su información, "
-        f"descríbelo en 2-3 frases. Si NO encuentras información fiable de ESE sitio en concreto, "
-        f"responde EXACTAMENTE con NO_LA_CONOZCO y nada más. No inventes datos."
+        f"Sin usar búsqueda web, solo con lo que ya sabes: ¿conoces la empresa o marca \"{brand}\" "
+        f"(sitio {domain})? Si la conoces con certeza, describe en 2-3 frases a qué se dedica. "
+        f"Si NO tienes información fiable propia sobre ella, responde EXACTAMENTE con NO_LA_CONOZCO "
+        f"y nada más. No inventes ni supongas por el nombre."
     )
     q_country = (
         f"Usa búsqueda web y entra en {full_url}. ¿En qué PAÍS está basado y opera principalmente este "
@@ -308,7 +310,7 @@ async def run_ai_geo(domain: str, meta: dict) -> dict | None:
             # Ronda 1: genera las 3 busquedas + reconocimiento de marca + gap (en paralelo)
             r_queries, r_know, r_gap = await asyncio.gather(
                 _ask(client, prov, key, model, q_queries, max_tokens=250, grounded=False),
-                _ask(client, prov, key, model, q_know, max_tokens=600, grounded=True),
+                _ask(client, prov, key, model, q_know, max_tokens=500, grounded=False),
                 _ask(client, prov, key, model, q_gap, max_tokens=300, grounded=True),
                 return_exceptions=True,
             )
