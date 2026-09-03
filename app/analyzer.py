@@ -649,6 +649,20 @@ async def fetch_psi_full(url: str) -> dict | None:
 
 # ---- Motor principal ---------------------------------------------------------
 
+async def _check_https_forced(domain: str) -> bool:
+    """Prueba REAL: ¿http://dominio redirige a https? (buena practica tecnica)."""
+    host = (domain or "").split("/")[0]
+    if not host:
+        return False
+    try:
+        async with httpx.AsyncClient(headers=HEADERS, verify=False, timeout=8,
+                                     follow_redirects=True) as c:
+            r = await c.get(f"http://{host}/")
+            return str(r.url).lower().startswith("https://")
+    except Exception:  # noqa: BLE001
+        return False
+
+
 async def analyze(raw_url: str) -> Result:
     url = normalize_url(raw_url)
     res = Result(url=url, domain=domain_of(url),
@@ -704,8 +718,9 @@ async def analyze(raw_url: str) -> Result:
         llms_task = fetch_text(client, urljoin(url + "/", "llms.txt"))
 
         (robots_status, robots_text), (sm_status, sm_text), \
-            (smi_status, smi_text), (llms_status, llms_text) = await asyncio.gather(
-                robots_task, sitemap_task, sitemap_idx_task, llms_task
+            (smi_status, smi_text), (llms_status, llms_text), https_forced = await asyncio.gather(
+                robots_task, sitemap_task, sitemap_idx_task, llms_task,
+                _check_https_forced(res.domain),
             )
         psi = None
 
@@ -787,6 +802,7 @@ async def analyze(raw_url: str) -> Result:
     res.signals = {
         "sitemap_comp": sitemap_comp,
         "https": https_ok,
+        "https_forced": bool(https_forced),
         "home_status": home_status,
         "home_time": round(home_time, 2),
         "robots": robots_ok,
@@ -859,18 +875,34 @@ def _score(res: Result) -> None:
     def add(cat, key, label, earned, possible, ok, detail=""):
         cat.append(Check(key, label, earned, possible, ok, detail))
 
-    # ---------- Tecnico y accesibilidad ----------
-    add(tecnico, "https", "Conexion segura (HTTPS)", 20 if s["https"] else 0, 20, s["https"])
+    # ---------- Tecnico y accesibilidad (graduado: distingue webs bien montadas
+    #            de webs con carencias, no todo el mundo saca 100) ----------
+    add(tecnico, "https", "Conexion segura (HTTPS)", 15 if s["https"] else 0, 15, s["https"])
+    hf = s.get("https_forced")
+    add(tecnico, "https_forced", "Fuerza HTTPS (redirige desde http)", 10 if hf else 0, 10, bool(hf),
+        "http redirige a https" if hf else "http NO redirige a https")
     ok200 = 200 <= s["home_status"] < 300
-    add(tecnico, "status", "La web responde correctamente", 15 if ok200 else 0, 15, ok200)
+    add(tecnico, "status", "La web responde correctamente", 10 if ok200 else 0, 10, ok200)
+    # Tiempo de respuesta (TTFB) con umbrales exigentes y graduados
     ht = s["home_time"]
-    speed = 10 if ht < 1.5 else (6 if ht < 3 else (3 if ht < 5 else 0))
-    add(tecnico, "speed", "Tiempo de respuesta", speed, 10, ht < 3, f"{ht}s")
-    add(tecnico, "robots", "Archivo robots.txt", 10 if s["robots"] else 0, 10, s["robots"])
-    add(tecnico, "sitemap", "Mapa del sitio (sitemap)", 15 if s["sitemap"] else 0, 15, s["sitemap"])
-    add(tecnico, "viewport", "Preparada para movil", 10 if m["viewport"] else 0, 10, m["viewport"])
-    health404 = round(20 * (1 - s["broken_ratio"])) if s["links_checked"] else 12
-    add(tecnico, "links", "Enlaces sin errores (404)", health404, 20, s["broken_ratio"] < 0.1,
+    speed = 12 if ht < 0.6 else (9 if ht < 1.2 else (6 if ht < 2 else (3 if ht < 3.5 else 0)))
+    add(tecnico, "speed", "Tiempo de respuesta del servidor", speed, 12, ht < 1.2, f"{ht}s")
+    add(tecnico, "robots", "Archivo robots.txt", 8 if s["robots"] else 0, 8, s["robots"])
+    # Sitemap: presente Y anunciado en robots.txt (lo ideal) vale mas
+    if s["sitemap"] and s.get("sitemap_in_robots"):
+        sm_pts, sm_ok, sm_det = 10, True, "presente y enlazado en robots.txt"
+    elif s["sitemap"]:
+        sm_pts, sm_ok, sm_det = 6, False, "presente, pero no aparece en robots.txt"
+    else:
+        sm_pts, sm_ok, sm_det = 0, False, "no encontrado"
+    add(tecnico, "sitemap", "Mapa del sitio (sitemap)", sm_pts, 10, sm_ok, sm_det)
+    add(tecnico, "viewport", "Preparada para movil", 8 if m["viewport"] else 0, 8, m["viewport"])
+    # Analitica instalada: sin medicion no se puede mejorar con datos
+    an_any = bool((s.get("analytics") or {}).get("has_any"))
+    add(tecnico, "analytics", "Medicion / analitica instalada", 8 if an_any else 0, 8, an_any,
+        ", ".join((s.get("analytics") or {}).get("tools", [])[:2]) or "sin analitica detectada")
+    health404 = round(19 * (1 - s["broken_ratio"])) if s["links_checked"] else 11
+    add(tecnico, "links", "Enlaces sin errores (404)", health404, 19, s["broken_ratio"] < 0.1,
         f'{s["links_broken"]}/{s["links_checked"]} rotos')
 
     # ---------- SEO on-page ----------
