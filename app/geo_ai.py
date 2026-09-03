@@ -283,6 +283,10 @@ async def run_ai_geo(domain: str, meta: dict) -> dict | None:
                         have_country = bool(country)
                 except Exception:  # noqa: BLE001
                     pass
+            if not country:
+                lang = (meta.get("lang") or "").lower()
+                if lang.startswith("es"):
+                    country, gl = "España", "es"
             if not gl:
                 gl = "es"
             ctx_pais = f"en {country}" if country else "en su país"

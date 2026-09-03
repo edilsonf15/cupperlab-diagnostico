@@ -261,7 +261,7 @@
 <script>
 (function(){
   "use strict";
-  var CY="#1CBCE4", MID="#7FD4E8", WARN="#F5842A";
+  var CY="#1CBCE4", GREEN="#1f9d6b", AMBER="#dfa019", RED="#d64343", WARN="#F5842A";
   var form=document.getElementById("diagForm");
   var err=document.getElementById("err");
   var formBlock=document.getElementById("formBlock");
@@ -273,7 +273,7 @@
   var stepText=document.getElementById("stepText");
   var loadDom=document.getElementById("loadDom");
 
-  function tone(v){ return v>=60?CY : v>=40?MID : WARN; }
+  function tone(v){ return v>=70?GREEN : v>=50?AMBER : RED; }
   function esc(t){ return (t||"").toString().replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
   function sleep(ms){ return new Promise(function(r){ setTimeout(r,ms); }); }
 
@@ -344,8 +344,7 @@
     results.classList.remove("hidden");
 
     var score=r.score||0;
-    var ok=score>=62;
-    var vc=ok?CY:WARN;
+    var vc=tone(score);
 
     // Tarjeta índice
     document.getElementById("resDomLab").textContent="ÍNDICE DE VISIBILIDAD · "+(r.domain||"tu sitio").toUpperCase();
@@ -355,13 +354,15 @@
       cur+=Math.max(1,Math.round(score/30)); if(cur>=score){ cur=score; clearInterval(anim); }
       scoreEl.textContent=cur;
     },22);
-    document.getElementById("resTitle").textContent = ok
+    document.getElementById("resTitle").textContent = score>=70
       ? "Ya apareces en varias búsquedas que importan. Lo que falta es defender esa posición y ganar la capa de IA antes que la competencia."
-      : "Hoy dependes demasiado del boca en boca. Quien busca en frío está encontrando a otro antes que a ti — y en la IA aún no te citan.";
+      : score>=50
+      ? "Vas por buen camino, pero hay puntos claros que corregir para que Google y la IA te prioricen."
+      : "Ahora mismo Google y la IA apenas te ven. Hay mucho por ganar y lo urgente está marcado en el informe.";
 
     var stamp=document.getElementById("stamp");
     stamp.style.borderColor=vc; stamp.style.color=vc;
-    document.getElementById("verdict").textContent = ok?"POSICIONADO":"EN RIESGO";
+    document.getElementById("verdict").textContent = score>=70?"POSICIONADO":(score>=50?"MEJORABLE":"EN RIESGO");
     var dt=new Date().toLocaleDateString("es-ES",{day:"2-digit",month:"short",year:"numeric"}).toUpperCase();
     document.getElementById("stampMeta").textContent="NOTA "+(r.grade||"—")+" · "+dt;
 

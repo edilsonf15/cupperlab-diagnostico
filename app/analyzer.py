@@ -312,39 +312,50 @@ def detect_country(html: str, domain: str) -> dict:
 # ---- Analisis de robots.txt (que bloquea, que conviene bloquear) -------------
 
 def analyze_robots(robots_text: str) -> dict:
+    """Analiza robots.txt por grupos de user-agent. 'blocks_all' SOLO si el grupo
+    global (User-agent: *) bloquea todo el sitio (evita falsos positivos cuando un
+    Disallow: / esta bajo un bot concreto). Reconoce buenas practicas ya aplicadas."""
     txt = robots_text or ""
-    disallow, allow = [], []
-    blocks_all = False
+    groups: dict[str, dict] = {}
+    cur = None
     for raw in txt.splitlines():
         l = raw.strip()
         if not l or l.startswith("#"):
             continue
         low = l.lower()
-        if low.startswith("disallow:"):
-            path = l.split(":", 1)[1].strip()
-            if path:
-                disallow.append(path)
-                if path == "/":
-                    blocks_all = True
-        elif low.startswith("allow:"):
-            allow.append(l.split(":", 1)[1].strip())
+        if low.startswith("user-agent:"):
+            cur = l.split(":", 1)[1].strip() or "*"
+            groups.setdefault(cur, {"disallow": [], "allow": []})
+        elif low.startswith("disallow:") and cur is not None:
+            p = l.split(":", 1)[1].strip()
+            if p:
+                groups[cur]["disallow"].append(p)
+        elif low.startswith("allow:") and cur is not None:
+            groups[cur]["allow"].append(l.split(":", 1)[1].strip())
+
+    star = groups.get("*", {"disallow": [], "allow": []})
+    all_dis = [d for g in groups.values() for d in g["disallow"]]
+    blocks_all = ("/" in star["disallow"]) and not any(a in ("/", "/*", "") for a in star["allow"])
     has_sitemap = bool(re.search(r"(?im)^\s*sitemap:", txt))
-    joined = " ".join(d.lower() for d in disallow)
-    common = {
-        "el carrito y el checkout": ["cart", "checkout", "carrito", "basket", "pedido"],
+    joined = " ".join(d.lower() for d in all_dis)
+
+    checks = {
         "el buscador interno": ["?s=", "/search", "/buscar", "?q=", "/?s"],
-        "los filtros con parametros (?)": ["*?", "/*?", "?"],
-        "las paginas de etiqueta/tag": ["/tag", "/etiqueta", "/label", "/categoria/"],
         "el area de administracion": ["wp-admin", "/admin", "wp-login", "/login"],
+        "los feeds y adjuntos": ["/feed", "attachment", "/wp-json", "/trackback"],
+        "los filtros con parametros (?)": ["*?", "/*?"],
+        "las paginas de etiqueta/tag": ["/tag", "/etiqueta", "/label"],
     }
-    suggest = [name for name, kws in common.items() if not any(k in joined for k in kws)]
+    good_blocks = [name for name, kws in checks.items() if any(k in joined for k in kws)]
+    suggest = [name for name, kws in checks.items() if not any(k in joined for k in kws)]
     return {
         "present": bool(txt.strip()),
-        "disallow_count": len(disallow),
+        "disallow_count": len(all_dis),
         "blocks_all": blocks_all,
         "has_sitemap": has_sitemap,
-        "disallow_sample": disallow[:6],
-        "suggest_block": suggest[:4],
+        "disallow_sample": all_dis[:8],
+        "good_blocks": good_blocks,
+        "suggest_block": suggest[:3],
     }
 
 

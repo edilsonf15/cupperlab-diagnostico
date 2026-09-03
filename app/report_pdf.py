@@ -187,16 +187,15 @@ def _severity_bars(r: dict) -> str:
 
 def _priority_table(r: dict) -> str:
     plan = build_plan(r)
+    order = {"Alto": 0, "Medio": 1, "Bajo": 2}
+    plan = sorted(plan, key=lambda p: order.get(p["impacto"], 1))
     def imp_pill(v):
-        return f'<span class="pill {"crit" if v=="Alto" else "med"}">{v}</span>'
-    def esf_pill(v):
-        return f'<span class="pill {"ok" if v=="Bajo" else "med" if v=="Medio" else "hi"}">{v}</span>'
+        return f'<span class="pill {"crit" if v=="Alto" else "med" if v=="Medio" else "ok"}">{v}</span>'
     rows = "".join(
-        f'<tr><td>{p["text"]}</td><td class="c">{imp_pill(p["impacto"])}</td>'
-        f'<td class="c">{esf_pill(p["esfuerzo"])}</td><td class="c"><b>{p["fase"]}</b></td></tr>'
+        f'<tr><td>{p["text"]}</td><td class="c">{imp_pill(p["impacto"])}</td></tr>'
         for p in plan)
     return f"""<table class="t"><thead><tr><th>Accion (en lenguaje de negocio)</th>
-      <th class="c">Impacto</th><th class="c">Esfuerzo</th><th class="c">Fase</th></tr></thead>
+      <th class="c">Impacto</th></tr></thead>
       <tbody>{rows}</tbody></table>"""
 
 
@@ -306,7 +305,7 @@ def _check_list(items: list) -> str:
     out = ""
     for name, code, st, obs in items:
         col, ico = _STAT.get(st, (AMBER, "!"))
-        out += (f'<div class="ck"><span class="cki" style="background:{col}">{ico}</span>'
+        out += (f'<div class="ck" style="border-left:3px solid {col}"><span class="cki" style="background:{col}">{ico}</span>'
                 f'<div class="ckb"><div class="ckt">{name} <span class="ckc" style="color:{col}">{code}</span></div>'
                 f'<div class="cko">{obs}</div></div></div>')
     return f'<div class="cklist">{out}</div>'
@@ -349,18 +348,22 @@ def _robots_block(r: dict) -> str:
         return ('<div class="block callout o"><b>robots.txt.</b> No encontramos robots.txt. Conviene publicarlo '
                 'para guiar a Google (que rastree lo importante) y declarar ahi tu mapa del sitio.</div>')
     parts = []
+    tone = "o"
     if rb.get("blocks_all"):
-        parts.append('<span style="color:' + RED + '"><b>Bloquea TODO el sitio (Disallow: /)</b>: Google no puede rastrearte. Corregir ya.</span>')
-    if rb.get("disallow_sample"):
-        parts.append("Hoy bloquea: <b>" + ", ".join(rb["disallow_sample"]) + "</b>.")
+        tone = "r"
+        parts.append('<span style="color:' + RED + '"><b>Bloquea TODO el sitio (User-agent: * Disallow: /)</b>: Google no puede rastrearte. Corregir ya.</span>')
+    if rb.get("good_blocks"):
+        parts.append("Ya bloqueas bien " + ", ".join(rb["good_blocks"]) +
+                     " (evita que Google gaste rastreo en paginas sin valor).")
+    elif rb.get("disallow_sample"):
+        parts.append("Hoy bloquea: <b>" + ", ".join(rb["disallow_sample"][:5]) + "</b>.")
     if rb.get("suggest_block"):
-        parts.append("Convendria bloquear tambien " + ", ".join(rb["suggest_block"]) +
-                     " para que Google no gaste rastreo en paginas sin valor.")
+        parts.append("Conviene bloquear tambien " + ", ".join(rb["suggest_block"]) + ".")
     if not rb.get("has_sitemap"):
-        parts.append("No declara el <b>sitemap</b> dentro del robots: anadirlo ayuda a que lo descubra antes.")
+        parts.append("No declara el <b>sitemap</b> dentro del robots: anadirlo ayuda a que Google lo descubra antes.")
     if not parts:
         parts.append("Bien configurado: guia el rastreo y declara el sitemap.")
-    return '<div class="block callout o"><b>Analisis del robots.txt.</b> ' + " ".join(parts) + "</div>"
+    return f'<div class="block callout {tone}"><b>Analisis del robots.txt.</b> ' + " ".join(parts) + "</div>"
 
 
 def _onpage_rows(r: dict) -> str:
@@ -443,6 +446,35 @@ def _esc(t) -> str:
     return str(t or "").replace("<", "&lt;").replace(">", "&gt;")
 
 
+def _clean_gap(t: str) -> str:
+    """Limpia el texto libre de la IA: quita enlaces markdown, URLs sueltas y colas."""
+    t = t or ""
+    t = re.sub(r"\[([^\]]+)\]\((?:https?://)?[^)]+\)", r"\1", t)  # [txt](url) -> txt
+    t = re.sub(r"\((?:https?://)?[a-z0-9.\-/_?=&%:]+\)", "", t, flags=re.I)  # (url)
+    t = re.sub(r"https?://\S+", "", t)
+    t = re.sub(r"\s+", " ", t).strip()
+    # corta si termina en palabra a medias tras un punto
+    return t
+
+
+def _geo_tactics(r: dict) -> list[str]:
+    """Tacticas concretas de posicionamiento en IA (GEO), segun senales reales."""
+    m = r.get("meta", {}); s = r.get("signals", {})
+    st = [x.lower() for x in (m.get("schema_types") or [])]
+    tips = []
+    if "faqpage" not in st:
+        tips.append("Anadir <b>Preguntas frecuentes con datos estructurados (FAQ schema)</b> en las paginas de servicio: la IA cita respuestas directas.")
+    if not any(x in st for x in ("organization", "localbusiness", "professionalservice")):
+        tips.append("Marcar tu <b>ficha de empresa (Organization/LocalBusiness schema)</b>: nombre, direccion, telefono y zona.")
+    if not m.get("has_sameas"):
+        tips.append("Conectar tus <b>perfiles oficiales (sameAs)</b> para que la IA te reconozca como entidad real y verificable.")
+    if not s.get("llms_txt"):
+        tips.append("Publicar <b>llms.txt</b> como guia para los buscadores con IA.")
+    tips.append("Crear <b>una pagina por servicio</b> con el vocabulario del cliente y contenido que responda sus preguntas reales.")
+    tips.append("Sumar <b>resenas y menciones externas</b> (Google, directorios, prensa) que la IA pueda citar.")
+    return tips[:5]
+
+
 def _ai_section(r: dict) -> str:
     ai = r.get("geo_ai") or {}
     answered = ai.get("answered_names") or []
@@ -481,37 +513,30 @@ def _ai_section(r: dict) -> str:
         <span class="v {'yes' if reco else 'no'}">{'TE RECOMIENDA' if reco else ('NO TE RECOMIENDA' if reco is False else 'SIN DETERMINAR')}</span></div>
     </div>"""
 
-    table = f"""
-      <div class="sectic" style="margin-top:10px">Resumen de las pruebas con la IA</div>
-      <table class="t"><thead><tr><th>Lo que le preguntamos a la IA</th><th class="c">Resultado</th></tr></thead><tbody>
-        <tr><td>Por tu marca ("¿que es {brand}?")</td><td class="c">{"<span class=yes>Te reconoce y describe</span>" if knows else "<span class=no>No te reconoce</span>"}</td></tr>
-        <tr><td>Por tu servicio, sin nombrarte (categoria)</td><td class="c">{"<span class=yes>Te incluye</span>" if reco else ("<span class=no>Nombra a otros, no a ti</span>" if reco is False else "-")}</td></tr>
-      </tbody></table>"""
-
-    # Las 3 busquedas reales que probamos (el corazon de la prueba GEO)
+    # Las 3 busquedas reales de un cliente (el corazon de la prueba GEO), como tarjetas
     questions = ai.get("questions") or []
-    q_table = ""
-    if questions:
-        q_rows = ""
-        for q in questions[:3]:
-            ap = q.get("appears")
-            res = ("<span class=yes>Apareces</span>" if ap is True
-                   else "<span class=no>No apareces</span>" if ap is False else "-")
-            named = ", ".join(q.get("named", [])[:3])
-            q_rows += (f'<tr><td>"{_esc(q.get("q",""))}"</td><td class="c">{res}</td>'
-                       f'<td class="u">{_esc(named) or "-"}</td></tr>')
-        q_table = (f'<div class="sectic" style="margin-top:10px">Las 3 busquedas reales que probamos'
-                   f'{(" en " + _esc(country)) if country else ""}</div>'
-                   f'<table class="t"><thead><tr><th>Lo que escribe un cliente</th>'
-                   f'<th class="c">¿Sales?</th><th>Quien sale en tu lugar</th></tr></thead>'
-                   f'<tbody>{q_rows}</tbody></table>')
+    q_cards = ""
+    for q in questions[:3]:
+        ap = q.get("appears")
+        named = ", ".join(q.get("named", [])[:4]) or "—"
+        vt = "APARECES" if ap is True else ("NO APARECES" if ap is False else "SIN DATO")
+        vc = "yes" if ap is True else ("no" if ap is False else "")
+        q_cards += f"""
+    <div class="aiq">
+      <div class="q"><div class="ico">IA</div><div>
+        <div class="ask">Un cliente busca: "{_esc(q.get('q',''))}"</div>
+        <div class="qt">La IA recomienda a: {_esc(named)}.</div></div></div>
+      <div class="src"><span>Busqueda de categoria{(' · ' + _esc(country)) if country else ''}</span>
+        <span class="v {vc}">{vt}</span></div>
+    </div>"""
+    q_block = (f'<div class="sectic" style="margin-top:12px">Las 3 busquedas reales de un cliente'
+               f'{(" en " + _esc(country)) if country else ""} · ¿sales tu?</div>{q_cards}') if q_cards else ""
 
     knows_any = knows; reco_any = reco
     verdict = ("La IA te reconoce y te recomienda: vas por delante de la mayoria." if knows_any and reco_any
                else f"La IA te describe, pero cuando alguien pide tu servicio nombra a {comps}, no a ti: pierdes a los clientes que aun no te conocen." if knows_any
                else f"La IA no sabe quien eres y recomienda a {comps}: hoy no apareces cuando preguntan por tu servicio.")
 
-    # Nota destacada arriba
     if knows_any and not reco_any:
         topnote = ("<b>Solo apareces si dan tu direccion exacta.</b> La IA te describe cuando le pasan tu web, "
                    "pero cuando alguien busca tu servicio sin conocerte, no te nombra: ahi es donde pierdes clientes.")
@@ -519,18 +544,22 @@ def _ai_section(r: dict) -> str:
         topnote = ("<b>La IA no te encuentra.</b> Ni sabiendo tu nombre te reconoce: hoy no existes para quien "
                    "pregunta a la IA antes de comprar.")
     else:
-        topnote = "<b>Buena señal:</b> la IA te reconoce y te incluye. Toca mantener la ventaja."
-    gap = (r.get("geo_ai") or {}).get("gap")
-    gap_block = (f'<div class="block callout o"><b>Que te falta para que la IA te recomiende.</b> {gap}</div>'
-                 if gap else "")
+        topnote = "<b>Buena senal:</b> la IA te reconoce y te incluye. Toca mantener la ventaja."
+
+    gap_c = _clean_gap(ai.get("gap"))
+    tactics = _geo_tactics(r)
+    tac_lis = "".join(f'<li><span class="i" style="background:{CY6}">+</span>{t}</li>' for t in tactics)
+    gap_block = (f'<div class="block card"><div class="sectic" style="margin-bottom:8px">Que te falta para que la IA te recomiende (por corregir)</div>'
+                 + (f'<p style="font-size:9.5px;color:#3d4855;line-height:1.55;margin-bottom:10px">{_esc(gap_c)}</p>' if gap_c else "")
+                 + f'<ul class="chk">{tac_lis}</ul></div>')
 
     cards = card1 + card2
     return f"""
     <div class="eyebrow"><span class="bar"></span>04 · Como te ve la inteligencia artificial</div>
     <h2 class="sec">Como te ve la IA cuando preguntan por ti</h2>
-    <p class="sub">Hicimos pruebas con la IA, en vivo: le preguntamos por tu marca y por tu servicio, y citamos su respuesta. Cada vez mas clientes buscan asi antes de decidir.</p>
+    <p class="sub">Le preguntamos a la IA, en vivo: por tu marca, por tu servicio y con busquedas reales de cliente. Cada vez mas gente busca asi antes de decidir.</p>
     <div class="block callout {'g' if (knows_any and reco_any) else 'r'}">{topnote}</div>
-    {cards}{q_table}{table}
+    {cards}{q_block}
     <div class="block callout {'g' if (knows_any and reco_any) else 'o' if knows_any else 'r'}"><b>Veredicto IA.</b> {verdict}</div>
     {gap_block}"""
 
@@ -581,10 +610,8 @@ def _speed_section(r: dict) -> str:
 
     return f"""
     <div class="eyebrow" style="margin-top:16px"><span class="bar"></span>Rendimiento · movil frente a escritorio</div>
-    <h2 class="sec">Velocidad real: movil en dispositivo y escritorio con PageSpeed</h2>
-    <p class="sub">El movil se mide en un dispositivo real en buena conexion (sin la penalizacion de red 4G que aplica
-    PageSpeed); el escritorio, con Google PageSpeed. El umbral sano de carga principal (LCP) es 2,5 s.</p>
-    <div class="block two">{card('Movil (dispositivo real)', m, True)}{card('Escritorio (PageSpeed)', d, False)}</div>"""
+    <h2 class="sec">Velocidad de tu web</h2>
+    <div class="block two">{card('Movil', m, True)}{card('Escritorio', d, False)}</div>"""
 
 
 def _google_section(r: dict) -> str:
@@ -809,8 +836,8 @@ def build_report_html(r: dict, contact: dict, name: str = "") -> str:
     .actcol li .k{{position:absolute;left:0;top:6px;width:16px;height:16px;border-radius:5px;background:{CY6};color:#fff;font-family:"JetBrains Mono",monospace;font-size:8px;font-weight:700;display:flex;align-items:center;justify-content:center}}
     .actcol li b{{color:{INK9}}}
     .card{{border:1px solid #dee3e9;border-radius:14px;padding:14px 16px}}
-    .cklist{{display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;margin-top:6px}}
-    .ck{{display:flex;gap:9px;align-items:flex-start;padding:9px 11px;border:1px solid #e6ebf0;border-radius:11px;background:#fbfcfd;break-inside:avoid}}
+    .cklist{{display:grid;grid-template-columns:1fr 1fr;gap:9px 16px;margin-top:8px}}
+    .ck{{display:flex;gap:10px;align-items:flex-start;padding:11px 13px;border:1px solid #e6ebf0;border-radius:11px;background:#fff;box-shadow:0 1px 3px rgba(10,16,20,0.03);break-inside:avoid}}
     .ck .cki{{width:16px;height:16px;border-radius:5px;color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex:none;margin-top:1px}}
     .ck .ckb{{flex:1;min-width:0}}
     .ck .ckt{{font-family:"Sora",sans-serif;font-weight:700;font-size:9.5px;color:{INK9}}}
@@ -916,7 +943,6 @@ def build_report_html(r: dict, contact: dict, name: str = "") -> str:
   {_tech_rows(r)}
   {_robots_block(r)}
   {(''.join('<div class="block callout r"><b>Enlaces rotos.</b> Ejemplos reales encontrados: ' + ', '.join(e["url"] for e in s["broken_examples"][:3]) + '.</div>' for _ in [0]) if s.get("broken_examples") else '')}
-  {_sitemap_comp_block(r)}
 
   <div class="eyebrow" style="margin-top:16px"><span class="bar"></span>03 · SEO on-page</div>
   <h2 class="sec">Que le falta a tus paginas para posicionar</h2>
