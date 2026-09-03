@@ -1,160 +1,415 @@
 <!doctype html>
 <html lang="es">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Diagnóstico de visibilidad en Google y en la IA · Cupperlab</title>
-  <meta name="description" content="Analiza gratis cómo te ve Google y cómo te encuentran los buscadores con IA (ChatGPT, Gemini, Perplexity). Resultado en menos de un minuto y por correo.">
-  <link rel="icon" href="/static/assets/cupperlab-logo.png">
-  <link rel="stylesheet" href="/static/css/brand.css">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Diagnóstico web gratuito para tu negocio · Cupperlab</title>
+<meta name="description" content="Diagnóstico gratuito de tu sitio: qué tan visible eres en Google y en las respuestas de la IA. Resultado en pantalla y el informe completo en PDF a tu correo.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:#F7F9FB;font-family:'Plus Jakarta Sans',system-ui,sans-serif;color:#0A1014;-webkit-font-smoothing:antialiased}
+  a{color:#0A1014;text-decoration-color:#1CBCE4;text-underline-offset:3px}
+  a:hover{color:#1CBCE4}
+  input,select,button,textarea{font:inherit}
+  ::selection{background:#1CBCE4;color:#0A1014}
+  .wrap{max-width:1140px;margin:0 auto}
+  .mono{font-family:'JetBrains Mono',monospace}
+  .sora{font-family:'Sora',sans-serif}
+  .btn-cy{display:inline-flex;align-items:center;gap:10px;background:#1CBCE4;color:#0A1014;text-decoration:none;font-family:'Sora',sans-serif;font-weight:600;border:none;border-radius:10px;cursor:pointer;transition:background .16s,color .16s}
+  .btn-cy:hover{background:#0A1014;color:#F7F9FB}
+  .field input,.field select{background:#F7F9FB;border:1px solid rgba(10,16,20,0.14);border-radius:10px;padding:14px 15px;font-size:16.5px;width:100%;transition:border-color .15s,box-shadow .15s}
+  .field input:focus,.field select:focus{outline:none;border-color:#1CBCE4;box-shadow:0 0 0 3px rgba(28,188,228,0.2)}
+  .field{display:flex;flex-direction:column;gap:8px}
+  .field .lab{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:rgba(10,16,20,0.55)}
+  @keyframes cl-stamp{0%{opacity:0;transform:rotate(-10deg) scale(2.2)}58%{opacity:1;transform:rotate(-2deg) scale(1)}68%{transform:rotate(-2deg) scale(1.04)}100%{opacity:1;transform:rotate(-2deg) scale(1)}}
+  @keyframes cl-rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes cl-sweep{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+  @keyframes cl-blip{0%,100%{opacity:.5}50%{opacity:1}}
+  .hidden{display:none!important}
+  .hero-img,.cta-img{background-size:cover;background-position:center;background-repeat:no-repeat;background-color:#F7F9FB}
+</style>
 </head>
 <body>
 
-<!-- ================= HERO + FORM ================= -->
-<header class="hero">
-  <div class="wrap">
-    <div class="topbar">
-      <img src="/static/assets/cupperlab-wordmark.png" alt="Cupperlab">
-      <a class="ph" href="tel:{{ phone|replace(' ','') }}">Hablemos · <b>{{ phone }}</b></a>
+<header style="background:#0A1014;color:#F7F9FB;position:sticky;top:0;z-index:20">
+  <div class="wrap" style="padding:16px 24px;display:flex;align-items:center;justify-content:space-between;gap:20px">
+    <div style="display:flex;align-items:center;gap:16px;min-width:0">
+      <img src="/static/img/cupperlab-logo-color.png" alt="Cupperlab" style="height:26px;width:auto;display:block;flex-shrink:0">
+      <span style="width:1px;height:22px;background:rgba(247,249,251,0.2);flex-shrink:0"></span>
+      <span class="mono" style="font-size:11.5px;color:rgba(247,249,251,0.6);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Diagnóstico web gratuito · Google &amp; IA</span>
     </div>
-
-    <div class="hero-grid">
-      <div>
-        <h1>¿Te encuentran <span class="hi">Google</span> y la <span class="hi">IA</span> ahora mismo?</h1>
-        <p class="lead">Analizamos tu web en vivo y te decimos cómo estás de visibilidad en Google
-          y de preparación para los buscadores con IA.</p>
-
-        <!-- Mini diagnóstico en vivo (animado) -->
-        <div class="hviz">
-          <div class="hviz-top"><span class="hviz-dot"></span> Diagnóstico en vivo</div>
-          <div class="hviz-row"><span>SEO on-page</span><div class="hb"><i style="--w:92%"></i></div></div>
-          <div class="hviz-row"><span>Cómo te ve la IA</span><div class="hb"><i style="--w:58%;--c:#f46434"></i></div></div>
-          <div class="hviz-row"><span>Velocidad</span><div class="hb"><i style="--w:74%;--c:#dfa019"></i></div></div>
-          <div class="hviz-ai"><span class="hviz-bot">◆</span> <span class="hviz-q" id="hvizQ">"¿Conocéis esta empresa?"</span></div>
-          <div class="hviz-scan"></div>
-        </div>
-      </div>
-
-      <!-- FORM CARD -->
-      <div class="card" id="formCard">
-        <h2>Analiza tu web</h2>
-        <p class="sub">Datos reales, comprobados en vivo.</p>
-        <div class="err" id="err"></div>
-
-        <form id="diagForm">
-          <div class="field url">
-            <label for="url">Dirección de tu web</label>
-            <input id="url" name="url" type="text" inputmode="url" placeholder="tudominio.com" required>
-          </div>
-          <div class="field">
-            <label for="email">Tu correo (te enviamos el diagnóstico)</label>
-            <input id="email" name="email" type="email" placeholder="nombre@empresa.com" required>
-          </div>
-          <div class="row2">
-            <div class="field">
-              <label for="name">Tu nombre</label>
-              <input id="name" name="name" type="text" placeholder="Nombre">
-            </div>
-            <div class="field">
-              <label for="phone">Teléfono (opcional)</label>
-              <input id="phone" name="phone" type="tel" placeholder="+34 ...">
-            </div>
-          </div>
-          <label class="consent">
-            <input type="checkbox" id="consent" required>
-            <span>Acepto que Cupperlab analice mi web y me contacte con los resultados y propuestas.</span>
-          </label>
-          <button class="btn" id="submitBtn" type="submit">Analizar mi web gratis →</button>
-          <p class="formnote">Análisis en vivo. Te enviamos el informe completo al correo.</p>
-        </form>
-
-        <!-- LOADING -->
-        <div class="loading" id="loading">
-          <div class="progtop"><span class="steps" id="stepText">Conectando con tu web…</span><b id="progPct">0%</b></div>
-          <div class="bar"><i id="progFill"></i></div>
-          <div class="dom" id="loadDom"></div>
-        </div>
-      </div>
-    </div>
+    <a href="#motor" class="btn-cy" style="font-size:13.5px;padding:11px 18px">Diagnosticar mi sitio</a>
   </div>
 </header>
 
-<!-- ================= RESULTS ================= -->
-<section class="results" id="results">
+<!-- HERO -->
+<section style="background:#FFFFFF;border-bottom:1px solid rgba(10,16,20,0.08)">
+  <div class="wrap" style="padding:76px 24px 84px;display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:60px;align-items:center">
+    <div>
+      <p class="mono" style="display:inline-flex;align-items:center;gap:9px;margin:0 0 22px;background:rgba(28,188,228,0.12);color:#0A1014;font-size:11.5px;padding:8px 13px;border-radius:999px">
+        <span style="width:6px;height:6px;border-radius:50%;background:#1CBCE4;animation:cl-blip 1.4s ease-in-out infinite"></span>
+        GRATIS · DIAGNÓSTICO INICIAL EN VIVO
+      </p>
+      <h1 class="sora" style="font-weight:700;font-size:clamp(34px,4.6vw,58px);line-height:1.06;letter-spacing:-0.03em;margin:0 0 22px;text-wrap:pretty">
+        Diagnóstico gratuito de tu sitio: <span style="color:#1CBCE4">qué tan visible eres en Google y en las respuestas de IA.</span>
+      </h1>
+      <p style="max-width:54ch;font-size:17.5px;line-height:1.65;color:rgba(10,16,20,0.68);margin:0 0 18px">
+        Tu próximo cliente ya empezó a buscar: escribe lo que necesita en Google o se lo pregunta a la IA. Alguien va a aparecer en esa respuesta — revisemos si eres tú.
+      </p>
+      <p style="max-width:54ch;font-size:16px;line-height:1.65;color:rgba(10,16,20,0.55);margin:0 0 34px">
+        Pones tu sitio, tu sector y tu ciudad. Analizamos tu web <strong style="font-weight:600;color:#0A1014">en vivo</strong> y te devolvemos un índice de visibilidad, cómo te ve la IA y los arreglos que más mueven la aguja. Además te enviamos el informe completo en PDF al correo. Sin costo.
+      </p>
+      <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:center">
+        <a href="#motor" class="btn-cy" style="font-size:15.5px;padding:16px 26px">
+          Iniciar el diagnóstico
+          <span class="mono" style="font-size:12px;opacity:0.6">en vivo</span>
+        </a>
+        <span class="mono" style="font-size:12.5px;color:rgba(10,16,20,0.45)">y el informe completo te llega al correo</span>
+      </div>
+    </div>
+    <div class="hero-img" style="width:100%;max-width:460px;justify-self:end;aspect-ratio:4/5;border-radius:14px;background-image:url('/static/img/hero-generic.webp')"></div>
+  </div>
+</section>
+
+<!-- URGENCIA -->
+<section style="background:#F7F9FB;border-bottom:1px solid rgba(10,16,20,0.08)">
+  <div class="wrap" style="padding:56px 24px">
+    <div style="display:flex;align-items:center;gap:18px;margin-bottom:34px">
+      <svg viewBox="0 0 120 60" width="86" height="43" fill="none" stroke="#1CBCE4" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 30a14 14 0 1028 0 14 14 0 10-28 0 M52 44l14 12 M84 20h24 M84 32h18 M84 44h24"/></svg>
+      <p class="sora" style="margin:0;font-weight:600;font-size:17px;letter-spacing:-0.01em">Lo que está pasando mientras lees esto</p>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:28px">
+      <div style="border-top:2px solid #1CBCE4;padding-top:16px"><p style="margin:0;font-size:16px;line-height:1.6;color:rgba(10,16,20,0.72)">Nadie compara diez opciones: se revisan las primeras y se contacta a una.</p></div>
+      <div style="border-top:2px solid #1CBCE4;padding-top:16px"><p style="margin:0;font-size:16px;line-height:1.6;color:rgba(10,16,20,0.72)">Los asistentes de IA ya recomiendan proveedores por nombre, citando muy pocas fuentes.</p></div>
+      <div style="border-top:2px solid #F5842A;padding-top:16px"><p style="margin:0;font-size:16px;line-height:1.6;color:rgba(10,16,20,0.72)">Un sitio lento o mal indexado no se penaliza en público: simplemente deja de aparecer.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- MOTOR: FORM / ANALIZANDO / RESULTADO -->
+<section id="motor" style="background:#FFFFFF;padding:88px 24px 96px">
   <div class="wrap">
-    <span class="eyebrow"><span class="n">02</span> · Tu diagnóstico</span>
-    <div class="res-head" style="margin-top:18px">
-      <div class="gauge">
-        <svg width="200" height="200" viewBox="0 0 100 100">
-          <circle cx="50" cy="50" r="41" fill="none" stroke="#e8ecf1" stroke-width="9"></circle>
-          <circle id="gaugeArc" cx="50" cy="50" r="41" fill="none" stroke="#1cbce4" stroke-width="9"
-                  stroke-linecap="round" stroke-dasharray="0 257.6"></circle>
-        </svg>
-        <div class="val">
-          <b id="scoreNum">0<span>/100</span></b>
-          <em>salud digital</em>
+
+    <!-- FORMULARIO (único punto de entrada) -->
+    <div id="formBlock" style="max-width:780px">
+      <h2 class="sora" style="font-weight:600;font-size:clamp(24px,2.8vw,33px);letter-spacing:-0.025em;margin:0 0 12px">Cuéntanos qué revisar</h2>
+      <p style="margin:0 0 36px;font-size:16px;line-height:1.65;color:rgba(10,16,20,0.6)">Unos datos y arrancamos. El resultado aparece en esta misma pantalla y el informe completo te llega al correo.</p>
+      <form id="diagForm" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:22px 24px">
+        <label class="field" style="grid-column:1/-1">
+          <span class="lab">SITIO DE TU NEGOCIO</span>
+          <input id="url" name="url" type="text" placeholder="www.tusitio.com" autocomplete="url">
+        </label>
+        <label class="field">
+          <span class="lab">SECTOR</span>
+          <select id="sector" name="sector">
+            <option>Servicios legales</option>
+            <option>Odontología</option>
+            <option>Salud y especialidades médicas</option>
+            <option>Seguros</option>
+            <option>Asesoría financiera</option>
+            <option>Servicios profesionales</option>
+            <option>Comercio local</option>
+            <option>Inmobiliaria</option>
+            <option>Otro</option>
+          </select>
+        </label>
+        <label class="field">
+          <span class="lab">CIUDAD</span>
+          <input id="city" name="city" type="text" placeholder="Tu ciudad">
+        </label>
+        <label class="field">
+          <span class="lab">CORREO</span>
+          <input id="email" name="email" type="email" placeholder="nombre@tusitio.com" autocomplete="email">
+        </label>
+        <label class="field">
+          <span class="lab">WHATSAPP <span style="opacity:0.5">(opcional)</span></span>
+          <input id="phone" name="phone" type="tel" placeholder="+34 600 000 000" autocomplete="tel">
+        </label>
+        <label style="grid-column:1/-1;display:flex;align-items:flex-start;gap:10px;font-size:13.5px;line-height:1.5;color:rgba(10,16,20,0.6);cursor:pointer">
+          <input id="consent" type="checkbox" style="margin-top:2px;width:16px;height:16px;accent-color:#1CBCE4;flex-shrink:0">
+          <span>Acepto que Cupperlab analice mi web y me contacte con los resultados y propuestas.</span>
+        </label>
+        <div style="grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;gap:20px;margin-top:6px">
+          <button id="submitBtn" type="submit" class="btn-cy" style="font-size:15.5px;padding:16px 30px">Analizar mi sitio</button>
+          <span id="err" class="mono" style="display:none;font-size:12.5px;color:#C4551F"></span>
+        </div>
+      </form>
+    </div>
+
+    <!-- ANALIZANDO -->
+    <div id="loading" class="hidden" style="max-width:800px;padding:6px 0 40px">
+      <p id="progPct" class="mono" style="font-size:12px;color:#0E8FB0;margin:0 0 16px">0%</p>
+      <h2 id="stepText" class="sora" style="font-weight:600;font-size:clamp(25px,3.2vw,40px);letter-spacing:-0.025em;margin:0 0 32px;line-height:1.15">Conectando con tu web…</h2>
+      <div style="height:3px;background:rgba(10,16,20,0.1);position:relative;border-radius:999px;overflow:hidden">
+        <div id="progFill" style="position:absolute;inset:0 auto 0 0;background:#1CBCE4;width:0%;transition:width .4s ease"></div>
+      </div>
+      <p style="margin:26px 0 0;font-size:15px;line-height:1.65;color:rgba(10,16,20,0.5);max-width:52ch">Estamos revisando <b id="loadDom">tu sitio</b> en vivo: SEO, cómo te ve la IA, velocidad y competencia. No cierres esta pestaña.</p>
+    </div>
+
+    <!-- RESULTADO -->
+    <div id="results" class="hidden">
+      <!-- Tarjeta índice -->
+      <div style="background:#0A1014;color:#F7F9FB;border-radius:16px;padding:clamp(30px,4vw,54px)">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:44px;align-items:center">
+          <div>
+            <p id="resDomLab" class="mono" style="font-size:11.5px;color:rgba(247,249,251,0.55);margin:0 0 12px">ÍNDICE DE VISIBILIDAD · TU SITIO</p>
+            <div style="display:flex;align-items:flex-start;gap:8px">
+              <span id="scoreNum" class="sora" style="font-weight:700;font-size:clamp(88px,12vw,152px);line-height:0.88;letter-spacing:-0.05em;color:#1CBCE4">0</span>
+              <span class="mono" style="font-size:14px;color:rgba(247,249,251,0.45);padding-top:14px">/100</span>
+            </div>
+            <p id="resTitle" style="margin:22px 0 0;font-size:16.5px;line-height:1.65;color:rgba(247,249,251,0.72);max-width:44ch"></p>
+          </div>
+          <div style="display:flex;justify-content:center">
+            <div id="stamp" style="border:2px solid #1CBCE4;border-radius:12px;padding:22px 26px;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;animation:cl-stamp 1s cubic-bezier(0.2,0.9,0.2,1) both">
+              <span class="mono" style="font-size:10px;letter-spacing:0.18em;opacity:0.8;white-space:nowrap;color:inherit">CUPPERLAB · DIAGNÓSTICO</span>
+              <span id="verdict" class="sora" style="font-weight:700;font-size:26px;letter-spacing:-0.02em;white-space:nowrap;color:inherit">—</span>
+              <span style="width:100%;height:1px;background:currentColor;opacity:0.4"></span>
+              <span id="stampMeta" class="mono" style="font-size:10px;letter-spacing:0.12em;opacity:0.8;white-space:nowrap;color:inherit"></span>
+            </div>
+          </div>
         </div>
       </div>
-      <div>
-        <span class="grade-pill" id="gradePill">—</span>
-        <h2 id="resTitle" style="margin-top:10px">Analizando…</h2>
-        <p class="dom" id="resDom"></p>
-        <p id="resSummary"></p>
+
+      <!-- Dimensiones + hallazgos -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:0 56px;margin-top:52px">
+        <div>
+          <h3 class="sora" style="font-weight:600;font-size:20px;letter-spacing:-0.02em;margin:0 0 22px">Cómo estás por área</h3>
+          <div id="dims"></div>
+        </div>
+        <div>
+          <h3 class="sora" style="font-weight:600;font-size:20px;letter-spacing:-0.02em;margin:0 0 22px">Hallazgos, por orden de impacto</h3>
+          <div id="findings"></div>
+          <p class="mono" style="margin:18px 0 0;font-size:12px;line-height:1.6;color:rgba(10,16,20,0.42)">Lectura en vivo sobre datos públicos de tu web. El informe completo, con el plan de acción, va en el PDF.</p>
+        </div>
       </div>
+
+      <!-- Cómo te ve la IA -->
+      <div id="aihi" class="hidden" style="margin-top:44px;border-top:1px solid rgba(10,16,20,0.09);padding-top:36px"></div>
+
+      <!-- Competencia -->
+      <div id="compe" class="hidden" style="margin-top:36px"></div>
+
+      <!-- Aviso correo -->
+      <div id="mailed" style="margin-top:40px;background:#F7F9FB;border:1px solid rgba(28,188,228,0.35);border-left:3px solid #1CBCE4;border-radius:12px;padding:20px 22px;font-size:15.5px;line-height:1.6;color:rgba(10,16,20,0.75)"></div>
+
+      <button id="againBtn" type="button" class="mono" style="margin-top:34px;background:none;border:none;padding:0;cursor:pointer;font-size:12px;color:rgba(10,16,20,0.5)">← revisar otro sitio</button>
     </div>
 
-    <!-- Franja IA destacada -->
-    <div class="aihi" id="aihi"></div>
-
-    <div class="cats" id="cats"></div>
-
-    <!-- Velocidad móvil/escritorio -->
-    <div class="velo" id="velo"></div>
-
-    <!-- Competencia -->
-    <div class="compe" id="compe"></div>
-
-    <div class="mailed" id="mailed"></div>
-
-    <!-- CTA -->
-    <div class="cta">
-      <div>
-        <h3>Esto es solo la superficie.</h3>
-        <p>El diagnóstico completo incluye qué responde la IA cuando preguntan por tu servicio,
-          análisis de tu competencia y un plan de acción priorizado. Te lo preparamos gratis.</p>
-      </div>
-      <div class="actions">
-        {% if calendly %}<a class="primary" href="{{ calendly }}" target="_blank" rel="noopener">Agendar llamada</a>{% endif %}
-        <a class="phone" href="tel:{{ phone|replace(' ','') }}">📞 <b>{{ phone }}</b></a>
-      </div>
-    </div>
   </div>
 </section>
 
-<!-- ================= QUÉ DESCUBRIRÁS ================= -->
-<section class="reveal">
-  <div class="wrap">
-    <h2 class="reveal-title">Esto es lo que descubrirás de tu web</h2>
-    <p class="reveal-sub">Un rayo X completo, en vivo, de cómo te ven Google y la IA hoy.</p>
-    <div class="rgrid">
-      <div class="rcard"><div class="ic">🔎</div><h3>SEO on-page</h3><p>Títulos, descripciones, H1, imágenes y las etiquetas invisibles que deciden si Google te muestra.</p></div>
-      <div class="rcard"><div class="ic">🤖</div><h3>Cómo te ve la IA</h3><p>Le preguntamos a la IA por tu marca y por tu servicio. Sabrás si te reconoce y si te recomienda.</p></div>
-      <div class="rcard"><div class="ic">⚡</div><h3>Velocidad real</h3><p>Móvil y escritorio con Google PageSpeed. Cada segundo de más te cuesta clientes.</p></div>
-      <div class="rcard"><div class="ic">🎯</div><h3>Tu competencia</h3><p>Qué empresas aparecen donde tú no, y con qué señales te están ganando la demanda.</p></div>
-      <div class="rcard"><div class="ic">🛠️</div><h3>Plan de acción</h3><p>Qué corregir primero, por impacto y esfuerzo. En lenguaje claro, sin tecnicismos.</p></div>
-      <div class="rcard"><div class="ic">🧩</div><h3>Salud técnica</h3><p>HTTPS, sitemap, enlaces rotos y todo lo que frena a Google por dentro.</p></div>
+<!-- CTA -->
+<section style="background:#0A1014;color:#F7F9FB;padding:84px 24px">
+  <div class="wrap" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:56px;align-items:center">
+    <div>
+      <h2 class="sora" style="font-weight:700;font-size:clamp(28px,3.6vw,46px);line-height:1.12;letter-spacing:-0.03em;margin:0 0 20px;text-wrap:pretty">Media hora, tu sitio en pantalla y una lista de qué mover primero.</h2>
+      <p style="margin:0 0 30px;font-size:17px;line-height:1.7;color:rgba(247,249,251,0.7);max-width:46ch">Sin presentación corporativa. Abrimos tu sitio, vemos qué busca tu cliente y decidimos si tiene sentido trabajar juntos.</p>
+      <div style="display:flex;flex-wrap:wrap;gap:18px;align-items:center">
+        {% if calendly %}<a href="{{ calendly }}" target="_blank" rel="noopener" class="btn-cy" style="font-size:16px;padding:17px 28px">Agendar en el calendario</a>{% else %}<a href="#motor" class="btn-cy" style="font-size:16px;padding:17px 28px">Empezar el diagnóstico</a>{% endif %}
+        {% if phone %}<a href="https://wa.me/{{ phone|replace('+','')|replace(' ','')|replace('-','') }}" target="_blank" rel="noopener" style="font-family:'Sora',sans-serif;font-weight:500;font-size:15.5px;color:#F7F9FB;text-decoration:none;border-bottom:1px solid rgba(247,249,251,0.35);padding-bottom:3px">Escribir por WhatsApp</a>{% endif %}
+      </div>
+      {% if phone %}<p class="mono" style="margin:24px 0 0;font-size:12.5px;line-height:1.7;color:rgba(247,249,251,0.5)">O llámanos: <b style="color:#1CBCE4">{{ phone }}</b></p>{% endif %}
     </div>
+    <div class="cta-img" style="width:100%;height:clamp(230px,26vw,320px);border-radius:14px;background-image:url('/static/img/cta-generic.webp')"></div>
   </div>
 </section>
 
-<footer>
-  <div class="wrap">
-    <img src="/static/assets/cupperlab-wordmark.png" alt="Cupperlab">
-    <span class="tag">Mejoramos tu rentabilidad.</span>
-    <span>© {{ year }} Cupperlab · <a href="tel:{{ phone|replace(' ','') }}">{{ phone }}</a> · <a href="mailto:{{ email }}">{{ email }}</a></span>
+<footer style="background:#0A1014;color:rgba(247,249,251,0.55);border-top:1px solid rgba(247,249,251,0.12);padding:28px 24px 34px">
+  <div class="wrap" style="display:flex;flex-wrap:wrap;gap:16px;justify-content:space-between;align-items:center">
+    <div style="display:flex;align-items:center;gap:14px">
+      <img src="/static/img/cupperlab-logo-color.png" alt="Cupperlab" style="height:22px;width:auto;display:block">
+      <span class="sora" style="font-weight:500;font-size:14px;color:#F7F9FB">Mejoramos tu rentabilidad.</span>
+    </div>
+    <span class="mono" style="font-size:11.5px">SEO · GEO · Analítica{% if site %} · <a href="{{ site }}" style="color:rgba(247,249,251,0.55)">{{ site|replace('https://','')|replace('http://','') }}</a>{% endif %}</span>
   </div>
 </footer>
 
-<script src="/static/js/app.js"></script>
+<script>
+(function(){
+  "use strict";
+  var CY="#1CBCE4", MID="#7FD4E8", WARN="#F5842A";
+  var form=document.getElementById("diagForm");
+  var err=document.getElementById("err");
+  var formBlock=document.getElementById("formBlock");
+  var loading=document.getElementById("loading");
+  var results=document.getElementById("results");
+  var submitBtn=document.getElementById("submitBtn");
+  var progFill=document.getElementById("progFill");
+  var progPct=document.getElementById("progPct");
+  var stepText=document.getElementById("stepText");
+  var loadDom=document.getElementById("loadDom");
+
+  function tone(v){ return v>=60?CY : v>=40?MID : WARN; }
+  function esc(t){ return (t||"").toString().replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+  function sleep(ms){ return new Promise(function(r){ setTimeout(r,ms); }); }
+
+  var shown=0, targetP=0, animTimer=null;
+  function startLoading(dom){
+    shown=0; targetP=3;
+    formBlock.classList.add("hidden");
+    results.classList.add("hidden");
+    loading.classList.remove("hidden");
+    loadDom.textContent=dom; progFill.style.width="0%"; progPct.textContent="0%";
+    clearInterval(animTimer);
+    animTimer=setInterval(function(){
+      if(shown<targetP) shown=Math.min(shown+Math.max(0.4,(targetP-shown)*0.12),targetP);
+      progFill.style.width=shown+"%"; progPct.textContent=Math.round(shown)+"%";
+    },60);
+  }
+  function setProgress(pct,stage){ targetP=pct; if(stage) stepText.textContent=stage; }
+  function stopLoading(){ targetP=100; shown=100; clearInterval(animTimer); progFill.style.width="100%"; progPct.textContent="100%"; }
+  function fail(msg){
+    clearInterval(animTimer); loading.classList.add("hidden");
+    formBlock.classList.remove("hidden");
+    err.textContent=msg; err.style.display="inline";
+    submitBtn.disabled=false; submitBtn.textContent="Analizar mi sitio";
+  }
+
+  form.addEventListener("submit", async function(e){
+    e.preventDefault();
+    err.style.display="none";
+    var url=document.getElementById("url").value.trim();
+    var email=document.getElementById("email").value.trim();
+    if(!url){ err.textContent="Falta la dirección de tu sitio."; err.style.display="inline"; return; }
+    if(!/.+@.+\..+/.test(email)){ err.textContent="Necesitamos un correo válido para enviarte el resultado."; err.style.display="inline"; return; }
+    if(!document.getElementById("consent").checked){ err.textContent="Marca la casilla para que podamos analizar tu web."; err.style.display="inline"; return; }
+
+    var sector=document.getElementById("sector").value;
+    var city=document.getElementById("city").value.trim();
+    var payload={
+      url:url, email:email,
+      name:"",
+      phone:document.getElementById("phone").value.trim(),
+      company:(sector||"")+(city?(" · "+city):"")
+    };
+    submitBtn.disabled=true; submitBtn.textContent="Analizando…";
+    startLoading(url.replace(/^https?:\/\//,"").replace(/\/$/,""));
+
+    try{
+      var resp=await fetch("/api/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+      var start=await resp.json();
+      if(!resp.ok){ fail(start.error||"Algo salió mal. Inténtalo de nuevo."); return; }
+      var jobId=start.job_id;
+      if(!jobId){ fail("Recarga la página (Ctrl+F5) e inténtalo de nuevo."); return; }
+      var f404=0, fFetch=0;
+      for(var i=0;i<240;i++){
+        await sleep(1500);
+        var sr, s;
+        try{ sr=await fetch("/api/status/"+jobId,{cache:"no-store"}); }
+        catch(e2){ if(++fFetch>=10){ fail("Perdimos la conexión con el servidor. Revisa tu conexión e inténtalo de nuevo."); return; } continue; }
+        fFetch=0;
+        if(sr.status===404){ if(++f404>=3){ fail("No pudimos seguir el análisis. Recarga la página e inténtalo de nuevo."); return; } continue; }
+        try{ s=await sr.json(); }catch(e3){ continue; }
+        if(s.error){ fail(s.error); return; }
+        setProgress(s.progress||0, s.stage);
+        if(s.done && s.result){ stopLoading(); await sleep(450); render(s.result); return; }
+      }
+      fail("El análisis está tardando más de lo normal. Te lo enviamos por correo en cuanto termine.");
+    }catch(ex){ fail("No pudimos completar el análisis. Revisa la conexión e inténtalo de nuevo."); }
+  });
+
+  function render(r){
+    loading.classList.add("hidden");
+    results.classList.remove("hidden");
+
+    var score=r.score||0;
+    var ok=score>=62;
+    var vc=ok?CY:WARN;
+
+    // Tarjeta índice
+    document.getElementById("resDomLab").textContent="ÍNDICE DE VISIBILIDAD · "+(r.domain||"tu sitio").toUpperCase();
+    var scoreEl=document.getElementById("scoreNum");
+    scoreEl.style.color=vc;
+    var cur=0, anim=setInterval(function(){
+      cur+=Math.max(1,Math.round(score/30)); if(cur>=score){ cur=score; clearInterval(anim); }
+      scoreEl.textContent=cur;
+    },22);
+    document.getElementById("resTitle").textContent = ok
+      ? "Ya apareces en varias búsquedas que importan. Lo que falta es defender esa posición y ganar la capa de IA antes que la competencia."
+      : "Hoy dependes demasiado del boca en boca. Quien busca en frío está encontrando a otro antes que a ti — y en la IA aún no te citan.";
+
+    var stamp=document.getElementById("stamp");
+    stamp.style.borderColor=vc; stamp.style.color=vc;
+    document.getElementById("verdict").textContent = ok?"POSICIONADO":"EN RIESGO";
+    var dt=new Date().toLocaleDateString("es-ES",{day:"2-digit",month:"short",year:"numeric"}).toUpperCase();
+    document.getElementById("stampMeta").textContent="NOTA "+(r.grade||"—")+" · "+dt;
+
+    // Dimensiones REALES
+    var dims=[], C=r.categories||{}, psi=r.psi_full||{};
+    if(C.tecnico) dims.push([C.tecnico.label||"Salud técnica", C.tecnico.score]);
+    if(C.onpage) dims.push([C.onpage.label||"SEO on-page", C.onpage.score]);
+    if(C.geo) dims.push([C.geo.label||"Preparación para la IA (GEO)", C.geo.score]);
+    if(psi.mobile && psi.mobile.performance!=null) dims.push(["Velocidad en móvil", psi.mobile.performance]);
+    if(psi.desktop && psi.desktop.performance!=null) dims.push(["Velocidad en escritorio", psi.desktop.performance]);
+    var dh=dims.map(function(d){
+      var c=tone(d[1]);
+      return '<div style="padding:14px 0">'+
+        '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:16px;margin-bottom:9px">'+
+          '<span style="font-size:15.5px;font-weight:500">'+esc(d[0])+'</span>'+
+          '<span class="mono" style="font-size:13px;color:'+c+'">'+d[1]+'</span>'+
+        '</div>'+
+        '<div style="height:4px;border-radius:999px;background:rgba(10,16,20,0.08);position:relative;overflow:hidden">'+
+          '<div style="position:absolute;inset:0 auto 0 0;border-radius:999px;background:'+c+';width:'+d[1]+'%;transform-origin:left;animation:cl-sweep .7s cubic-bezier(0.2,0.9,0.2,1) both"></div>'+
+        '</div></div>';
+    }).join("");
+    document.getElementById("dims").innerHTML=dh;
+
+    // Hallazgos REALES (findings_improve)
+    var sevRank={alto:0,medio:1,bajo:2}, sevTag={alto:"PRIORIDAD ALTA",medio:"PRIORIDAD MEDIA",bajo:"PRIORIDAD BAJA"};
+    var imp=(r.findings_improve||[]).filter(function(f){ return f && f.title; }).slice();
+    imp.sort(function(a,b){ return (sevRank[a.severity]==null?9:sevRank[a.severity])-(sevRank[b.severity]==null?9:sevRank[b.severity]); });
+    var fh=imp.slice(0,3).map(function(f){
+      return '<div style="background:#F7F9FB;border:1px solid rgba(10,16,20,0.09);border-radius:12px;padding:22px 24px;margin-bottom:14px;animation:cl-rise .5s ease-out both">'+
+        '<p class="mono" style="font-size:11.5px;color:#0E8FB0;margin:0 0 10px">'+esc(sevTag[f.severity]||"HALLAZGO")+'</p>'+
+        '<p class="sora" style="font-weight:600;font-size:16.5px;letter-spacing:-0.015em;margin:0 0 8px">'+esc(f.title)+'</p>'+
+        '<p style="margin:0;font-size:15.5px;line-height:1.6;color:rgba(10,16,20,0.64)">'+esc(f.detail||"")+'</p>'+
+      '</div>';
+    }).join("");
+    document.getElementById("findings").innerHTML=fh||'<p style="font-size:15px;color:rgba(10,16,20,0.55)">Sin incidencias graves detectadas. El detalle completo va en el informe.</p>';
+
+    // Cómo te ve la IA (real)
+    var ai=r.geo_ai, aihi=document.getElementById("aihi");
+    if(ai && ai.available && !ai.error && (ai.answered_names||[]).length){
+      var comp=(ai.competitors||[]).slice(0,3).map(function(c){ return c&&c.name?c.name:c; }).join(", ");
+      aihi.innerHTML=
+        '<p class="mono" style="font-size:11.5px;color:#0E8FB0;margin:0 0 16px">◆ CÓMO TE VE LA IA</p>'+
+        '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:20px">'+
+          '<div><p style="margin:0;font-size:15.5px;line-height:1.6"><b style="color:'+(ai.knows_brand?"#0E8FB0":WARN)+'">'+(ai.knows_brand?"✓":"✕")+' ¿La IA sabe quién eres?</b><br>'+(ai.knows_brand?"Sí, te describe.":"No tiene información fiable de ti.")+'</p></div>'+
+          '<div><p style="margin:0;font-size:15.5px;line-height:1.6"><b style="color:'+(ai.recommended?"#0E8FB0":WARN)+'">'+(ai.recommended?"✓":"✕")+' ¿Te recomienda al pedir tu servicio?</b><br>'+(ai.recommended?"Sí, te incluye.":(ai.recommended===false?("No: nombra a "+esc(comp)+", no a ti."):"No se pudo determinar."))+'</p></div>'+
+        '</div>';
+      aihi.classList.remove("hidden");
+    } else { aihi.classList.add("hidden"); }
+
+    // Competencia real
+    var compe=document.getElementById("compe");
+    var comps=(ai&&ai.competitors)?ai.competitors.slice(0,5):[];
+    if(comps.length){
+      compe.innerHTML='<p class="mono" style="font-size:11.5px;color:#0E8FB0;margin:0 0 14px">◆ TU COMPETENCIA REAL SEGÚN LA IA</p>'+
+        '<p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:rgba(10,16,20,0.6);max-width:60ch">Empresas de tu sector que la IA recomienda cuando alguien pide tu servicio y tu marca no aparece:</p>'+
+        '<div style="display:flex;flex-wrap:wrap;gap:10px">'+comps.map(function(c){
+          var nm=(c&&c.name)?c.name:c, dm=(c&&c.domain)?'<span class="mono" style="opacity:0.55;margin-left:7px;font-size:11.5px">'+esc(c.domain)+'</span>':"";
+          return '<span style="display:inline-flex;align-items:center;background:#F7F9FB;border:1px solid rgba(10,16,20,0.12);border-radius:999px;padding:8px 14px;font-size:14px;font-weight:500">'+esc(nm)+dm+'</span>';
+        }).join("")+'</div>';
+      compe.classList.remove("hidden");
+    } else { compe.classList.add("hidden"); }
+
+    document.getElementById("mailed").innerHTML="📬 Te enviamos a tu correo un <b>análisis aún más completo</b>, con tu competencia real, la velocidad detallada y el <b>plan de acción en PDF</b>. Revisa también la carpeta de spam.";
+
+    submitBtn.disabled=false; submitBtn.textContent="Analizar mi sitio";
+    results.scrollIntoView({behavior:"smooth"});
+  }
+
+  document.getElementById("againBtn").addEventListener("click", function(){
+    results.classList.add("hidden");
+    formBlock.classList.remove("hidden");
+    err.style.display="none";
+    document.getElementById("motor").scrollIntoView({behavior:"smooth"});
+  });
+})();
+</script>
 </body>
 </html>
