@@ -1,0 +1,126 @@
+{% set c = {'A':'#1f9d6b','B':'#1f9d6b','C':'#dfa019','D':'#f46434','E':'#d0402a'} %}
+{% set gc = c.get(r.grade, '#58626f') %}
+{% macro col(s) %}{% if s>=70 %}#1f9d6b{% elif s>=55 %}#dfa019{% elif s>=40 %}#f46434{% else %}#d0402a{% endif %}{% endmacro %}
+{% set ai = r.geo_ai %}
+{% set answered = (ai.answered_names if ai else []) %}
+{% set psi = r.psi_full %}
+<!doctype html>
+<html lang="es">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width"></head>
+<body style="margin:0;background:#eef2f6;font-family:'Helvetica Neue',Arial,sans-serif;color:#3d4855">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#eef2f6;padding:28px 12px"><tr><td align="center">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:100%;background:#ffffff;border-radius:18px;overflow:hidden;box-shadow:0 10px 40px rgba(14,19,25,.10)">
+
+  <!-- Acento superior -->
+  <tr><td style="height:6px;background:#1cbce4;background:linear-gradient(90deg,#1cbce4,#0f9bc2 45%,#f46434);font-size:1px;line-height:6px">&nbsp;</td></tr>
+
+  <!-- Cabecera clara -->
+  <tr><td style="padding:30px 36px 8px">
+    <table width="100%"><tr>
+      <td style="font-family:Georgia,serif;font-size:21px;font-weight:bold;color:#0e1319">cupper<span style="color:#0f9bc2">lab</span></td>
+      <td align="right" style="font-family:'Courier New',monospace;color:#9aa4b0;font-size:10px;letter-spacing:2px">DIAGNÓSTICO SEO &amp; GEO</td>
+    </tr></table>
+    <p style="margin:22px 0 0;font-size:15px;color:#5a6675">Hola <b style="color:#0e1319">{{ name }}</b>, gracias por confiar en Cupperlab.
+      Miramos <b style="color:#0e1319">{{ r.domain }}</b> en vivo y esto es cómo te ven hoy Google y la IA:</p>
+  </td></tr>
+
+  <!-- Score -->
+  <tr><td style="padding:20px 36px 6px">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f6f9fb;border:1px solid #e6ebf0;border-radius:14px"><tr>
+      <td width="112" align="center" valign="middle" style="padding:20px 0 20px 18px">
+        <div style="width:96px;height:96px;border-radius:50%;background:{{ gc }};color:#fff;text-align:center;line-height:96px;font-size:34px;font-weight:bold">{{ r.score }}</div>
+        <div style="color:#9aa4b0;font-size:9px;letter-spacing:1px;margin-top:8px">SALUD /100</div>
+      </td>
+      <td valign="middle" style="padding:20px 22px">
+        <span style="display:inline-block;background:{{ gc }};color:#fff;font-size:12px;font-weight:bold;padding:3px 12px;border-radius:20px;font-family:'Courier New',monospace">Nota {{ r.grade }}</span>
+        <div style="margin:9px 0 0;color:#0e1319;font-size:19px;font-weight:bold;line-height:1.25">
+          {% if r.score>=70 %}Buena base, con margen para ganar en Google y en la IA.
+          {% elif r.score>=55 %}Vas por buen camino, pero la IA aún no te prioriza.
+          {% elif r.score>=40 %}Tu web funciona, pero Google y la IA te dejan fuera.
+          {% else %}Ahora mismo Google y la IA apenas te ven.{% endif %}</div>
+      </td>
+    </tr></table>
+  </td></tr>
+
+  <!-- Cómo te ve la IA -->
+  <tr><td style="padding:18px 36px 4px">
+    <div style="font-family:'Courier New',monospace;color:#0f9bc2;font-size:10.5px;letter-spacing:1.5px;margin-bottom:9px">CÓMO TE VE LA IA</div>
+    {% if ai and answered %}
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-left:3px solid #1cbce4;background:#f6f9fb;border-radius:0 10px 10px 0"><tr><td style="padding:15px 18px">
+      <p style="margin:0 0 9px;font-size:14px;color:#283038"><b style="color:{{ '#1f9d6b' if ai.knows_brand else '#d0402a' }}">{{ '✓' if ai.knows_brand else '✕' }} ¿La IA sabe quién eres?</b>{% if ai.knows_brand %} Sí, te describe bien.{% else %} No tiene información fiable de ti.{% endif %}</p>
+      <p style="margin:0;font-size:14px;color:#283038"><b style="color:{{ '#1f9d6b' if ai.recommended else '#d0402a' }}">{{ '✓' if ai.recommended else '✕' }} ¿Te recomienda al pedir tu servicio?</b>{% if ai.recommended %} Sí, te incluye.{% elif ai.recommended == false %} No: nombra a {{ ai.competitors[:3]|map(attribute='name')|join(', ') }}, no a ti.{% else %} No se pudo determinar.{% endif %}</p>
+    </td></tr></table>
+    {% else %}
+    <p style="margin:0;font-size:14px;color:#283038;background:#f6f9fb;border-radius:10px;padding:14px 16px">Tu preparación para los buscadores con IA está en <b>{{ r.categories.geo.score }}/100</b>. El detalle va en el PDF adjunto.</p>
+    {% endif %}
+  </td></tr>
+
+  <!-- Velocidad -->
+  {% if psi and (psi.mobile or psi.desktop) %}
+  <tr><td style="padding:16px 36px 0">
+    <div style="font-family:'Courier New',monospace;color:#0f9bc2;font-size:10.5px;letter-spacing:1.5px;margin-bottom:10px">VELOCIDAD (GOOGLE PAGESPEED)</div>
+    <table width="100%" cellpadding="0" cellspacing="0"><tr>
+      <td width="49%" style="background:#f6f9fb;border:1px solid #e6ebf0;border-radius:12px;padding:14px 16px">
+        <div style="font-size:12px;color:#5a6675">📱 Móvil</div>
+        <div style="font-size:27px;font-weight:bold;color:{% if psi.mobile %}{{ col(psi.mobile.performance) }}{% else %}#9aa4b0{% endif %}">{{ psi.mobile.performance if psi.mobile else '—' }}<span style="font-size:12px;color:#9aa4b0">/100</span></div>
+      </td>
+      <td width="2%"></td>
+      <td width="49%" style="background:#f6f9fb;border:1px solid #e6ebf0;border-radius:12px;padding:14px 16px">
+        <div style="font-size:12px;color:#5a6675">💻 Escritorio</div>
+        <div style="font-size:27px;font-weight:bold;color:{% if psi.desktop %}{{ col(psi.desktop.performance) }}{% else %}#9aa4b0{% endif %}">{{ psi.desktop.performance if psi.desktop else '—' }}<span style="font-size:12px;color:#9aa4b0">/100</span></div>
+      </td>
+    </tr></table>
+  </td></tr>
+  {% endif %}
+
+  <!-- Resumen por área -->
+  <tr><td style="padding:18px 36px 4px">
+    <div style="font-family:'Courier New',monospace;color:#0f9bc2;font-size:10.5px;letter-spacing:1.5px;margin-bottom:12px">RESUMEN POR ÁREA</div>
+    {% for key in ['tecnico','onpage','geo'] %}{% set cat = r.categories[key] %}{% if cat %}
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:11px">
+      <tr><td style="font-size:13px;color:#283038">{{ cat.label }}</td>
+          <td align="right" width="70" style="font-size:14px;font-weight:bold;color:{{ col(cat.score) }};font-family:'Courier New',monospace">{{ cat.score }}/100</td></tr>
+      <tr><td colspan="2" style="padding-top:5px">
+        <div style="height:8px;background:#e6ebf0;border-radius:20px">
+          <div style="height:8px;width:{{ cat.score }}%;background:{{ col(cat.score) }};border-radius:20px"></div></div></td></tr>
+    </table>
+    {% endif %}{% endfor %}
+  </td></tr>
+
+  <!-- PDF adjunto + enlace -->
+  <tr><td style="padding:20px 36px 0">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#e9f9fe;border:1px solid #c8f0fb;border-radius:12px"><tr>
+      <td style="padding:18px 20px">
+        <div style="color:#0b7ea0;font-size:16px;font-weight:bold">📎 Tu informe completo, en PDF</div>
+        <div style="color:#11647d;font-size:13px;margin:5px 0 14px">Lo tienes <b>adjunto en este correo</b> (más abajo). Con las pruebas a la IA, tu competencia real con sus webs, la velocidad detallada, los puntos débiles y tu plan de acción.</div>
+        {% if report_url %}
+        <a href="{{ report_url }}" style="display:inline-block;background:#0f9bc2;color:#ffffff;text-decoration:none;font-weight:bold;padding:12px 22px;border-radius:10px;font-size:14px">📄 Abrir el informe aquí →</a>
+        <div style="color:#7b8694;font-size:11.5px;margin-top:9px">¿No ves el adjunto? Ábrelo o descárgalo con el botón.</div>
+        {% endif %}
+      </td>
+    </tr></table>
+  </td></tr>
+
+  <!-- Mensaje + CTA -->
+  <tr><td style="padding:22px 36px 8px">
+    <p style="margin:0 0 16px;font-size:14px;color:#5a6675;line-height:1.6">La buena noticia: casi todo esto se puede mejorar, y con una marca que ya existe suele ser rápido.
+      Si quieres, lo vemos juntos y te decimos por dónde empezar para que <b style="color:#0e1319">Google y la IA te recomienden</b>.</p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#0e1319;border-radius:14px"><tr><td style="padding:22px 24px">
+      <div style="color:#ffffff;font-size:17px;font-weight:bold">¿Lo hacemos realidad?</div>
+      <div style="margin:5px 0 15px;color:#a3adba;font-size:13px">Un paso y te ayudamos a ponerlo en marcha.</div>
+      {% if calendly %}<a href="{{ calendly }}" style="display:inline-block;background:#f46434;color:#fff;text-decoration:none;font-weight:bold;padding:12px 24px;border-radius:10px;font-size:14px">Agendar una llamada</a>{% endif %}
+      <div style="margin:15px 0 0;color:#ffffff;font-size:16px;font-family:'Courier New',monospace">📞 <b style="color:#1cbce4">{{ phone }}</b></div>
+    </td></tr></table>
+  </td></tr>
+
+  <!-- Footer -->
+  <tr><td style="padding:22px 36px 30px;text-align:center;border-top:1px solid #eef1f4">
+    <div style="color:#0e1319;font-family:Georgia,serif;font-size:15px">Mejoramos tu rentabilidad.</div>
+    <div style="margin:6px 0 0;color:#9aa4b0;font-size:11px">© {{ year }} Cupperlab · <a href="{{ site }}" style="color:#0f9bc2;text-decoration:none">{{ site|replace('https://','') }}</a> · {{ email }}</div>
+  </td></tr>
+
+</table>
+<div style="color:#9aa4b0;font-size:10.5px;margin-top:16px">Diagnóstico generado sobre datos públicos de tu web.</div>
+</td></tr></table>
+</body>
+</html>

@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Diagnóstico de visibilidad en Google y en la IA · Cupperlab</title>
+  <meta name="description" content="Analiza gratis cómo te ve Google y cómo te encuentran los buscadores con IA (ChatGPT, Gemini, Perplexity). Resultado en menos de un minuto y por correo.">
+  <link rel="icon" href="/static/assets/cupperlab-logo.png">
+  <link rel="stylesheet" href="/static/css/brand.css">
+</head>
+<body>
+
+<!-- ================= HERO + FORM ================= -->
+<header class="hero">
+  <div class="wrap">
+    <div class="topbar">
+      <img src="/static/assets/cupperlab-wordmark.png" alt="Cupperlab">
+      <a class="ph" href="tel:{{ phone|replace(' ','') }}">Hablemos · <b>{{ phone }}</b></a>
+    </div>
+
+    <div class="hero-grid">
+      <div>
+        <h1>¿Te encuentran <span class="hi">Google</span> y la <span class="hi">IA</span> ahora mismo?</h1>
+        <p class="lead">Analizamos tu web en vivo y te decimos cómo estás de visibilidad en Google
+          y de preparación para los buscadores con IA.</p>
+
+        <!-- Mini diagnóstico en vivo (animado) -->
+        <div class="hviz">
+          <div class="hviz-top"><span class="hviz-dot"></span> Diagnóstico en vivo</div>
+          <div class="hviz-row"><span>SEO on-page</span><div class="hb"><i style="--w:92%"></i></div></div>
+          <div class="hviz-row"><span>Cómo te ve la IA</span><div class="hb"><i style="--w:58%;--c:#f46434"></i></div></div>
+          <div class="hviz-row"><span>Velocidad</span><div class="hb"><i style="--w:74%;--c:#dfa019"></i></div></div>
+          <div class="hviz-ai"><span class="hviz-bot">◆</span> <span class="hviz-q" id="hvizQ">"¿Conocéis esta empresa?"</span></div>
+          <div class="hviz-scan"></div>
+        </div>
+      </div>
+
+      <!-- FORM CARD -->
+      <div class="card" id="formCard">
+        <h2>Analiza tu web</h2>
+        <p class="sub">Datos reales, comprobados en vivo.</p>
+        <div class="err" id="err"></div>
+
+        <form id="diagForm">
+          <div class="field url">
+            <label for="url">Dirección de tu web</label>
+            <input id="url" name="url" type="text" inputmode="url" placeholder="tudominio.com" required>
+          </div>
+          <div class="field">
+            <label for="email">Tu correo (te enviamos el diagnóstico)</label>
+            <input id="email" name="email" type="email" placeholder="nombre@empresa.com" required>
+          </div>
+          <div class="row2">
+            <div class="field">
+              <label for="name">Tu nombre</label>
+              <input id="name" name="name" type="text" placeholder="Nombre">
+            </div>
+            <div class="field">
+              <label for="phone">Teléfono (opcional)</label>
+              <input id="phone" name="phone" type="tel" placeholder="+34 ...">
+            </div>
+          </div>
+          <label class="consent">
+            <input type="checkbox" id="consent" required>
+            <span>Acepto que Cupperlab analice mi web y me contacte con los resultados y propuestas.</span>
+          </label>
+          <button class="btn" id="submitBtn" type="submit">Analizar mi web gratis →</button>
+          <p class="formnote">Análisis en vivo. Te enviamos el informe completo al correo.</p>
+        </form>
+
+        <!-- LOADING -->
+        <div class="loading" id="loading">
+          <div class="progtop"><span class="steps" id="stepText">Conectando con tu web…</span><b id="progPct">0%</b></div>
+          <div class="bar"><i id="progFill"></i></div>
+          <div class="dom" id="loadDom"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ================= RESULTS ================= -->
+<section class="results" id="results">
+  <div class="wrap">
+    <span class="eyebrow"><span class="n">02</span> · Tu diagnóstico</span>
+    <div class="res-head" style="margin-top:18px">
+      <div class="gauge">
+        <svg width="200" height="200" viewBox="0 0 100 100">
+          <circle cx="50" cy="50" r="41" fill="none" stroke="#e8ecf1" stroke-width="9"></circle>
+          <circle id="gaugeArc" cx="50" cy="50" r="41" fill="none" stroke="#1cbce4" stroke-width="9"
+                  stroke-linecap="round" stroke-dasharray="0 257.6"></circle>
+        </svg>
+        <div class="val">
+          <b id="scoreNum">0<span>/100</span></b>
+          <em>salud digital</em>
+        </div>
+      </div>
+      <div>
+        <span class="grade-pill" id="gradePill">—</span>
+        <h2 id="resTitle" style="margin-top:10px">Analizando…</h2>
+        <p class="dom" id="resDom"></p>
+        <p id="resSummary"></p>
+      </div>
+    </div>
+
+    <!-- Franja IA destacada -->
+    <div class="aihi" id="aihi"></div>
+
+    <div class="cats" id="cats"></div>
+
+    <!-- Velocidad móvil/escritorio -->
+    <div class="velo" id="velo"></div>
+
+    <!-- Competencia -->
+    <div class="compe" id="compe"></div>
+
+    <div class="mailed" id="mailed"></div>
+
+    <!-- CTA -->
+    <div class="cta">
+      <div>
+        <h3>Esto es solo la superficie.</h3>
+        <p>El diagnóstico completo incluye qué responde la IA cuando preguntan por tu servicio,
+          análisis de tu competencia y un plan de acción priorizado. Te lo preparamos gratis.</p>
+      </div>
+      <div class="actions">
+        {% if calendly %}<a class="primary" href="{{ calendly }}" target="_blank" rel="noopener">Agendar llamada</a>{% endif %}
+        <a class="phone" href="tel:{{ phone|replace(' ','') }}">📞 <b>{{ phone }}</b></a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= QUÉ DESCUBRIRÁS ================= -->
+<section class="reveal">
+  <div class="wrap">
+    <h2 class="reveal-title">Esto es lo que descubrirás de tu web</h2>
+    <p class="reveal-sub">Un rayo X completo, en vivo, de cómo te ven Google y la IA hoy.</p>
+    <div class="rgrid">
+      <div class="rcard"><div class="ic">🔎</div><h3>SEO on-page</h3><p>Títulos, descripciones, H1, imágenes y las etiquetas invisibles que deciden si Google te muestra.</p></div>
+      <div class="rcard"><div class="ic">🤖</div><h3>Cómo te ve la IA</h3><p>Le preguntamos a la IA por tu marca y por tu servicio. Sabrás si te reconoce y si te recomienda.</p></div>
+      <div class="rcard"><div class="ic">⚡</div><h3>Velocidad real</h3><p>Móvil y escritorio con Google PageSpeed. Cada segundo de más te cuesta clientes.</p></div>
+      <div class="rcard"><div class="ic">🎯</div><h3>Tu competencia</h3><p>Qué empresas aparecen donde tú no, y con qué señales te están ganando la demanda.</p></div>
+      <div class="rcard"><div class="ic">🛠️</div><h3>Plan de acción</h3><p>Qué corregir primero, por impacto y esfuerzo. En lenguaje claro, sin tecnicismos.</p></div>
+      <div class="rcard"><div class="ic">🧩</div><h3>Salud técnica</h3><p>HTTPS, sitemap, enlaces rotos y todo lo que frena a Google por dentro.</p></div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <img src="/static/assets/cupperlab-wordmark.png" alt="Cupperlab">
+    <span class="tag">Mejoramos tu rentabilidad.</span>
+    <span>© {{ year }} Cupperlab · <a href="tel:{{ phone|replace(' ','') }}">{{ phone }}</a> · <a href="mailto:{{ email }}">{{ email }}</a></span>
+  </div>
+</footer>
+
+<script src="/static/js/app.js"></script>
+</body>
+</html>

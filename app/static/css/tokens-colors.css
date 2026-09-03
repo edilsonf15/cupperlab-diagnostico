@@ -1,0 +1,102 @@
+/* ============================================================
+   Cupperlab · Color tokens — lenguaje v3 "electric lab" (3.0.0)
+   Brand: electric cyan + signal orange sobre carbón (ink) y
+   papel frío. El carbón manda; el cyan emite; el naranja avisa
+   (~1 aparición por vista). Cyan de TEXTO sobre claro = cyan-600
+   (#0f9bc2, AA); #1cbce4 queda para superficies/barras y oscuro.
+   ============================================================ */
+:root {
+  /* ---- Brand primitives ---- */
+  --cyan-50:  #e9f9fe;
+  --cyan-100: #c8f0fb;
+  --cyan-200: #93e4f7;
+  --cyan-300: #56d2ef;
+  --cyan-400: #25c2e8;
+  --cyan-500: #1cbce4;   /* brand cyan — primary */
+  --cyan-600: #0f9bc2;
+  --cyan-700: #0b7ea0;
+  --cyan-800: #11647d;
+  --cyan-900: #134f63;
+
+  --orange-50:  #ffede6;
+  --orange-100: #ffded2;
+  --orange-200: #ffbda6;
+  --orange-300: #fb9269;
+  --orange-400: #f7713f;
+  --orange-500: #f46434;   /* brand orange — accent / CTA */
+  --orange-600: #e24d1c;
+  --orange-700: #bd3c15;
+  --orange-800: #973317;
+  --orange-900: #7a2e17;
+
+  /* ---- Ink / neutral ramp (cool slate) ---- */
+  --ink-950: #0b1016;   /* deepest background */
+  --ink-900: #11151c;   /* primary dark surface */
+  --ink-800: #1a2029;
+  --ink-700: #283038;
+  --ink-600: #3b4450;
+  --ink-500: #58626f;
+  --ink-400: #7b8694;
+  --ink-300: #a3adba;
+  --ink-200: #c6cdd5;
+  --ink-150: #dee3e9;
+  --ink-100: #e8ecf1;
+  --ink-75:  #f1f4f7;
+  --ink-50:  #f7f9fb;
+  --white:   #ffffff;
+
+  /* ---- Semantic status ---- */
+  --success: #1f9d6b;
+  --success-bg: #e4f6ee;
+  --warning: #d9920a;
+  --warning-bg: #fdf2dc;
+  --danger:  #d0402a;
+  --danger-bg: #fbe7e5;
+  --pos: #1f9d6b;     /* variación positiva (data-viz) */
+  --neg: #d0402a;     /* variación negativa / riesgo alto */
+  --info: var(--cyan-500);
+  --info-bg: var(--cyan-50);
+
+  /* ============================================================
+     Semantic aliases (light surface = default)
+     ============================================================ */
+  --brand:            var(--cyan-500);
+  --brand-strong:     var(--cyan-600);
+  --accent:           var(--orange-500);
+  --accent-strong:    var(--orange-600);
+
+  --bg-page:          var(--ink-50);
+  --bg-page-alt:      var(--ink-75);
+  --surface-card:     var(--white);
+  --surface-sunken:   var(--ink-75);
+  --surface-inverse:  var(--ink-900);
+
+  --text-strong:      var(--ink-900);
+  --text-body:        var(--ink-700);
+  --text-muted:       var(--ink-400);
+  --text-inverse:     var(--white);
+  --text-inverse-muted: var(--ink-300);
+  --text-brand:       var(--cyan-600);
+  --text-accent:      var(--orange-600);
+  --text-on-brand:    var(--white);
+  --text-on-accent:   var(--white);
+
+  --border-subtle:    var(--ink-100);
+  --border-default:   var(--ink-150);
+  --border-strong:    var(--ink-300);
+  --border-brand:     var(--cyan-500);
+  --border-inverse:   rgba(255, 255, 255, 0.14);
+
+  --focus-ring:       var(--cyan-400);
+
+  --rule-strong: var(--ink-900);        /* regla de 2px bajo cifras hero (v3) */
+  --ghost: rgba(28, 188, 228, 0.075);   /* numeral fantasma de divisores (v3) */
+
+  /* glows v3: radial-gradient cyan muy sutil hacia transparente (NUNCA filter:blur) */
+  --glow-cyan: radial-gradient(circle, rgba(28,188,228,.20) 0%, rgba(28,188,228,.07) 40%, rgba(28,188,228,0) 66%);
+
+  /* RETIRADO en v3 (3.0.0): --grad-brand. Los paneles degradados cyan→naranja eran del
+     lenguaje anterior; en v3 los paneles son carbón u hoja fría con borde 1px. Se mantiene
+     el token solo por compatibilidad con ui_kits antiguos. */
+  --grad-brand: linear-gradient(105deg, var(--cyan-500) 0%, var(--cyan-400) 55%, var(--orange-500) 130%);
+}
