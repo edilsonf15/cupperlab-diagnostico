@@ -51,15 +51,16 @@
   .ucard:hover::after{opacity:1}
   .reveal{opacity:0;transform:translateY(16px);transition:opacity .6s ease,transform .6s ease}
   .reveal.in{opacity:1;transform:none}
-  /* Panel "qué recibes" junto al formulario */
-  .infopanel{background:linear-gradient(180deg,#0A1014,#12212b);color:#F7F9FB;border-radius:18px;padding:30px 28px;position:relative;overflow:hidden}
-  .infopanel::before{content:"";position:absolute;right:-60px;top:-60px;width:180px;height:180px;border-radius:50%;background:radial-gradient(circle,rgba(28,188,228,0.22),transparent 70%)}
-  .infopanel .ip-eyebrow{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.12em;color:#1CBCE4;margin-bottom:18px;position:relative}
-  .ip-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:15px;position:relative}
-  .ip-list li{display:flex;gap:12px;align-items:flex-start;font-size:14.5px;line-height:1.5;color:rgba(247,249,251,0.82)}
-  .ip-list li b{color:#fff;font-weight:600}
-  .ip-ck{flex-shrink:0;width:22px;height:22px;border-radius:50%;background:rgba(28,188,228,0.18);color:#1CBCE4;font-weight:700;font-size:12px;display:flex;align-items:center;justify-content:center;margin-top:1px}
-  .ip-foot{display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:24px;padding-top:18px;border-top:1px solid rgba(247,249,251,0.14);font-family:'JetBrains Mono',monospace;font-size:11.5px;color:rgba(247,249,251,0.6);position:relative}
+  /* Panel "qué recibes" junto al formulario (claro, on-brand) */
+  .infopanel{background:#fff;border:1px solid rgba(10,16,20,0.10);border-top:3px solid #1CBCE4;border-radius:16px;padding:28px 26px;box-shadow:0 12px 32px rgba(10,16,20,0.06)}
+  .infopanel .ip-eyebrow{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.12em;color:#0E8FB0;margin-bottom:18px}
+  .ip-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:0}
+  .ip-list li{display:flex;gap:13px;align-items:flex-start;font-size:14.5px;line-height:1.5;color:#5a6675;padding:13px 0;border-top:1px solid #eef1f4}
+  .ip-list li:first-child{border-top:0;padding-top:0}
+  .ip-list li b{color:#0A1014;font-weight:600}
+  .ip-ck{flex-shrink:0;width:22px;height:22px;border-radius:50%;background:#1CBCE4;color:#fff;font-weight:700;font-size:12px;display:flex;align-items:center;justify-content:center;margin-top:1px}
+  .ip-foot{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px;padding-top:18px;border-top:1px solid #eef1f4}
+  .ip-foot span{font-family:'JetBrains Mono',monospace;font-size:11px;color:#0E8FB0;background:rgba(28,188,228,0.10);border-radius:999px;padding:5px 11px}
 </style>
 </head>
 <body>
