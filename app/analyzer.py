@@ -178,6 +178,18 @@ def parse_home(html: str, base_url: str) -> dict:
     text = soup.get_text(" ", strip=True)
     word_count = len(text.split())
 
+    schema_low = [t.lower() for t in schema_types]
+    # FAQ / Q&A: schema FAQPage o varios titulares en forma de pregunta
+    heading_texts = [h.get_text(strip=True) for h in (h2s + h3s)]
+    q_headings = sum(1 for t in heading_texts if t.endswith("?"))
+    has_faq = ("faqpage" in schema_low) or ("qapage" in schema_low) or q_headings >= 2
+    # Ficha de contacto (NAP): tel: link, schema de contacto/direccion o telefono real en texto
+    has_contact = (
+        bool(soup.find("a", href=re.compile(r"^tel:", re.I)))
+        or any(x in schema_low for x in ("contactpoint", "postaladdress", "localbusiness"))
+        or bool(re.search(r"(?:\+|\b00)\s?\d[\d\s().\-]{6,}\d", text))
+    )
+
     return {
         "title": title,
         "description": meta(name="description"),
@@ -201,6 +213,8 @@ def parse_home(html: str, base_url: str) -> dict:
         "schema_raw_types": sorted(set(schema_types)),
         "has_sameas": has_sameas,
         "word_count": word_count,
+        "has_faq": has_faq,
+        "has_contact": has_contact,
     }
 
 
@@ -340,6 +354,17 @@ def analyze_robots(robots_text: str) -> dict:
     all_dis = [d for g in groups.values() for d in g["disallow"]]
     blocks_all = ("/" in star["disallow"]) and not any(a in ("/", "/*", "") for a in star["allow"])
     has_sitemap = bool(re.search(r"(?im)^\s*sitemap:", txt))
+
+    # ¿Bloquea a los bots de IA? (si los bloqueas, la IA no puede leerte ni citarte)
+    ai_bots = ["gptbot", "chatgpt-user", "oai-searchbot", "google-extended", "ccbot",
+               "perplexitybot", "claudebot", "anthropic-ai", "applebot-extended",
+               "bytespider", "meta-externalagent", "amazonbot"]
+    ai_blocked = []
+    for ua, g in groups.items():
+        if ua.lower() in ai_bots and "/" in g["disallow"] and not any(a in ("/", "") for a in g["allow"]):
+            ai_blocked.append(ua)
+    if blocks_all:
+        ai_blocked = ai_bots[:]
     joined = " ".join(d.lower() for d in all_dis)
 
     checks = {
@@ -359,6 +384,7 @@ def analyze_robots(robots_text: str) -> dict:
         "disallow_sample": all_dis[:8],
         "good_blocks": good_blocks,
         "suggest_block": suggest[:3],
+        "ai_blocked": ai_blocked,
     }
 
 
@@ -676,28 +702,36 @@ def _score(res: Result) -> None:
     add(onpage, "alt", "Imagenes con texto ALT", round(10 * cov), 10, cov >= 0.7,
         f"{ia}/{it}" if it else "sin imagenes")
 
-    # ---------- GEO / preparacion para la IA (discriminante: premia lo que de verdad
-    #            hace que la IA te cite, no lo que casi todos tienen) ----------
+    # ---------- GEO / preparacion para la IA (todo lo que hace que la IA te lea,
+    #            te entienda y te recomiende por delante de la competencia) ----------
+    rob = s.get("robots_info") or {}
+    ai_ok = not rob.get("ai_blocked")
+    add(geo, "ai_crawlers", "La IA puede leer tu sitio (rastreo IA permitido)", 15 if ai_ok else 0, 15, ai_ok,
+        "Rastreo de IA permitido" if ai_ok else ("Bloqueas bots de IA: " + ", ".join(rob.get("ai_blocked", [])[:4])))
     schema_set = set(m["schema_types"])
-    valuable = schema_set & {"faqpage", "organization", "localbusiness", "professionalservice",
+    valuable = schema_set & {"faqpage", "qapage", "organization", "localbusiness", "professionalservice",
                              "product", "article", "howto", "service", "review"}
-    schema_pts = 25 if valuable else (12 if schema_set else 0)
-    add(geo, "schema", "Datos estructurados utiles (schema)", schema_pts, 25, bool(valuable),
+    schema_pts = 18 if valuable else (9 if schema_set else 0)
+    add(geo, "schema", "Datos estructurados utiles (schema)", schema_pts, 18, bool(valuable),
         ", ".join(m["schema_raw_types"][:4]) or "sin datos estructurados")
     geo_entity = bool(schema_set & {"organization", "localbusiness", "professionalservice"}) or m["has_sameas"]
-    add(geo, "entity", "Tu marca como entidad reconocible", 20 if geo_entity else 0, 20, geo_entity,
+    add(geo, "entity", "Tu marca como entidad reconocible", 14 if geo_entity else 0, 14, geo_entity,
         "Organization/sameAs presentes" if geo_entity else "sin ficha de entidad ni sameAs")
-    add(geo, "llms", "Guia para buscadores con IA (llms.txt)", 10 if s["llms_txt"] else 0, 10, s["llms_txt"])
-    heading_ok = m["h1_count"] == 1 and m["h2_count"] >= 3
-    add(geo, "headings", "Estructura de titulares clara", 15 if heading_ok else (8 if (m["h1_count"] >= 1 and m["h2_count"] >= 1) else 0),
-        15, heading_ok, f'{m["h1_count"]} H1 / {m["h2_count"]} H2')
+    add(geo, "faq", "Contenido en preguntas y respuestas (FAQ)", 12 if m.get("has_faq") else 0, 12, m.get("has_faq"),
+        "FAQ / Q&A presente" if m.get("has_faq") else "sin FAQ ni preguntas frecuentes")
     wc = m.get("word_count", 0)
-    content_pts = 15 if wc >= 700 else (round(15 * wc / 700) if wc else 0)
-    add(geo, "content_ia", "Contenido suficiente para citar", content_pts, 15, wc >= 500, f"{wc} palabras")
+    content_pts = 12 if wc >= 700 else (round(12 * wc / 700) if wc else 0)
+    add(geo, "content_ia", "Contenido suficiente para citar", content_pts, 12, wc >= 500, f"{wc} palabras")
+    heading_ok = m["h1_count"] == 1 and m["h2_count"] >= 3
+    add(geo, "headings", "Estructura de titulares clara", 9 if heading_ok else (5 if (m["h1_count"] >= 1 and m["h2_count"] >= 1) else 0),
+        9, heading_ok, f'{m["h1_count"]} H1 / {m["h2_count"]} H2')
+    add(geo, "contact", "Ficha de contacto (nombre, telefono, direccion)", 6 if m.get("has_contact") else 0, 6, m.get("has_contact"),
+        "Datos de contacto visibles" if m.get("has_contact") else "sin telefono/direccion clara")
+    add(geo, "llms", "Guia para buscadores con IA (llms.txt)", 6 if s["llms_txt"] else 0, 6, s["llms_txt"])
     dlen = len(m["description"])
-    add(geo, "desc_ia", "Resumen que la IA puede citar", 8 if 70 <= dlen <= 165 else (4 if dlen else 0),
-        8, bool(m["description"]), f"{dlen} car.")
-    add(geo, "title_ia", "Titulo descriptivo", 7 if m["title"] else 0, 7, bool(m["title"]))
+    add(geo, "desc_ia", "Resumen que la IA puede citar", 5 if 70 <= dlen <= 165 else (2 if dlen else 0),
+        5, bool(m["description"]), f"{dlen} car.")
+    add(geo, "title_ia", "Titulo descriptivo", 3 if m["title"] else 0, 3, bool(m["title"]))
 
     def cat_score(checks):
         earned = sum(c.earned for c in checks)

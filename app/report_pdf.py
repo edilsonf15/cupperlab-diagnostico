@@ -117,13 +117,25 @@ def build_plan(r: dict) -> list[dict]:
     if it and ia / it < 0.7:
         add(f"Describir las imagenes (texto ALT): hoy {ia} de {it} lo tienen. Ayuda al SEO y a la accesibilidad.",
             "Medio", "Bajo", 2)
-    # --- GEO / IA ---
+    # --- GEO / IA (que la IA te lea, te entienda y te recomiende) ---
+    if rb.get("ai_blocked"):
+        add("URGENTE: tu robots.txt BLOQUEA a los bots de IA (" + ", ".join(rb["ai_blocked"][:4]) +
+            "). La IA no puede leerte ni citarte. Permitir su rastreo.", "Alto", "Bajo", 1)
     if not m.get("schema_types"):
-        add("Anadir los datos estructurados (schema: organizacion, servicios, preguntas frecuentes) para que "
-            "Google y la IA entiendan tu negocio.", "Alto", "Bajo", 1)
+        add("Anadir los datos estructurados (schema: organizacion, servicios) para que Google y la IA entiendan tu negocio.",
+            "Alto", "Bajo", 1)
+    if not m.get("has_faq"):
+        add("Crear una seccion de Preguntas frecuentes con FAQ schema: la IA cita respuestas directas de ahi.",
+            "Alto", "Bajo", 1)
     if not m.get("has_sameas"):
-        add("Conectar tu marca como entidad (perfiles y sameAs) para que la IA sepa que eres una empresa real.",
+        add("Conectar tu marca como entidad (Organization + perfiles/sameAs) para que la IA sepa que eres una empresa real.",
             "Medio", "Bajo", 2)
+    if not m.get("has_contact"):
+        add("Mostrar ficha de contacto clara (nombre, telefono, direccion) y marcarla con schema: la IA confia en negocios verificables.",
+            "Medio", "Bajo", 2)
+    if m.get("word_count", 0) < 500:
+        add("Ampliar el contenido con paginas por servicio y por pregunta del cliente: la IA necesita texto propio que citar.",
+            "Alto", "Medio", 2)
     if not s.get("llms_txt"):
         add("Publicar una guia para los buscadores con IA (llms.txt).", "Medio", "Bajo", 2)
     if ai.get("available") and not ai.get("error"):
@@ -352,6 +364,10 @@ def _robots_block(r: dict) -> str:
     if rb.get("blocks_all"):
         tone = "r"
         parts.append('<span style="color:' + RED + '"><b>Bloquea TODO el sitio (User-agent: * Disallow: /)</b>: Google no puede rastrearte. Corregir ya.</span>')
+    if rb.get("ai_blocked") and not rb.get("blocks_all"):
+        tone = "r"
+        parts.append('<span style="color:' + RED + '"><b>Bloqueas a los bots de IA</b> (' +
+                     ", ".join(rb["ai_blocked"][:5]) + '): la IA no puede leerte ni citarte. Permitir su rastreo.</span>')
     if rb.get("good_blocks"):
         parts.append("Ya bloqueas bien " + ", ".join(rb["good_blocks"]) +
                      " (evita que Google gaste rastreo en paginas sin valor).")
@@ -458,21 +474,29 @@ def _clean_gap(t: str) -> str:
 
 
 def _geo_tactics(r: dict) -> list[str]:
-    """Tacticas concretas de posicionamiento en IA (GEO), segun senales reales."""
+    """Todo lo que hay que inyectarle a la IA para que te lea y te recomiende,
+    guiado por las senales reales del sitio."""
     m = r.get("meta", {}); s = r.get("signals", {})
+    rb = s.get("robots_info") or {}
     st = [x.lower() for x in (m.get("schema_types") or [])]
     tips = []
+    if rb.get("ai_blocked"):
+        tips.append("<b>Permitir el rastreo de los bots de IA</b> (hoy bloqueas " + ", ".join(rb["ai_blocked"][:4]) +
+                    "): si no pueden leerte, no pueden citarte.")
     if "faqpage" not in st:
-        tips.append("Anadir <b>Preguntas frecuentes con datos estructurados (FAQ schema)</b> en las paginas de servicio: la IA cita respuestas directas.")
+        tips.append("Anadir <b>Preguntas frecuentes con datos estructurados (FAQ schema)</b>: la IA cita respuestas directas de ahi.")
     if not any(x in st for x in ("organization", "localbusiness", "professionalservice")):
         tips.append("Marcar tu <b>ficha de empresa (Organization/LocalBusiness schema)</b>: nombre, direccion, telefono y zona.")
     if not m.get("has_sameas"):
         tips.append("Conectar tus <b>perfiles oficiales (sameAs)</b> para que la IA te reconozca como entidad real y verificable.")
+    if not m.get("has_contact"):
+        tips.append("Mostrar una <b>ficha de contacto clara</b> (nombre, telefono, direccion): la IA prioriza negocios verificables.")
+    if m.get("word_count", 0) < 500:
+        tips.append("Crear <b>una pagina por servicio</b> con contenido propio que responda las preguntas reales del cliente.")
     if not s.get("llms_txt"):
         tips.append("Publicar <b>llms.txt</b> como guia para los buscadores con IA.")
-    tips.append("Crear <b>una pagina por servicio</b> con el vocabulario del cliente y contenido que responda sus preguntas reales.")
     tips.append("Sumar <b>resenas y menciones externas</b> (Google, directorios, prensa) que la IA pueda citar.")
-    return tips[:5]
+    return tips[:6]
 
 
 def _ai_section(r: dict) -> str:
