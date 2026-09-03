@@ -310,13 +310,19 @@ async def run_ai_geo(domain: str, meta: dict) -> dict | None:
                 f"Usa búsqueda web (Google Maps). ¿La empresa \"{brand}\" ({full_url}) tiene una ficha de "
                 f"Google Business / Google Maps activa {ctx_pais}? Responde SOLO una palabra: SI, NO o DUDOSO."
             )
+            # Reconocimiento CON la web (buscando): para el contraste "sin web / con web"
+            q_know_web = (
+                f"Usa búsqueda web y visita {full_url}. ¿Qué es \"{brand}\" y a qué se dedica? "
+                f"Describe en 1-2 frases lo que veas en el sitio. Si no encuentras el sitio, responde NO_ENCONTRADO."
+            )
 
-            # Ronda 1: 3 busquedas + reconocimiento de marca + gap + ficha Google Business
-            r_queries, r_know, r_gap, r_gbp = await asyncio.gather(
+            # Ronda 1: busquedas + reconocimiento (sin y con web) + gap + ficha Google Business
+            r_queries, r_know, r_gap, r_gbp, r_kw = await asyncio.gather(
                 _ask(client, prov, key, model, q_queries, max_tokens=250, grounded=False),
                 _ask(client, prov, key, model, q_know, max_tokens=500, grounded=False),
                 _ask(client, prov, key, model, q_gap, max_tokens=300, grounded=True),
                 _ask(client, prov, key, model, q_gbp, max_tokens=20, grounded=True),
+                _ask(client, prov, key, model, q_know_web, max_tokens=300, grounded=True),
                 return_exceptions=True,
             )
             queries_txt = "" if isinstance(r_queries, Exception) else (r_queries or "")
@@ -324,6 +330,9 @@ async def run_ai_geo(domain: str, meta: dict) -> dict | None:
             gap_txt = "" if isinstance(r_gap, Exception) else (r_gap or "")
             gbp_up = ("" if isinstance(r_gbp, Exception) else (r_gbp or "")).strip().upper()
             gbp = True if gbp_up.startswith(("SI", "SÍ", "YES")) else (False if gbp_up.startswith("NO") else None)
+            kw_txt = ("" if isinstance(r_kw, Exception) else (r_kw or "")).strip()
+            knows_with_web = bool(kw_txt) and "NO_ENCONTRADO" not in kw_txt.upper()
+            web_desc = re.sub(r"\s+", " ", kw_txt).strip()[:400] if knows_with_web else ""
 
             # Parseo de las 3 busquedas de categoria
             cat_queries = []
@@ -408,6 +417,8 @@ async def run_ai_geo(domain: str, meta: dict) -> dict | None:
         "answered_names": ["ChatGPT"],
         "knows_brand": knows_brand,
         "brand_description": know_raw[:400] if knows_brand else "",
+        "knows_with_web": knows_with_web,
+        "web_description": web_desc,
         "recommended": recommended,
         "gbp": gbp,
         "competitors": comps[:6],

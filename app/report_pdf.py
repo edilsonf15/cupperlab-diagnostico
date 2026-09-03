@@ -545,13 +545,19 @@ def _ai_section(r: dict) -> str:
         raw = "Te reconoce y te describe." if knows else "No tengo informacion fiable sobre esta empresa."
     comps = _comp_names(ai) or "otras firmas de tu sector"
 
+    kww = ai.get("knows_with_web")
+    web_desc = (ai.get("web_description") or "").strip()
+    sin_web = raw if not knows else raw  # raw ya es descripcion (sin web) o el mensaje de que no la conoce
+    con_web = web_desc or ("No pudo describir tu web." if kww is False else "")
+    verdict_tag = "TE CONOCE" if knows else ("SOLO SI LE DAS TU WEB" if kww else "NO TE CONOCE")
     card1 = f"""
     <div class="aiq">
       <div class="q"><div class="ico">IA</div><div>
-        <div class="ask">Le preguntamos a la IA (sin darle tu web): "¿Conoces la marca {brand} ({r.get('domain','')})?"</div>
-        <div class="qt">"{raw[:320]}"</div></div></div>
-      <div class="src"><span>¿La IA te conoce de por si, sin buscar tu web?</span>
-        <span class="v {'yes' if knows else 'no'}">{'TE RECONOCE' if knows else 'NO TE RECONOCE'}</span></div>
+        <div class="ask">Le preguntamos a la IA por tu marca "{brand}" ({_esc(r.get('domain',''))}):</div>
+        <div class="qt"><b>Por tu cuenta (sin darle tu web):</b> "{_esc(sin_web[:200])}"<br>
+        <b>Dandole tu web:</b> "{_esc(con_web[:200]) if con_web else 'sin datos'}"</div></div></div>
+      <div class="src"><span>La IA {'te reconoce sola' if knows else 'solo te reconoce si le pasas tu web exacta' if kww else 'no te reconoce'}: tu objetivo es que te conozca sin que se la des.</span>
+        <span class="v {'yes' if knows else 'no'}">{verdict_tag}</span></div>
     </div>"""
     card2 = f"""
     <div class="aiq">

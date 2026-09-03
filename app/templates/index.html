@@ -213,7 +213,7 @@
 
       <!-- Áreas (resumen en pantalla) -->
       <div style="margin-top:48px">
-        <h3 class="sora" style="font-weight:600;font-size:20px;letter-spacing:-0.02em;margin:0 0 22px">Cómo estás por área</h3>
+        <h3 class="sora" style="font-weight:600;font-size:20px;letter-spacing:-0.02em;margin:0 0 22px">Dónde estás perdiendo visibilidad</h3>
         <div id="dims" style="max-width:760px"></div>
       </div>
 
@@ -345,6 +345,7 @@
 
     var score=r.score||0;
     var vc=tone(score);
+    var ai=r.geo_ai||{};
 
     // Tarjeta índice
     document.getElementById("resDomLab").textContent="ÍNDICE DE VISIBILIDAD · "+(r.domain||"tu sitio").toUpperCase();
@@ -354,28 +355,28 @@
       cur+=Math.max(1,Math.round(score/30)); if(cur>=score){ cur=score; clearInterval(anim); }
       scoreEl.textContent=cur;
     },22);
-    document.getElementById("resTitle").textContent = score>=70
-      ? "Ya apareces en varias búsquedas que importan. Lo que falta es defender esa posición y ganar la capa de IA antes que la competencia."
-      : score>=50
-      ? "Vas por buen camino, pero hay puntos claros que corregir para que Google y la IA te prioricen."
-      : "Ahora mismo Google y la IA apenas te ven. Hay mucho por ganar y lo urgente está marcado en el informe.";
 
+    // Sello neutro (sin veredicto tipo "POSICIONADO")
     var stamp=document.getElementById("stamp");
-    stamp.style.borderColor=vc; stamp.style.color=vc;
-    document.getElementById("verdict").textContent = score>=70?"POSICIONADO":(score>=50?"MEJORABLE":"EN RIESGO");
+    stamp.style.borderColor=CY; stamp.style.color=CY;
+    var vEl=document.getElementById("verdict");
+    vEl.textContent="INFORME GENERADO"; vEl.style.fontSize="17px";
     var dt=new Date().toLocaleDateString("es-ES",{day:"2-digit",month:"short",year:"numeric"}).toUpperCase();
-    document.getElementById("stampMeta").textContent="NOTA "+(r.grade||"—")+" · "+dt;
+    document.getElementById("stampMeta").textContent=dt;
 
-    // Dimensiones REALES
+    // Áreas REALES
     var dims=[], C=r.categories||{}, psi=r.psi_full||{};
-    if(C.tecnico) dims.push([C.tecnico.label||"Salud técnica", C.tecnico.score]);
-    if(C.onpage) dims.push([C.onpage.label||"SEO on-page", C.onpage.score]);
     if(C.geo) dims.push([C.geo.label||"Preparación para la IA (GEO)", C.geo.score]);
+    if(C.onpage) dims.push([C.onpage.label||"SEO on-page", C.onpage.score]);
+    if(C.tecnico) dims.push([C.tecnico.label||"Salud técnica", C.tecnico.score]);
     if(psi.mobile && psi.mobile.performance!=null) dims.push(["Velocidad en móvil", psi.mobile.performance]);
     if(psi.desktop && psi.desktop.performance!=null) dims.push(["Velocidad en escritorio", psi.desktop.performance]);
     var sec=(r.signals||{}).security;
     if(sec && sec.score!=null) dims.push(["Seguridad", sec.score]);
-    var dh=dims.map(function(d){
+    // Enfoque en lo NEGATIVO: mostramos las areas debiles primero; ocultamos las excelentes
+    var showDims=dims.filter(function(d){return d[1]<85;}).sort(function(a,b){return a[1]-b[1];});
+    if(!showDims.length) showDims=dims.slice().sort(function(a,b){return a[1]-b[1];}).slice(0,3);
+    var dh=showDims.map(function(d){
       var c=tone(d[1]);
       return '<div style="padding:14px 0">'+
         '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:16px;margin-bottom:9px">'+
@@ -387,6 +388,21 @@
         '</div></div>';
     }).join("");
     document.getElementById("dims").innerHTML=dh;
+
+    // Resumen ESPECÍFICO de esta web (con datos reales), enfocado en lo que falta
+    var probs=[];
+    if(ai.available && !ai.error){
+      if(ai.knows_brand===false) probs.push("la IA no te conoce por tu cuenta (solo si le das tu web)");
+      if(ai.recommended===false) probs.push("no te recomienda cuando piden tu servicio");
+      else if(ai.recommended===null) probs.push("la IA solo te menciona a veces");
+      if(ai.gbp===false) probs.push("no encontramos tu ficha de Google Business");
+    }
+    var worst=showDims[0];
+    if(worst && worst[1]<60) probs.push(esc(worst[0].toLowerCase())+" en "+worst[1]+"/100");
+    document.getElementById("resTitle").textContent = probs.length
+      ? "Lo más urgente para "+(r.domain||"tu web")+": "+probs.slice(0,3).join("; ")+". Ahí es donde pierdes clientes que hoy se van con la competencia."
+      : (score>=70 ? "Tu base está bien; lo que falta es ganar la capa de IA antes que la competencia. El plan va en el informe."
+         : "Hay puntos claros que corregir para que Google y la IA te prioricen. El detalle va en el informe.");
 
     document.getElementById("mailed").innerHTML="📬 Este es un vistazo rápido. Te enviamos a tu correo el <b>análisis completo en PDF</b>: cómo te ve la IA, tu competencia real de tu país, los hallazgos y el <b>plan de acción</b>. Revisa también la carpeta de spam.";
 

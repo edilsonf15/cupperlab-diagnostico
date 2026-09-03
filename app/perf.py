@@ -244,3 +244,35 @@ async def measure_device(url: str, mobile: bool = True) -> dict | None:
         return await asyncio.to_thread(_measure, url, mobile)
     except Exception:  # noqa: BLE001
         return None
+
+
+def _render(url: str) -> str:
+    """Devuelve el HTML YA RENDERIZADO (con JavaScript ejecutado)."""
+    from playwright.sync_api import sync_playwright  # import perezoso
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(args=["--no-sandbox", "--disable-dev-shm-usage"])
+            ctx = browser.new_context(**_DESKTOP)
+            page = ctx.new_page()
+            try:
+                page.goto(url, wait_until="load", timeout=25000)
+            except Exception:  # noqa: BLE001
+                pass
+            try:
+                page.wait_for_timeout(600)
+                html = page.content()
+            except Exception:  # noqa: BLE001
+                html = ""
+            browser.close()
+            return html or ""
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+async def render_html(url: str) -> str:
+    """HTML renderizado (JS ejecutado) para captar schema/FAQ/contacto/contenido
+    que el rastreo estatico no ve en sitios modernos. Corre en un hilo."""
+    try:
+        return await asyncio.to_thread(_render, url)
+    except Exception:  # noqa: BLE001
+        return ""

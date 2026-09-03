@@ -218,6 +218,24 @@ def parse_home(html: str, base_url: str) -> dict:
     }
 
 
+def _merge_meta(a: dict, b: dict) -> dict:
+    """Combina las senales del HTML estatico (a) con las del renderizado (b),
+    quedandose con lo MEJOR (union de schema, OR de booleanos, max de conteos)."""
+    if not b:
+        return a
+    out = dict(a)
+    out["schema_types"] = sorted(set(a.get("schema_types", [])) | set(b.get("schema_types", [])))
+    out["schema_raw_types"] = sorted(set(a.get("schema_raw_types", [])) | set(b.get("schema_raw_types", [])))
+    out["hreflangs"] = sorted(set(a.get("hreflangs", [])) | set(b.get("hreflangs", [])))
+    for k in ("has_faq", "has_contact", "has_sameas", "canonical", "favicon", "viewport", "twitter"):
+        out[k] = bool(a.get(k)) or bool(b.get(k))
+    for k in ("word_count", "h1_count", "h2_count", "h3_count", "img_total", "img_alt"):
+        out[k] = max(a.get(k, 0) or 0, b.get(k, 0) or 0)
+    for k in ("title", "description", "og_title", "og_image", "og_desc", "og_site_name", "lang", "h1_first"):
+        out[k] = a.get(k) or b.get(k)
+    return out
+
+
 def parse_sitemap_locs(xml_text: str) -> tuple[list[str], bool]:
     """Devuelve (locs, is_index)."""
     locs = []
@@ -656,6 +674,20 @@ async def analyze(raw_url: str) -> Result:
         https_ok = str(home.url).lower().startswith("https://")
 
         meta = parse_home(home_html, res.final_url)
+        # Analiza la pagina YA RENDERIZADA (JS ejecutado): capta schema, FAQ, contacto
+        # y contenido que el rastreo estatico no ve en sitios modernos.
+        try:
+            import perf as _perf  # noqa: PLC0415
+            rendered_html = await _perf.render_html(res.final_url)
+        except Exception:  # noqa: BLE001
+            rendered_html = ""
+        if rendered_html and len(rendered_html) > 2000:
+            try:
+                meta = _merge_meta(meta, parse_home(rendered_html, res.final_url))
+            except Exception:  # noqa: BLE001
+                pass
+            if len(rendered_html) > len(home_html or ""):
+                home_html = rendered_html  # rendered para enlaces internos + pais
         # Pais real por contenido (telefono/menciones), no solo por TLD
         country = detect_country(home_html, res.domain)
         meta["country"] = country.get("name", "")
