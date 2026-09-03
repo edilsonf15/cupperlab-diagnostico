@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM mcr.microsoft.com/playwright/python:v1.49.1-noble
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -10,8 +10,10 @@ WORKDIR /srv
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Chromium + sus dependencias de sistema para el PDF premium (Playwright)
-RUN playwright install --with-deps chromium
+# La imagen oficial de Playwright ya trae Chromium y sus dependencias de sistema
+# (evita el fallo de apt con ttf-unifont/ttf-ubuntu-font-family en Debian nuevo).
+# Aseguramos el navegador para la version instalada, sin --with-deps (las libs ya estan).
+RUN playwright install chromium
 
 COPY app/ ./app/
 
