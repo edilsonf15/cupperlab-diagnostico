@@ -31,6 +31,11 @@
   @keyframes cl-rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
   @keyframes cl-sweep{from{transform:scaleX(0)}to{transform:scaleX(1)}}
   @keyframes cl-blip{0%,100%{opacity:.5}50%{opacity:1}}
+  @keyframes cl-ring{0%{box-shadow:0 0 0 0 rgba(244,100,52,.55)}70%{box-shadow:0 0 0 13px rgba(244,100,52,0)}100%{box-shadow:0 0 0 0 rgba(244,100,52,0)}}
+  .hphone-ic{width:38px;height:38px;border-radius:50%;background:#F46434;display:flex;align-items:center;justify-content:center;flex-shrink:0;animation:cl-ring 1.9s ease-out infinite;transition:background .16s}
+  .hphone:hover .hphone-ic{background:#0f9bc2}
+  .hphone:hover .sora{color:#1CBCE4!important}
+  @media(max-width:640px){.hphone span span.mono{display:none!important}.hphone .sora{font-size:14px!important}}
   .hidden{display:none!important}
   .hero-img,.cta-img{background-size:cover;background-position:center;background-repeat:no-repeat;background-color:#F7F9FB}
   /* Tarjetas de urgencia interactivas */
@@ -46,18 +51,34 @@
   .ucard:hover::after{opacity:1}
   .reveal{opacity:0;transform:translateY(16px);transition:opacity .6s ease,transform .6s ease}
   .reveal.in{opacity:1;transform:none}
+  /* Panel "qué recibes" junto al formulario */
+  .infopanel{background:linear-gradient(180deg,#0A1014,#12212b);color:#F7F9FB;border-radius:18px;padding:30px 28px;position:relative;overflow:hidden}
+  .infopanel::before{content:"";position:absolute;right:-60px;top:-60px;width:180px;height:180px;border-radius:50%;background:radial-gradient(circle,rgba(28,188,228,0.22),transparent 70%)}
+  .infopanel .ip-eyebrow{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.12em;color:#1CBCE4;margin-bottom:18px;position:relative}
+  .ip-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:15px;position:relative}
+  .ip-list li{display:flex;gap:12px;align-items:flex-start;font-size:14.5px;line-height:1.5;color:rgba(247,249,251,0.82)}
+  .ip-list li b{color:#fff;font-weight:600}
+  .ip-ck{flex-shrink:0;width:22px;height:22px;border-radius:50%;background:rgba(28,188,228,0.18);color:#1CBCE4;font-weight:700;font-size:12px;display:flex;align-items:center;justify-content:center;margin-top:1px}
+  .ip-foot{display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:24px;padding-top:18px;border-top:1px solid rgba(247,249,251,0.14);font-family:'JetBrains Mono',monospace;font-size:11.5px;color:rgba(247,249,251,0.6);position:relative}
 </style>
 </head>
 <body>
 
 <header style="background:#0A1014;color:#F7F9FB;position:sticky;top:0;z-index:20">
-  <div class="wrap" style="padding:16px 24px;display:flex;align-items:center;justify-content:space-between;gap:20px">
-    <div style="display:flex;align-items:center;gap:16px;min-width:0">
-      <img src="/static/img/cupperlab-logo-color.png" alt="Cupperlab" style="height:26px;width:auto;display:block;flex-shrink:0">
-      <span style="width:1px;height:22px;background:rgba(247,249,251,0.2);flex-shrink:0"></span>
-      <span class="mono" style="font-size:11.5px;color:rgba(247,249,251,0.6);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Diagnóstico web gratuito · Google &amp; IA</span>
+  <div class="wrap" style="padding:14px 24px;display:flex;align-items:center;justify-content:space-between;gap:20px">
+    <img src="/static/img/cupperlab-logo-color.png" alt="Cupperlab" style="height:26px;width:auto;display:block;flex-shrink:0">
+    <div style="display:flex;align-items:center;gap:14px">
+      <a href="tel:+34914952585" class="hphone" style="display:flex;align-items:center;gap:11px;text-decoration:none;color:#F7F9FB">
+        <span class="hphone-ic" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+        </span>
+        <span style="line-height:1.1">
+          <span style="display:block;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#f0a58a" class="mono">Llámanos ahora</span>
+          <span class="sora" style="font-size:16px;font-weight:700;color:#fff">+34 91 495 2585</span>
+        </span>
+      </a>
+      <a href="#motor" class="btn-cy" style="font-size:13.5px;padding:11px 18px">Diagnosticar mi sitio</a>
     </div>
-    <a href="#motor" class="btn-cy" style="font-size:13.5px;padding:11px 18px">Diagnosticar mi sitio</a>
   </div>
 </header>
 
@@ -108,10 +129,11 @@
   <div class="wrap">
 
     <!-- FORMULARIO (único punto de entrada) -->
-    <div id="formBlock" style="max-width:780px">
+    <div id="formBlock" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:44px;align-items:start">
+     <div>
       <h2 class="sora" style="font-weight:600;font-size:clamp(24px,2.8vw,33px);letter-spacing:-0.025em;margin:0 0 12px">Analiza tu web</h2>
-      <p style="margin:0 0 36px;font-size:16px;line-height:1.65;color:rgba(10,16,20,0.6)">Datos reales, comprobados en vivo. El resultado aparece en esta misma pantalla y el informe completo te llega al correo.</p>
-      <form id="diagForm" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:22px 24px">
+      <p style="margin:0 0 32px;font-size:16px;line-height:1.65;color:rgba(10,16,20,0.6)">Datos reales, comprobados en vivo. El resultado aparece en esta misma pantalla y el informe completo te llega al correo.</p>
+      <form id="diagForm" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:20px 22px">
         <label class="field" style="grid-column:1/-1">
           <span class="lab">SITIO DE TU NEGOCIO *</span>
           <input id="url" name="url" type="text" placeholder="www.tusitio.com" autocomplete="url" required>
@@ -137,16 +159,31 @@
           <span id="err" class="mono" style="display:none;font-size:12.5px;color:#C4551F"></span>
         </div>
       </form>
+     </div>
+     <aside class="infopanel">
+       <div class="ip-eyebrow">◆ QUÉ RECIBES, GRATIS</div>
+       <ul class="ip-list">
+         <li><span class="ip-ck">✓</span><span><b>Índice de visibilidad 0-100</b> en Google y en la IA</span></li>
+         <li><span class="ip-ck">✓</span><span><b>Cómo te ve la IA</b>: si te reconoce y si te recomienda</span></li>
+         <li><span class="ip-ck">✓</span><span><b>Velocidad real</b> en móvil y escritorio</span></li>
+         <li><span class="ip-ck">✓</span><span><b>Tu competencia real</b> y qué te falta para ganarles</span></li>
+         <li><span class="ip-ck">✓</span><span><b>Informe completo en PDF</b> con el plan de acción, a tu correo</span></li>
+       </ul>
+       <div class="ip-foot"><span>⚡ En vivo</span><span>🔒 Sin compromiso</span><span>100% gratis</span></div>
+     </aside>
     </div>
 
     <!-- ANALIZANDO -->
-    <div id="loading" class="hidden" style="max-width:800px;padding:6px 0 40px">
-      <p id="progPct" class="mono" style="font-size:12px;color:#0E8FB0;margin:0 0 16px">0%</p>
-      <h2 id="stepText" class="sora" style="font-weight:600;font-size:clamp(25px,3.2vw,40px);letter-spacing:-0.025em;margin:0 0 32px;line-height:1.15">Conectando con tu web…</h2>
-      <div style="height:3px;background:rgba(10,16,20,0.1);position:relative;border-radius:999px;overflow:hidden">
-        <div id="progFill" style="position:absolute;inset:0 auto 0 0;background:#1CBCE4;width:0%;transition:width .4s ease"></div>
+    <div id="loading" class="hidden" style="max-width:860px;padding:10px 0 44px">
+      <div style="display:flex;align-items:baseline;gap:16px;flex-wrap:wrap">
+        <span id="progPct" class="sora" style="font-size:clamp(58px,10vw,96px);font-weight:800;line-height:0.9;letter-spacing:-0.03em;color:#1CBCE4">0%</span>
+        <span class="mono" style="display:inline-flex;align-items:center;gap:8px;font-size:11.5px;color:#0E8FB0"><span style="width:7px;height:7px;border-radius:50%;background:#1CBCE4;animation:cl-blip 1.2s ease-in-out infinite"></span>ANALIZANDO EN VIVO</span>
       </div>
-      <p style="margin:26px 0 0;font-size:15px;line-height:1.65;color:rgba(10,16,20,0.5);max-width:52ch">Estamos revisando <b id="loadDom">tu sitio</b> en vivo: SEO, cómo te ve la IA, velocidad y competencia. No cierres esta pestaña.</p>
+      <h2 id="stepText" class="sora" style="font-weight:600;font-size:clamp(19px,2.6vw,30px);letter-spacing:-0.02em;margin:18px 0 22px;line-height:1.2">Conectando con tu web…</h2>
+      <div style="height:8px;background:rgba(10,16,20,0.08);position:relative;border-radius:999px;overflow:hidden">
+        <div id="progFill" style="position:absolute;inset:0 auto 0 0;background:linear-gradient(90deg,#1CBCE4,#0f9bc2);width:0%;transition:width .45s ease;border-radius:999px"></div>
+      </div>
+      <p style="margin:22px 0 0;font-size:15px;line-height:1.65;color:rgba(10,16,20,0.5);max-width:56ch">Estamos revisando <b id="loadDom">tu sitio</b> en vivo: SEO, cómo te ve la IA, velocidad y competencia. Tarda cerca de un minuto — no cierres esta pestaña.</p>
     </div>
 
     <!-- RESULTADO -->
