@@ -676,19 +676,28 @@ def _score(res: Result) -> None:
     add(onpage, "alt", "Imagenes con texto ALT", round(10 * cov), 10, cov >= 0.7,
         f"{ia}/{it}" if it else "sin imagenes")
 
-    # ---------- GEO / preparacion para la IA ----------
-    has_schema = bool(m["schema_types"])
-    add(geo, "schema", "Datos estructurados (schema)", 25 if has_schema else 0, 25, has_schema,
-        ", ".join(m["schema_raw_types"][:4]))
-    geo_entity = bool(set(m["schema_types"]) & {"organization", "localbusiness", "professionalservice"}) or m["has_sameas"]
-    add(geo, "entity", "Tu marca como entidad reconocible", 15 if geo_entity else 0, 15, geo_entity)
-    add(geo, "llms", "Guia para buscadores con IA (llms.txt)", 15 if s["llms_txt"] else 0, 15, s["llms_txt"])
-    heading_ok = m["h1_count"] >= 1 and m["h2_count"] >= 2
-    add(geo, "headings", "Estructura de titulares clara", 15 if heading_ok else (7 if m["h1_count"] else 0),
+    # ---------- GEO / preparacion para la IA (discriminante: premia lo que de verdad
+    #            hace que la IA te cite, no lo que casi todos tienen) ----------
+    schema_set = set(m["schema_types"])
+    valuable = schema_set & {"faqpage", "organization", "localbusiness", "professionalservice",
+                             "product", "article", "howto", "service", "review"}
+    schema_pts = 25 if valuable else (12 if schema_set else 0)
+    add(geo, "schema", "Datos estructurados utiles (schema)", schema_pts, 25, bool(valuable),
+        ", ".join(m["schema_raw_types"][:4]) or "sin datos estructurados")
+    geo_entity = bool(schema_set & {"organization", "localbusiness", "professionalservice"}) or m["has_sameas"]
+    add(geo, "entity", "Tu marca como entidad reconocible", 20 if geo_entity else 0, 20, geo_entity,
+        "Organization/sameAs presentes" if geo_entity else "sin ficha de entidad ni sameAs")
+    add(geo, "llms", "Guia para buscadores con IA (llms.txt)", 10 if s["llms_txt"] else 0, 10, s["llms_txt"])
+    heading_ok = m["h1_count"] == 1 and m["h2_count"] >= 3
+    add(geo, "headings", "Estructura de titulares clara", 15 if heading_ok else (8 if (m["h1_count"] >= 1 and m["h2_count"] >= 1) else 0),
         15, heading_ok, f'{m["h1_count"]} H1 / {m["h2_count"]} H2')
-    add(geo, "desc_ia", "Resumen que la IA puede citar", 10 if m["description"] else 0, 10, bool(m["description"]))
-    add(geo, "og_ia", "Metadatos para compartir", 10 if m["og_title"] else 0, 10, bool(m["og_title"]))
-    add(geo, "title_ia", "Titulo descriptivo", 10 if m["title"] else 0, 10, bool(m["title"]))
+    wc = m.get("word_count", 0)
+    content_pts = 15 if wc >= 700 else (round(15 * wc / 700) if wc else 0)
+    add(geo, "content_ia", "Contenido suficiente para citar", content_pts, 15, wc >= 500, f"{wc} palabras")
+    dlen = len(m["description"])
+    add(geo, "desc_ia", "Resumen que la IA puede citar", 8 if 70 <= dlen <= 165 else (4 if dlen else 0),
+        8, bool(m["description"]), f"{dlen} car.")
+    add(geo, "title_ia", "Titulo descriptivo", 7 if m["title"] else 0, 7, bool(m["title"]))
 
     def cat_score(checks):
         earned = sum(c.earned for c in checks)
@@ -841,7 +850,8 @@ def apply_ai_to_result(data: dict, ai: dict | None) -> dict:
     cats = data["categories"]
     geo = cats.get("geo", {})
     if ai.get("ai_score") is not None and geo:
-        geo["score"] = round(0.5 * geo["score"] + 0.5 * ai["ai_score"])
+        # la prueba REAL a la IA manda (60%); la heuristica tecnica complementa (40%)
+        geo["score"] = round(0.4 * geo["score"] + 0.6 * ai["ai_score"])
         geo["ai"] = True
         overall = round(0.35 * cats["tecnico"]["score"] +
                         0.35 * cats["onpage"]["score"] +
