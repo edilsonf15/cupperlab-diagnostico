@@ -31,7 +31,7 @@ load_dotenv()
 from analyzer import (analyze, result_to_dict, normalize_url, apply_ai_to_result,  # noqa: E402
                       apply_analytics, fetch_psi_full)
 from geo_ai import run_ai_geo  # noqa: E402
-from search import check_google  # noqa: E402
+from search import check_google, check_indexation  # noqa: E402
 import emailer  # noqa: E402
 import report_pdf  # noqa: E402
 
@@ -195,6 +195,12 @@ async def _run_job(job_id: str, url: str, email: str, name: str, lead: dict) -> 
                 data["google"] = None
         except Exception as exc:  # noqa: BLE001
             print(f"[search:ERROR] {exc}"); data["google"] = None
+        # Indexacion real con site:dominio (muestra) vs sitemap
+        try:
+            data["indexation"] = await check_indexation(
+                domain, (data.get("signals") or {}).get("sitemap_total", 0))
+        except Exception as exc:  # noqa: BLE001
+            print(f"[index:ERROR] {exc}"); data["indexation"] = None
 
         # 4) Recoge la velocidad (ya venia corriendo en paralelo)
         _set(job_id, 74, "Midiendo la velocidad en movil y escritorio...")

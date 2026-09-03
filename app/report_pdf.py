@@ -77,6 +77,18 @@ def build_plan(r: dict) -> list[dict]:
 
     rb = s.get("robots_info") or {}
     an = s.get("analytics") or {}
+    sec = s.get("security") or {}
+    # --- Seguridad (lo mas urgente si hay algo expuesto) ---
+    if sec.get("exposed"):
+        add("URGENTE (seguridad): bloquear los archivos sensibles accesibles (" +
+            ", ".join(e["path"] for e in sec["exposed"][:3]) + "): pueden filtrar codigo o credenciales.",
+            "Alto", "Bajo", 1)
+    if sec.get("headers_missing"):
+        add("Anadir las cabeceras de seguridad que faltan (" + ", ".join(sec["headers_missing"][:3]) +
+            ") para proteger a tus visitantes de ataques comunes.", "Medio", "Bajo", 2)
+    if sec.get("leaks"):
+        add("Ocultar la version del servidor/CMS que hoy es publica, para dificultar ataques dirigidos.",
+            "Bajo", "Bajo", 2)
     # --- Base tecnica (que exista y sea rastreable) ---
     if not s.get("https"):
         add("Activar la conexion segura (HTTPS): sin candado Google penaliza y el navegador avisa de web no segura.",
@@ -133,6 +145,9 @@ def build_plan(r: dict) -> list[dict]:
     if not m.get("has_contact"):
         add("Mostrar ficha de contacto clara (nombre, telefono, direccion) y marcarla con schema: la IA confia en negocios verificables.",
             "Medio", "Bajo", 2)
+    if m.get("has_contact"):
+        add("Verificar y optimizar tu ficha de Google Business (categoria, fotos, resenas): clave para mapas y para la IA local.",
+            "Medio", "Bajo", 1)
     if m.get("word_count", 0) < 500:
         add("Ampliar el contenido con paginas por servicio y por pregunta del cliente: la IA necesita texto propio que citar.",
             "Alto", "Medio", 2)
@@ -595,6 +610,58 @@ def _ai_section(r: dict) -> str:
     {gap_block}"""
 
 
+def _index_block(r: dict) -> str:
+    ix = r.get("indexation")
+    if not ix:
+        return ""
+    n = ix.get("sample_count", 0)
+    tot = ix.get("sitemap_total", 0)
+    prov = ix.get("provider", "el buscador")
+    if not ix.get("indexed"):
+        return ('<div class="block callout r"><b>Indexacion.</b> No encontramos tu sitio indexado en la muestra de '
+                + _esc(prov) + '. Hay que revisar que Google pueda rastrearte e indexarte.</div>')
+    extra = f" Tu sitemap lista {tot} URLs." if tot else ""
+    return ('<div class="block callout o"><b>Indexacion.</b> Tu sitio aparece indexado (comprobado con '
+            + _esc(prov) + f' via site:, muestra de {n} paginas).{extra} El numero exacto de paginas indexadas '
+            'se confirma con Search Console.</div>')
+
+
+def _security_section(r: dict) -> str:
+    sec = (r.get("signals") or {}).get("security")
+    if not sec:
+        return ""
+    score = sec.get("score", 0)
+    rows = [(n, "OK", "ok", "Presente") for n in sec.get("headers_present", [])]
+    rows += [(n, "Falta", "hi", "No configurada") for n in sec.get("headers_missing", [])]
+    checks = _check_list(rows) if rows else ""
+
+    exposed_html = ""
+    if sec.get("exposed"):
+        trs = "".join(f'<tr><td class="u">{_esc(e["path"])}</td><td>{_esc(e["what"])}</td></tr>'
+                      for e in sec["exposed"])
+        exposed_html = ('<div class="block callout r"><b>Vulnerabilidad: archivos sensibles accesibles ahora mismo.</b> '
+                        'Cualquiera puede abrirlos sin permiso:</div>'
+                        f'<table class="t"><thead><tr><th>Ruta expuesta</th><th>Riesgo</th></tr></thead><tbody>{trs}</tbody></table>')
+    bits = []
+    if sec.get("cms"):
+        bits.append(f"Tecnologia detectada: <b>{_esc(sec['cms'])}</b>.")
+    if sec.get("leaks"):
+        bits.append("El servidor revela: <b>" + ", ".join(_esc(x) for x in sec["leaks"][:3]) + "</b> (conviene ocultarlo).")
+    if sec.get("cookie_flags"):
+        bits.append("Cookies: " + ", ".join(sec["cookie_flags"]) + ".")
+    tech_html = ('<div class="block callout o">' + " ".join(bits) + "</div>") if bits else ""
+
+    return f"""
+    <div class="eyebrow" style="margin-top:16px"><span class="bar"></span>Seguridad y tecnologia</div>
+    <h2 class="sec">Que tan segura y protegida esta tu web</h2>
+    <p class="sub">Revisamos cabeceras de seguridad, fugas de version del servidor y archivos sensibles accesibles.
+    Una web insegura pierde confianza de clientes y de Google. Nota de seguridad: <b style="color:{_color(score)}">{score}/100</b>.</p>
+    {exposed_html}
+    <div class="sectic" style="margin-top:8px">Cabeceras de seguridad</div>
+    {checks}
+    {tech_html}"""
+
+
 def _speed_section(r: dict) -> str:
     psi = r.get("psi_full")
     if not psi or (not psi.get("mobile") and not psi.get("desktop")):
@@ -973,6 +1040,7 @@ def build_report_html(r: dict, contact: dict, name: str = "") -> str:
   <p class="sub">Lo tecnico que Google mira para decidir si te muestra: seguridad, respuesta del servidor, robots, mapa del sitio y enlaces rotos. En rojo lo que falla, en verde lo que ya funciona.</p>
   {_tech_rows(r)}
   {_robots_block(r)}
+  {_index_block(r)}
   {(''.join('<div class="block callout r"><b>Enlaces rotos.</b> Ejemplos reales encontrados: ' + ', '.join(e["url"] for e in s["broken_examples"][:3]) + '.</div>' for _ in [0]) if s.get("broken_examples") else '')}
 
   <div class="eyebrow" style="margin-top:16px"><span class="bar"></span>03 · SEO on-page</div>
@@ -985,6 +1053,7 @@ def build_report_html(r: dict, contact: dict, name: str = "") -> str:
 <section class="pg">
   {_ai_section(r)}
   {_speed_section(r)}
+  {_security_section(r)}
 </section>
 
 {(f'''<section class="pg">

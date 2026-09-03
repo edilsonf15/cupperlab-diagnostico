@@ -437,6 +437,108 @@ def detect_analytics(html: str) -> dict:
             "has_any": bool(tools), "duplicated": bool(dup), "dup_notes": dup[:3]}
 
 
+# ---- Escaner de seguridad / tecnologia (headers, versiones, archivos expuestos) --
+
+# Rutas sensibles: GET de solo lectura + firma para evitar falsos positivos (soft-404)
+_SENSITIVE = [
+    ("/.env", "Variables de entorno (.env) accesibles: pueden contener contrasenas y claves",
+     re.compile(r"(?im)^\s*[A-Z0-9_]{2,}\s*=|APP_KEY|DB_PASSWORD|SECRET")),
+    ("/.git/HEAD", "Repositorio Git expuesto (/.git): se puede descargar tu codigo",
+     re.compile(r"ref:\s*refs/")),
+    ("/.git/config", "Configuracion Git expuesta (/.git/config)",
+     re.compile(r"\[core\]|repositoryformatversion")),
+    ("/wp-config.php.bak", "Copia de la configuracion de WordPress accesible",
+     re.compile(r"DB_PASSWORD|DB_NAME|DB_USER")),
+    ("/phpinfo.php", "phpinfo() expuesto: filtra rutas y versiones del servidor",
+     re.compile(r"phpinfo\(\)|PHP Version")),
+    ("/server-status", "Estado del servidor Apache expuesto (server-status)",
+     re.compile(r"Apache Server Status|Server Version")),
+    ("/wp-json/wp/v2/users", "Enumeracion de usuarios de WordPress (wp-json)",
+     re.compile(r'"slug"\s*:')),
+]
+
+_SEC_HEADERS = {
+    "HSTS (fuerza HTTPS)": "strict-transport-security",
+    "Content-Security-Policy": "content-security-policy",
+    "X-Frame-Options (anti-clickjacking)": "x-frame-options",
+    "X-Content-Type-Options": "x-content-type-options",
+    "Referrer-Policy": "referrer-policy",
+    "Permissions-Policy": "permissions-policy",
+}
+
+
+async def scan_security(client: httpx.AsyncClient, base_url: str, headers: dict, html: str) -> dict:
+    h = {k.lower(): v for k, v in dict(headers or {}).items()}
+    root = base_url.rstrip("/")
+
+    # 1) Cabeceras de seguridad
+    present = [name for name, key in _SEC_HEADERS.items() if key in h]
+    missing = [name for name, key in _SEC_HEADERS.items() if key not in h]
+
+    # 2) Fugas de version / tecnologia
+    leaks = []
+    server = (h.get("server") or "").strip()
+    if server and re.search(r"\d", server):
+        leaks.append(f"Server: {server}")
+    xp = (h.get("x-powered-by") or "").strip()
+    if xp:
+        leaks.append(f"X-Powered-By: {xp}")
+    gen = re.search(r'name=["\']generator["\']\s+content=["\']([^"\']+)["\']', html or "", re.I)
+    if gen and re.search(r"\d", gen.group(1)):
+        leaks.append(f"Generator: {gen.group(1).strip()}")
+
+    # CMS / stack
+    cms = ""
+    low_html = (html or "").lower()
+    if "wp-content" in low_html or "wordpress" in (xp + (gen.group(1) if gen else "")).lower():
+        cms = "WordPress"
+    elif "cdn.shopify.com" in low_html or "shopify" in server.lower():
+        cms = "Shopify"
+    elif "wix.com" in low_html:
+        cms = "Wix"
+    elif "static.parastorage" in low_html:
+        cms = "Wix"
+
+    # 3) Cookies inseguras
+    setc = (h.get("set-cookie") or "").lower()
+    cookie_flags = []
+    if setc:
+        if "secure" not in setc:
+            cookie_flags.append("cookies sin Secure")
+        if "httponly" not in setc:
+            cookie_flags.append("cookies sin HttpOnly")
+
+    # 4) Archivos/paths sensibles expuestos (GET de solo lectura, en paralelo)
+    exposed = []
+
+    async def probe(path, desc, sig):
+        try:
+            r = await client.get(root + path, timeout=LINK_TIMEOUT, follow_redirects=False)
+            if r.status_code == 200 and len(r.text) < 300000 and sig.search(r.text or ""):
+                exposed.append({"path": path, "what": desc})
+        except Exception:  # noqa: BLE001
+            pass
+
+    try:
+        await asyncio.gather(*(probe(p, d, s) for p, d, s in _SENSITIVE))
+    except Exception:  # noqa: BLE001
+        pass
+
+    https_ok = root.lower().startswith("https://")
+    penalty = len(exposed) * 45 + len(missing) * 6 + len(leaks) * 5 + len(cookie_flags) * 5 + (0 if https_ok else 25)
+    score = max(0, 100 - penalty)
+    return {
+        "score": score,
+        "https": https_ok,
+        "headers_present": present,
+        "headers_missing": missing,
+        "leaks": leaks,
+        "cms": cms,
+        "cookie_flags": cookie_flags,
+        "exposed": exposed,
+    }
+
+
 # ---- PageSpeed Insights (opcional, requiere API key) -------------------------
 
 async def fetch_psi(client: httpx.AsyncClient, url: str, strategy: str = "mobile") -> dict | None:
@@ -627,6 +729,13 @@ async def analyze(raw_url: str) -> Result:
 
         broken_ratio = (broken / checked) if checked else 0.0
 
+        # Escaner de seguridad / tecnologia (headers, versiones, archivos expuestos)
+        try:
+            security = await scan_security(client, res.final_url, dict(home.headers), home_html)
+        except Exception:  # noqa: BLE001
+            security = None
+
+    llms_len = len(llms_text or "")
     res.elapsed = round(time.perf_counter() - t0, 1)
 
     res.signals = {
@@ -639,6 +748,8 @@ async def analyze(raw_url: str) -> Result:
         "sitemap_in_robots": sitemap_in_robots,
         "sitemap_total": sitemap_total,
         "llms_txt": llms_ok,
+        "llms_len": llms_len,
+        "security": security,
         "links_checked": checked,
         "links_broken": broken,
         "broken_ratio": round(broken_ratio, 2),
@@ -797,6 +908,29 @@ def _score(res: Result) -> None:
                         "severity": "medio"})
     else:
         good.append("Tienes analitica instalada (" + ", ".join(an.get("tools", [])[:3]) + ").")
+
+    # ---------- Seguridad / tecnologia ----------
+    sec = s.get("security") or {}
+    if sec.get("exposed"):
+        improve.insert(0, {"title": f"Seguridad: {len(sec['exposed'])} archivo(s) sensible(s) expuesto(s)",
+                           "detail": "; ".join(e["what"] for e in sec["exposed"][:3]) +
+                                     ". Hay que bloquear el acceso cuanto antes.",
+                           "severity": "alto"})
+    if sec.get("headers_missing"):
+        improve.append({"title": "Faltan cabeceras de seguridad",
+                        "detail": "No estan: " + ", ".join(sec["headers_missing"][:4]) +
+                                  ". Protegen frente a clickjacking, sniffing y robo de sesion.",
+                        "severity": "medio" if len(sec["headers_missing"]) >= 4 else "bajo"})
+    if sec.get("leaks"):
+        improve.append({"title": "El servidor revela su version/tecnologia",
+                        "detail": ", ".join(sec["leaks"][:3]) + ". Ocultarlo dificulta ataques dirigidos.",
+                        "severity": "bajo"})
+    if sec and not sec.get("exposed") and sec.get("score", 0) >= 75:
+        good.append("Seguridad basica correcta: sin archivos sensibles expuestos.")
+    if s.get("llms_txt") and s.get("llms_len", 0) < 200:
+        improve.append({"title": "Tu guia para la IA (llms.txt) es muy corta",
+                        "detail": "Existe pero apenas tiene contenido; conviene ampliarla con tus servicios y paginas clave.",
+                        "severity": "bajo"})
 
     if not m["description"]:
         improve.append({"title": "Falta la descripcion de la pagina",

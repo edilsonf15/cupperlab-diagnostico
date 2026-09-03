@@ -373,6 +373,8 @@
     if(C.geo) dims.push([C.geo.label||"Preparación para la IA (GEO)", C.geo.score]);
     if(psi.mobile && psi.mobile.performance!=null) dims.push(["Velocidad en móvil", psi.mobile.performance]);
     if(psi.desktop && psi.desktop.performance!=null) dims.push(["Velocidad en escritorio", psi.desktop.performance]);
+    var sec=(r.signals||{}).security;
+    if(sec && sec.score!=null) dims.push(["Seguridad", sec.score]);
     var dh=dims.map(function(d){
       var c=tone(d[1]);
       return '<div style="padding:14px 0">'+
