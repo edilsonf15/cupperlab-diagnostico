@@ -810,6 +810,43 @@ async def analyze(raw_url: str) -> Result:
 
 # ---- Scoring y hallazgos -----------------------------------------------------
 
+def _vel_from_psi_full(pf: dict) -> int | None:
+    """Velocidad global = media de movil y escritorio (0-100)."""
+    pf = pf or {}
+    vals = [(pf.get(d) or {}).get("performance") for d in ("mobile", "desktop")]
+    vals = [v for v in vals if isinstance(v, (int, float))]
+    return round(sum(vals) / len(vals)) if vals else None
+
+
+def _overall_score(cats: dict, psi_full: dict, security: dict) -> tuple[int, str]:
+    """Score global ponderando tecnico, on-page, GEO, velocidad y seguridad.
+    Velocidad y seguridad SI cuentan: dos webs distintas no pueden dar lo mismo."""
+    w = {"tecnico": 0.26, "onpage": 0.26, "geo": 0.24, "vel": 0.12, "sec": 0.12}
+    parts = [((cats.get("tecnico") or {}).get("score", 0), w["tecnico"]),
+             ((cats.get("onpage") or {}).get("score", 0), w["onpage"]),
+             ((cats.get("geo") or {}).get("score", 0), w["geo"])]
+    vel = _vel_from_psi_full(psi_full)
+    if vel is not None:
+        parts.append((vel, w["vel"]))
+    sec = (security or {}).get("score")
+    if isinstance(sec, (int, float)):
+        parts.append((sec, w["sec"]))
+    tot = sum(pw for _, pw in parts)
+    overall = round(sum(sv * pw for sv, pw in parts) / tot) if tot else 0
+    return overall, _grade(overall)
+
+
+def finalize_score(data: dict) -> dict:
+    """Recalcula score/grade con la velocidad REAL (psi_full) que se adjunta
+    despues del analisis. main.py lo llama al terminar. Idempotente."""
+    cats = data.get("categories") or {}
+    security = (data.get("signals") or {}).get("security") or {}
+    overall, grade = _overall_score(cats, data.get("psi_full") or {}, security)
+    data["score"] = overall
+    data["grade"] = grade
+    return data
+
+
 def _score(res: Result) -> None:
     m = res.meta
     s = res.signals
@@ -912,12 +949,13 @@ def _score(res: Result) -> None:
     }
     res.categories = cats
 
-    overall = round(0.35 * cats["tecnico"]["score"] +
-                    0.35 * cats["onpage"]["score"] +
-                    0.30 * cats["geo"]["score"])
+    # Velocidad y seguridad TAMBIEN cuentan en el score (si no, dos webs muy
+    # distintas dan lo mismo). La velocidad real (psi_full) se adjunta despues,
+    # asi que main.py llama a finalize_score() para recomputar con ella.
+    pf = getattr(res, "psi_full", None) or ({"mobile": res.psi} if res.psi else {})
+    overall, grade = _overall_score(cats, pf, s.get("security") or {})
     res.score = overall
-    res.grade = ("A" if overall >= 85 else "B" if overall >= 70 else
-                 "C" if overall >= 55 else "D" if overall >= 40 else "E")
+    res.grade = grade
 
     # ---------- Hallazgos en lenguaje de cliente ----------
     if s["https"]:

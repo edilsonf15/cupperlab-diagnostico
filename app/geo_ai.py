@@ -196,6 +196,41 @@ def _parse_reco(txt: str, brand: str) -> tuple[bool | None, list[dict], str]:
     return included, comps, re.sub(r"\s+", " ", body)[:400]
 
 
+def _parse_companies(body: str) -> list[dict]:
+    """Parsea TODAS las empresas de la lista (incluida la marca si aparece).
+    Formato esperado por linea: 'Nombre | dominio.com'. Devuelve {name, domain}."""
+    out, seen = [], set()
+    for line in (body or "").splitlines():
+        line = re.sub(r"^\s*\d+[\.\)]\s*", "", line).strip(" .-*•\t")
+        if not line or len(line) < 3:
+            continue
+        dm = _DOM_RE.search(line)
+        domain = dm.group(1).lower() if dm else None
+        name = re.split(r"\s*[|\-–—:]\s*", line)[0].strip()
+        if domain and domain in name:
+            name = name.replace(domain, "").strip(" |-–—:")
+        name = re.sub(r"\(.*?\)", "", name).strip(" .|-–—:")
+        if not name or len(name) > 48:
+            continue
+        key = name.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append({"name": name, "domain": domain})
+    return out
+
+
+def _is_brand_row(c: dict, brand_l: str, dom_root: str) -> bool:
+    """True si esta fila de la lista ES la marca (por nombre o por dominio)."""
+    nm = (c.get("name") or "").lower()
+    dom = (c.get("domain") or "").lower().replace("www.", "")
+    if brand_l and (brand_l in nm or nm in brand_l) and len(nm) >= 3:
+        return True
+    if dom_root and dom and (dom_root == dom or dom_root in dom or dom in dom_root):
+        return True
+    return False
+
+
 async def _query_engine(client, eng: dict, q_know: str, q_reco: str, brand: str) -> dict:
     try:
         know, reco = await asyncio.gather(
@@ -370,7 +405,6 @@ async def run_ai_geo(domain: str, meta: dict) -> dict | None:
     # Agrega los 3 fraseos: aparece / no aparece + competencia (union, del pais)
     brand_l = brand.lower().strip()
     dom_root = domain.lower().split("/")[0].replace("www.", "")
-    brand_re = re.compile(r"(?:^|[^a-z0-9])" + re.escape(brand_l) + r"(?:[^a-z0-9]|$)") if brand_l else None
     questions = []
     comps, seen = [], set()
     appears = 0
@@ -379,24 +413,30 @@ async def run_ai_geo(domain: str, meta: dict) -> dict | None:
         res = cat_results[i] if i < len(cat_results) else None
         txt = "" if (res is None or isinstance(res, Exception)) else (res or "")
         if not txt.strip():
-            questions.append({"q": search, "appears": None, "named": []})
+            questions.append({"q": search, "appears": None, "named": [], "answer": ""})
             continue
-        _included, qcomps, _ = _parse_reco(txt, brand)
         valid += 1
-        # NO confiamos en 'INCLUIDA': comprobamos nosotros si la marca aparece en
-        # la LISTA de recomendadas (antes de la linea INCLUIDA).
-        body = re.split(r"\bINCLUIDA:", txt, 1)[0].lower()
-        appears_here = bool(dom_root and dom_root in body) or bool(brand_re and brand_re.search(body))
+        # Solo la LISTA de recomendadas (antes de 'INCLUIDA:'). "Apareces" SOLO si la
+        # marca esta en esa lista parseada; NO si tu nombre sale suelto en el texto
+        # (la IA suele nombrarte para decir que NO te recomienda -> falso positivo).
+        body = re.split(r"\bINCLUIDA:", txt, 1)[0]
+        rows = _parse_companies(body)
+        appears_here = any(_is_brand_row(c, brand_l, dom_root) for c in rows)
         if appears_here:
             appears += 1
         named = []
-        for c in qcomps:
-            nm = (c.get("name") if isinstance(c, dict) else str(c)).strip()
+        for c in rows:
+            if _is_brand_row(c, brand_l, dom_root):
+                continue
+            nm = (c.get("name") or "").strip()
             named.append(nm)
-            if nm and nm.lower() not in seen and brand.lower() not in nm.lower():
+            if nm and nm.lower() not in seen:
                 seen.add(nm.lower())
-                comps.append(c if isinstance(c, dict) else {"name": nm, "domain": None})
-        questions.append({"q": search, "appears": appears_here, "named": named[:4]})
+                comps.append(c)
+        # Guarda un extracto legible de la respuesta real de la IA (para mostrarlo)
+        excerpt = re.sub(r"\s+", " ", body).strip()[:300]
+        questions.append({"q": search, "appears": appears_here,
+                          "named": named[:4], "answer": excerpt})
 
     if valid == 0 and not know_txt.strip():
         return {"available": True, "brand": brand, "error": "sin respuesta de la IA"}
