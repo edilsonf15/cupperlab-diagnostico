@@ -301,46 +301,81 @@ _GEO_HINTS = {
 }
 
 
+_GL_NAME = {gl: name for gl, (name, _k) in _GEO_HINTS.items()}
+_GL_NAME.update({"co": "Colombia", "es": "España", "mx": "México", "ar": "Argentina",
+                 "cl": "Chile", "pe": "Perú", "pa": "Panamá", "pt": "Portugal",
+                 "uy": "Uruguay", "ec": "Ecuador", "bo": "Bolivia", "ve": "Venezuela",
+                 "gt": "Guatemala", "cr": "Costa Rica", "do": "República Dominicana",
+                 "us": "Estados Unidos", "de": "Alemania", "fr": "Francia", "it": "Italia",
+                 "gb": "Reino Unido", "br": "Brasil"})
+_CURRENCY_CODES = {"cop", "mxn", "ars", "clp", "pen", "nit", "rfc", "cuit", "rut", "ruc"}
+
+
 def detect_country(html: str, domain: str) -> dict:
-    """Detecta el pais REAL de operacion mirando el contenido de la pagina
-    (telefono del footer, menciones de pais/ciudad, moneda). El TLD es el ultimo
-    recurso. Devuelve {name, gl, source}."""
+    """Detecta el pais REAL de operacion con VOTACION PONDERADA de varias señales:
+    enlaces tel:, telefonos en texto, menciones de pais/ciudad/moneda e idioma-region.
+    Una señal debil (un numero suelto que empieza por un prefijo) NO puede ganarle al
+    nombre del pais escrito o a la moneda. El TLD es el ultimo recurso.
+    Devuelve {name, gl, source}."""
     h = (html or "")
     low = h.lower()
+    votes: dict[str, float] = {}
+    src: dict[str, str] = {}
 
-    # 1) Telefonos REALES: prefijo internacional + un numero de 8-15 digitos.
-    #    (evita falsos positivos con "+100", "+1.000", "+50%", etc. de marketing)
-    votes: dict[tuple, int] = {}
-    for m in re.finditer(r"(?:\+|\b00)\s?(\d[\d\s().\-]{6,}\d)", h):
+    def add(gl: str, w: float, source: str):
+        if not gl:
+            return
+        votes[gl] = votes.get(gl, 0.0) + w
+        if votes.get(gl, 0) == w or source == "contenido":
+            src.setdefault(gl, source)
+
+    # 1) Enlaces tel: (la señal MAS fiable) -> peso alto
+    for m in re.finditer(r'(?:href=["\']tel:|data-tel=["\'])\s*(\+?\d[\d\s().\-]{6,}\d)', h, re.I):
         digs = re.sub(r"\D", "", m.group(1))
         if not (8 <= len(digs) <= 15):
             continue
         for code, name, gl in _CALL_CODES:
             if digs.startswith(code):
-                votes[(name, gl)] = votes.get((name, gl), 0) + 1
-                break
-    if votes:
-        (name, gl), _ = max(votes.items(), key=lambda kv: kv[1])
-        return {"name": name, "gl": gl, "source": "telefono"}
+                add(gl, 4.0, "telefono"); break
 
-    # 2) Menciones de pais/ciudad/moneda
-    hint_votes: dict[str, int] = {}
+    # 2) Telefonos en texto con prefijo internacional -> peso BAJO (puede ser ruido)
+    for m in re.finditer(r"(?:\+|\b00)\s?(\d[\d\s().\-]{7,}\d)", h):
+        digs = re.sub(r"\D", "", m.group(1))
+        if not (9 <= len(digs) <= 15):
+            continue
+        for code, name, gl in _CALL_CODES:
+            if digs.startswith(code):
+                add(gl, 1.0, "telefono"); break
+
+    # 3) Menciones de contenido: el NOMBRE del pais y la MONEDA pesan mucho;
+    #    ciudades y otros, menos.
     for gl, (name, kws) in _GEO_HINTS.items():
-        c = sum(low.count(kw) for kw in kws)
-        if c:
-            hint_votes[gl] = c
-    if hint_votes:
-        gl = max(hint_votes, key=hint_votes.get)
-        return {"name": _GEO_HINTS[gl][0], "gl": gl, "source": "contenido"}
+        score = 0.0
+        for kw in kws:
+            c = low.count(kw)
+            if not c:
+                continue
+            heavy = kw == name.lower() or kw.strip() in _CURRENCY_CODES
+            score += min(c, 4) * (3.0 if heavy else 1.5)
+        if score:
+            add(gl, score, "contenido")
 
-    # 3) TLD de pais como ultimo recurso
+    # 4) Idioma-region declarado (es-CO, es-MX...) y hreflang con region -> fiable
+    for m in re.finditer(r'(?:lang|hreflang)=["\'][a-z]{2}-([a-z]{2})', h, re.I):
+        reg = m.group(1).lower()
+        if reg in _GL_NAME:
+            add(reg, 3.0, "idioma")
+
+    if votes:
+        gl = max(votes, key=votes.get)
+        name = _GL_NAME.get(gl) or next((n for c, n, g in _CALL_CODES if g == gl), gl.upper())
+        return {"name": name, "gl": gl, "source": src.get(gl, "contenido")}
+
+    # 5) TLD de pais como ultimo recurso
     host = (domain or "").lower().split("/")[0]
     tld = host.rsplit(".", 1)[-1] if "." in host else ""
-    tld_map = {"es": ("España", "es"), "mx": ("México", "mx"), "co": ("Colombia", "co"),
-               "ar": ("Argentina", "ar"), "cl": ("Chile", "cl"), "pe": ("Perú", "pe"),
-               "pa": ("Panamá", "pa"), "pt": ("Portugal", "pt")}
-    if tld in tld_map:
-        return {"name": tld_map[tld][0], "gl": tld_map[tld][1], "source": "tld"}
+    if tld in _GL_NAME and tld not in ("com", "net", "org", "app", "io", "co"):
+        return {"name": _GL_NAME[tld], "gl": tld, "source": "tld"}
     return {"name": "", "gl": "", "source": "desconocido"}
 
 
