@@ -302,28 +302,36 @@ async def run_ai_geo(domain: str, meta: dict) -> dict | None:
     )
     q_country = (
         f"Usa búsqueda web y entra en {full_url}. ¿En qué PAÍS está basado y opera principalmente este "
-        f"negocio? Fíjate en el idioma, el prefijo telefónico, las direcciones o ciudades, la moneda y el "
-        f"dominio. Responde SOLO así, sin nada más: Nombre del país|cc  (cc = código ISO de 2 letras, "
-        f"p. ej. España|es, México|mx, Colombia|co, Argentina|ar). Si dudas, deduce por el idioma y el dominio."
+        f"negocio? Fíjate SOLO en evidencia real del sitio: idioma, prefijo telefónico, direcciones o "
+        f"ciudades, moneda y dominio. Responde SOLO así, sin nada más: Nombre del país|cc|evidencia  "
+        f"(cc = código ISO de 2 letras; evidencia = el dato concreto que lo prueba, p. ej. 'teléfono +57' "
+        f"o 'precios en COP' o 'dirección en Bogotá'). Si NO encuentras evidencia clara, responde "
+        f"EXACTAMENTE DESCONOCIDO y nada más. No supongas por el nombre de la marca."
     )
 
     try:
         async with httpx.AsyncClient() as client:
-            # Ronda 0: si no sabemos el pais por TLD/contenido, ChatGPT lo determina mirando el sitio
+            # Ronda 0: si el analisis del sitio no determino el pais, ChatGPT lo intenta,
+            # pero SOLO se acepta si aporta evidencia (si no, queda desconocido -> idioma).
             if not have_country:
                 try:
-                    rc = await _ask(client, prov, key, model, q_country, max_tokens=60, grounded=True)
-                    mc = re.search(r"([A-Za-zÁÉÍÓÚÑÜáéíóúñü .'-]{2,40})\|\s*([A-Za-z]{2})", rc or "")
-                    if mc:
-                        country = mc.group(1).strip(" .|-")[:40]
-                        gl = mc.group(2).lower()
-                        have_country = bool(country)
+                    rc = await _ask(client, prov, key, model, q_country, max_tokens=80, grounded=True)
+                    if rc and "DESCONOCIDO" not in rc.upper():
+                        mc = re.search(r"([A-Za-zÁÉÍÓÚÑÜáéíóúñü .'-]{2,40})\|\s*([A-Za-z]{2})\s*\|\s*(.+)", rc)
+                        if mc and len(mc.group(3).strip()) >= 3:
+                            country = mc.group(1).strip(" .|-")[:40]
+                            gl = mc.group(2).lower()
+                            have_country = bool(country)
                 except Exception:  # noqa: BLE001
                     pass
             if not country:
+                # Ultimo recurso: idioma-region declarado; si no, no forzamos ningun pais
                 lang = (meta.get("lang") or "").lower()
-                if lang.startswith("es"):
-                    country, gl = "España", "es"
+                mreg = re.match(r"[a-z]{2}-([a-z]{2})", lang)
+                if mreg:
+                    gl = mreg.group(1)
+                elif lang.startswith("es"):
+                    country, gl = "", "es"
             if not gl:
                 gl = "es"
             ctx_pais = f"en {country}" if country else "en su país"

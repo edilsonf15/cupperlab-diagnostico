@@ -288,16 +288,51 @@ _CALL_CODES = [
     ("1", "Estados Unidos", "us"),
 ]
 
-# Menciones de pais/ciudad como respaldo (cuando no hay telefono claro).
+# Menciones de pais/ciudad/moneda/ID fiscal como respaldo (cuando no hay tel: claro).
+# Cobertura MUNDIAL: nombres en ES e EN, ciudades principales e identificadores locales.
 _GEO_HINTS = {
-    "es": ("España", ["españa", "madrid", "barcelona", "valencia", "sevilla", "málaga", "€", " iva", "cif ", " dni"]),
-    "mx": ("México", ["méxico", "mexico", "cdmx", "guadalajara", "monterrey", "puebla", "querétaro", " rfc", " mxn"]),
-    "co": ("Colombia", ["colombia", "bogotá", "bogota", "medellín", "medellin", "cali", "barranquilla", " nit", " cop"]),
-    "ar": ("Argentina", ["argentina", "buenos aires", "córdoba", "rosario", "mendoza", " cuit", " ars"]),
-    "cl": ("Chile", ["chile", "santiago", "valparaíso", "concepción", " rut", " clp"]),
-    "pe": ("Perú", ["perú", "peru", "lima", "arequipa", "trujillo", " ruc", " pen", "soles"]),
+    # ---- Iberia / Europa ----
+    "es": ("España", ["españa", "spain", "madrid", "barcelona", "valencia", "sevilla", "málaga", "bilbao", " iva "]),
+    "pt": ("Portugal", ["portugal", "lisboa", "lisbon", "porto", "oporto", " nif "]),
+    "gb": ("Reino Unido", ["united kingdom", "reino unido", "london", "londres", "manchester", "u.k.", "england", "british", "£"]),
+    "de": ("Alemania", ["alemania", "germany", "deutschland", "berlin", "berlín", "münchen", "munich", "hamburg", "frankfurt", "gmbh"]),
+    "fr": ("Francia", ["francia", "france", "paris", "parís", "lyon", "marseille", "français"]),
+    "it": ("Italia", ["italia", "italy", "roma", "milano", "milán", "napoli", "italiano"]),
+    "nl": ("Países Bajos", ["países bajos", "netherlands", "amsterdam", "holanda", "nederland"]),
+    "ie": ("Irlanda", ["ireland", "irlanda", "dublin", "dublín"]),
+    "ch": ("Suiza", ["switzerland", "suiza", "zürich", "zurich", "geneva", "ginebra"]),
+    # ---- Norteamérica ----
+    "us": ("Estados Unidos", ["united states", "u.s.a", "new york", "miami", "los angeles", "texas", "california", "chicago", " ein "]),
+    "ca": ("Canadá", ["canada", "canadá", "toronto", "vancouver", "montreal", "montréal", "ontario", "quebec"]),
+    "mx": ("México", ["méxico", "mexico", "cdmx", "guadalajara", "monterrey", "puebla", "querétaro", " rfc "]),
+    # ---- LatAm ----
+    "co": ("Colombia", ["colombia", "bogotá", "bogota", "medellín", "medellin", "cali", "barranquilla", " nit "]),
+    "ar": ("Argentina", ["argentina", "buenos aires", "córdoba", "rosario", "mendoza", " cuit "]),
+    "cl": ("Chile", ["chile", "santiago", "valparaíso", "concepción", " rut "]),
+    "pe": ("Perú", ["perú", "peru", "lima", "arequipa", "trujillo", " ruc ", "soles"]),
+    "uy": ("Uruguay", ["uruguay", "montevideo"]),
+    "ec": ("Ecuador", ["ecuador", "quito", "guayaquil"]),
+    "bo": ("Bolivia", ["bolivia", "la paz", "santa cruz de la sierra"]),
+    "ve": ("Venezuela", ["venezuela", "caracas", "maracaibo"]),
+    "py": ("Paraguay", ["paraguay", "asunción", "asuncion"]),
+    "gt": ("Guatemala", ["guatemala"]),
+    "cr": ("Costa Rica", ["costa rica", "san josé de costa rica"]),
     "pa": ("Panamá", ["panamá", "panama", "ciudad de panamá"]),
-    "us": ("Estados Unidos", ["united states", "u.s.a", "new york", "miami", "los angeles", "texas", "california"]),
+    "do": ("República Dominicana", ["república dominicana", "republica dominicana", "santo domingo", "dominican"]),
+    "br": ("Brasil", ["brasil", "brazil", "são paulo", "sao paulo", "rio de janeiro", "brasília", "brasilia", "cnpj"]),
+    # ---- Resto ----
+    "au": ("Australia", ["australia", "sydney", "melbourne", "brisbane"]),
+    "in": ("India", ["india", "mumbai", "delhi", "bangalore", "bengaluru", "₹"]),
+    "ae": ("Emiratos Árabes", ["united arab emirates", "dubai", "dubái", "abu dhabi"]),
+}
+
+# Monedas y codigos ISO -> pais (señal fuerte). USD/EUR se omiten por ambiguos.
+_CURRENCY_SIGNS = {
+    "cop": "co", "mxn": "mx", "ars": "ar", "clp": "cl", "pen": "pe", "uyu": "uy",
+    "bob": "bo", "pyg": "py", "gtq": "gt", "crc": "cr", "dop": "do", "brl": "br",
+    "r$": "br", "gbp": "gb", "£": "gb", "cad": "ca", "c$": "ca", "aud": "au",
+    "chf": "ch", "inr": "in", "₹": "in", "aed": "ae",
+    "nit": "co", "rfc": "mx", "cuit": "ar", "cnpj": "br", "cpf": "br",
 }
 
 
@@ -308,7 +343,12 @@ _GL_NAME.update({"co": "Colombia", "es": "España", "mx": "México", "ar": "Arge
                  "gt": "Guatemala", "cr": "Costa Rica", "do": "República Dominicana",
                  "us": "Estados Unidos", "de": "Alemania", "fr": "Francia", "it": "Italia",
                  "gb": "Reino Unido", "br": "Brasil"})
-_CURRENCY_CODES = {"cop", "mxn", "ars", "clp", "pen", "nit", "rfc", "cuit", "rut", "ruc"}
+
+# ccTLD -> pais (señal global fuerte). Los genericos NO cuentan (uso mundial).
+_GENERIC_TLD = {"com", "net", "org", "app", "io", "co", "ai", "dev", "me", "xyz",
+                "online", "site", "tech", "store", "info", "biz", "gg", "to", "cc"}
+_CCTLD = {gl: gl for gl in _GL_NAME}  # es->es, fr->fr, br->br...
+_CCTLD.update({"uk": "gb"})  # .co.uk / .uk -> Reino Unido
 
 
 def detect_country(html: str, domain: str) -> dict:
@@ -345,22 +385,37 @@ def detect_country(html: str, domain: str) -> dict:
             continue
         for code, name, gl in _CALL_CODES:
             if digs.startswith(code):
+                # el codigo "1" (EE.UU./Canada) es MUY ambiguo: exige 11 digitos exactos
+                if code == "1" and len(digs) != 11:
+                    break
                 add(gl, 1.0, "telefono"); break
 
-    # 3) Menciones de contenido: el NOMBRE del pais y la MONEDA pesan mucho;
-    #    ciudades y otros, menos.
+    # 2b) ccTLD del dominio -> voto fuerte (señal global fiable; genericos no cuentan)
+    host0 = (domain or "").lower().split("/")[0].split(":")[0]
+    tld0 = host0.rsplit(".", 1)[-1] if "." in host0 else ""
+    if tld0 in _CCTLD and tld0 not in _GENERIC_TLD:
+        add(_CCTLD[tld0], 2.5, "tld")
+
+    # 3) Menciones de contenido: el NOMBRE del pais pesa mucho; ciudades, menos.
     for gl, (name, kws) in _GEO_HINTS.items():
         score = 0.0
         for kw in kws:
             c = low.count(kw)
             if not c:
                 continue
-            heavy = kw == name.lower() or kw.strip() in _CURRENCY_CODES
+            heavy = kw == name.lower() or kw in (name.lower(), name.lower().split()[0])
             score += min(c, 4) * (3.0 if heavy else 1.5)
         if score:
             add(gl, score, "contenido")
 
-    # 4) Idioma-region declarado (es-CO, es-MX...) y hreflang con region -> fiable
+    # 3b) Moneda / codigo ISO / ID fiscal (señal fuerte y global)
+    for sign, gl in _CURRENCY_SIGNS.items():
+        # con separadores para evitar coincidencias dentro de palabras
+        n = len(re.findall(r"(?<![a-z])" + re.escape(sign) + r"(?![a-z])", low))
+        if n:
+            add(gl, min(n, 4) * 3.0, "moneda")
+
+    # 4) Idioma-region declarado (es-CO, en-GB, de-DE...) y hreflang con region -> fiable
     for m in re.finditer(r'(?:lang|hreflang)=["\'][a-z]{2}-([a-z]{2})', h, re.I):
         reg = m.group(1).lower()
         if reg in _GL_NAME:
@@ -371,11 +426,6 @@ def detect_country(html: str, domain: str) -> dict:
         name = _GL_NAME.get(gl) or next((n for c, n, g in _CALL_CODES if g == gl), gl.upper())
         return {"name": name, "gl": gl, "source": src.get(gl, "contenido")}
 
-    # 5) TLD de pais como ultimo recurso
-    host = (domain or "").lower().split("/")[0]
-    tld = host.rsplit(".", 1)[-1] if "." in host else ""
-    if tld in _GL_NAME and tld not in ("com", "net", "org", "app", "io", "co"):
-        return {"name": _GL_NAME[tld], "gl": tld, "source": "tld"}
     return {"name": "", "gl": "", "source": "desconocido"}
 
 
