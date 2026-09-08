@@ -676,13 +676,32 @@ def _index_block(r: dict) -> str:
     return base
 
 
+_SEC_EXPLAIN = [
+    ("hsts", "Obliga al navegador a usar siempre HTTPS: evita que intercepten la conexion."),
+    ("content-security", "Controla que scripts y recursos puede cargar tu web: frena inyecciones y robo de datos."),
+    ("x-frame", "Impide que tu web se incruste en otra para enganar al usuario (clickjacking)."),
+    ("x-content-type", "Evita que el navegador interprete archivos como algo que no son (sniffing)."),
+    ("referrer", "Controla que informacion se envia al salir de tu web (privacidad del usuario)."),
+    ("permissions", "Limita el acceso a camara, microfono o ubicacion: reduce la superficie de ataque."),
+]
+
+
+def _sec_explain(name: str) -> str:
+    n = (name or "").lower()
+    for key, txt in _SEC_EXPLAIN:
+        if key in n:
+            return txt
+    return "Cabecera de seguridad recomendada."
+
+
 def _security_section(r: dict) -> str:
     sec = (r.get("signals") or {}).get("security")
     if not sec:
         return ""
     score = sec.get("score", 0)
-    rows = [(n, "OK", "ok", "Presente") for n in sec.get("headers_present", [])]
-    rows += [(n, "Falta", "hi", "No configurada") for n in sec.get("headers_missing", [])]
+    # Cada cabecera EXPLICADA (que hace y por que importa)
+    rows = [(n, "OK", "ok", _sec_explain(n)) for n in sec.get("headers_present", [])]
+    rows += [(n, "Falta", "hi", _sec_explain(n)) for n in sec.get("headers_missing", [])]
     checks = _check_list(rows) if rows else ""
 
     exposed_html = ""
