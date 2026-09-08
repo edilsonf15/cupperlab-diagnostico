@@ -6,7 +6,14 @@
 {% set psi = r.psi_full %}
 <!doctype html>
 <html lang="es">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  @media only screen and (max-width:480px){
+    .pad-lr{padding-left:18px!important;padding-right:18px!important}
+    .score-ball{width:74px!important;height:74px!important;line-height:74px!important;font-size:28px!important}
+    .score-cell{width:92px!important}
+  }
+</style></head>
 <body style="margin:0;background:#eef2f6;font-family:'Helvetica Neue',Arial,sans-serif;color:#3d4855">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#eef2f6;padding:28px 12px"><tr><td align="center">
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:100%;background:#ffffff;border-radius:18px;overflow:hidden;box-shadow:0 10px 40px rgba(14,19,25,.10)">
@@ -27,8 +34,8 @@
   <!-- Score -->
   <tr><td style="padding:20px 36px 6px">
     <table width="100%" cellpadding="0" cellspacing="0" style="background:#f6f9fb;border:1px solid #e6ebf0;border-radius:14px"><tr>
-      <td width="112" align="center" valign="middle" style="padding:20px 0 20px 18px">
-        <div style="width:96px;height:96px;border-radius:50%;background:{{ gc }};color:#fff;text-align:center;line-height:96px;font-size:34px;font-weight:bold">{{ r.score }}</div>
+      <td class="score-cell" width="108" align="center" valign="middle" style="padding:18px 0 18px 16px">
+        <div class="score-ball" style="width:84px;height:84px;border-radius:50%;background:{{ gc }};color:#fff;text-align:center;line-height:84px;font-size:32px;font-weight:bold;mso-line-height-rule:exactly">{{ r.score }}</div>
         <div style="color:#9aa4b0;font-size:9px;letter-spacing:1px;margin-top:8px">SALUD /100</div>
       </td>
       <td valign="middle" style="padding:20px 22px">
@@ -75,29 +82,35 @@
   </td></tr>
   {% endif %}
 
-  <!-- Resumen por área -->
+  <!-- Lo que hay que mejorar (enfoque en lo debil) -->
+  {% set impv = r.findings_improve or [] %}
+  {% set ordered = (impv|selectattr('severity','equalto','alto')|list) + (impv|selectattr('severity','equalto','medio')|list) + (impv|rejectattr('severity','equalto','alto')|rejectattr('severity','equalto','medio')|list) %}
+  {% if ordered %}
   <tr><td style="padding:18px 36px 4px">
-    <div style="font-family:'Courier New',monospace;color:#0f9bc2;font-size:10.5px;letter-spacing:1.5px;margin-bottom:12px">RESUMEN POR ÁREA</div>
-    {% for key in ['tecnico','onpage','geo'] %}{% set cat = r.categories[key] %}{% if cat %}
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:11px">
-      <tr><td style="font-size:13px;color:#283038">{{ cat.label }}</td>
-          <td align="right" width="70" style="font-size:14px;font-weight:bold;color:{{ col(cat.score) }};font-family:'Courier New',monospace">{{ cat.score }}/100</td></tr>
-      <tr><td colspan="2" style="padding-top:5px">
-        <div style="height:8px;background:#e6ebf0;border-radius:20px">
-          <div style="height:8px;width:{{ cat.score }}%;background:{{ col(cat.score) }};border-radius:20px"></div></div></td></tr>
-    </table>
-    {% endif %}{% endfor %}
+    <div style="font-family:'Courier New',monospace;color:#d0402a;font-size:10.5px;letter-spacing:1.5px;margin-bottom:12px">LO QUE HAY QUE MEJORAR</div>
+    {% for f in ordered[:5] %}
+    {% set sc = '#d0402a' if f.severity=='alto' else '#dfa019' if f.severity=='medio' else '#9aa4b0' %}
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:9px;background:#f6f9fb;border-radius:10px"><tr>
+      <td width="4" style="background:{{ sc }};border-radius:10px 0 0 10px;font-size:1px">&nbsp;</td>
+      <td style="padding:11px 14px">
+        <div style="font-size:13px;font-weight:bold;color:#0e1319">{{ f.title }}</div>
+        {% if f.detail %}<div style="font-size:11.5px;color:#5a6675;margin-top:3px;line-height:1.5">{{ f.detail[:120] }}{% if f.detail|length > 120 %}…{% endif %}</div>{% endif %}
+      </td>
+      <td align="right" width="60" style="padding:0 12px"><span style="font-family:'Courier New',monospace;font-size:9px;font-weight:bold;color:{{ sc }};text-transform:uppercase">{{ f.severity }}</span></td>
+    </tr></table>
+    {% endfor %}
+    <div style="font-size:11px;color:#9aa4b0;margin-top:4px">La lista completa y el plan, en el PDF adjunto.</div>
   </td></tr>
+  {% endif %}
 
   <!-- PDF adjunto + enlace -->
   <tr><td style="padding:20px 36px 0">
     <table width="100%" cellpadding="0" cellspacing="0" style="background:#e9f9fe;border:1px solid #c8f0fb;border-radius:12px"><tr>
       <td style="padding:18px 20px">
-        <div style="color:#0b7ea0;font-size:16px;font-weight:bold">📎 Tu informe completo, en PDF</div>
-        <div style="color:#11647d;font-size:13px;margin:5px 0 14px">Lo tienes <b>adjunto en este correo</b> (más abajo). Con las pruebas a la IA, tu competencia real con sus webs, la velocidad detallada, los puntos débiles y tu plan de acción.</div>
+        <div style="color:#0b7ea0;font-size:13.5px;font-weight:bold">📎 Tu informe completo, en PDF</div>
+        <div style="color:#11647d;font-size:11.5px;margin:4px 0 12px;line-height:1.5">Adjunto en este correo: pruebas a la IA, tu competencia real, velocidad detallada, puntos débiles y plan de acción.</div>
         {% if report_url %}
-        <a href="{{ report_url }}" style="display:inline-block;background:#0f9bc2;color:#ffffff;text-decoration:none;font-weight:bold;padding:12px 22px;border-radius:10px;font-size:14px">📄 Abrir el informe aquí →</a>
-        <div style="color:#7b8694;font-size:11.5px;margin-top:9px">¿No ves el adjunto? Ábrelo o descárgalo con el botón.</div>
+        <a href="{{ report_url }}" style="display:inline-block;background:#0f9bc2;color:#ffffff;text-decoration:none;font-weight:bold;padding:10px 18px;border-radius:9px;font-size:12.5px">📄 Abrir el informe →</a>
         {% endif %}
       </td>
     </tr></table>
@@ -105,13 +118,15 @@
 
   <!-- Mensaje + CTA -->
   <tr><td style="padding:22px 36px 8px">
-    <p style="margin:0 0 16px;font-size:14px;color:#5a6675;line-height:1.6">La buena noticia: casi todo esto se puede mejorar, y con una marca que ya existe suele ser rápido.
-      Si quieres, lo vemos juntos y te decimos por dónde empezar para que <b style="color:#0e1319">Google y la IA te recomienden</b>.</p>
-    <table width="100%" cellpadding="0" cellspacing="0" style="background:#0e1319;border-radius:14px"><tr><td style="padding:22px 24px">
-      <div style="color:#ffffff;font-size:17px;font-weight:bold">¿Lo hacemos realidad?</div>
-      <div style="margin:5px 0 15px;color:#a3adba;font-size:13px">Un paso y te ayudamos a ponerlo en marcha.</div>
-      {% if calendly %}<a href="{{ calendly }}" style="display:inline-block;background:#f46434;color:#fff;text-decoration:none;font-weight:bold;padding:12px 24px;border-radius:10px;font-size:14px">Agendar una llamada</a>{% endif %}
-      <div style="margin:15px 0 0;color:#ffffff;font-size:16px;font-family:'Courier New',monospace">📞 <b style="color:#1cbce4">{{ phone }}</b></div>
+    <p style="margin:0 0 16px;font-size:14px;color:#5a6675;line-height:1.6">¿Cómo mejoramos estos puntos? En una <b style="color:#0e1319">reunión de 30 minutos</b> repasamos tu diagnóstico y te decimos por dónde empezar para que <b style="color:#0e1319">Google y la IA te recomienden</b>. Sin compromiso.</p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#0e1319;border-radius:14px"><tr><td style="padding:24px">
+      <div style="color:#ffffff;font-size:18px;font-weight:bold;font-family:Georgia,serif">Agenda tu sesión de 30 minutos</div>
+      <div style="margin:6px 0 16px;color:#a3adba;font-size:13px;line-height:1.5">Elige el hueco que mejor te venga y lo vemos juntos, en directo sobre tu web.</div>
+      {% if calendly %}<a href="{{ calendly }}" style="display:inline-block;background:#f46434;color:#fff;text-decoration:none;font-weight:bold;padding:13px 26px;border-radius:10px;font-size:14px">📅 Agendar 30 minutos →</a>{% endif %}
+      <table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:16px"><tr>
+        <td style="color:#a3adba;font-size:13px">O escríbenos / llámanos:&nbsp;</td>
+        <td><a href="tel:{{ phone|replace(' ','') }}" style="color:#1cbce4;text-decoration:none;font-weight:bold;font-size:14px">{{ phone }}</a></td>
+      </tr></table>
     </td></tr></table>
   </td></tr>
 
