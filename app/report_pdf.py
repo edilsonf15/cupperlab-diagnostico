@@ -526,6 +526,20 @@ def _geo_tactics(r: dict) -> list[str]:
     return tips[:8]
 
 
+def _geo_plan_block(r: dict) -> str:
+    """Bloque 'Todo lo que necesitas para salir en la IA' — al final, con el plan."""
+    ai = r.get("geo_ai") or {}
+    gap_c = _clean_gap(ai.get("gap")) if ai else ""
+    tactics = _geo_tactics(r)
+    if not tactics and not gap_c:
+        return ""
+    tac_lis = "".join(f'<li><span class="i" style="background:{CY6}">+</span>{t}</li>' for t in tactics)
+    return (f'<div class="block card" style="border-color:{CY};border-width:2px;margin-top:12px">'
+            f'<div class="sectic" style="margin-bottom:8px;color:{CY6}">Todo lo que necesitas para salir en la IA</div>'
+            + (f'<p style="font-size:9.5px;color:#3d4855;line-height:1.55;margin-bottom:10px">{_esc(gap_c)}</p>' if gap_c else "")
+            + f'<ul class="chk">{tac_lis}</ul></div>')
+
+
 def _ai_section(r: dict) -> str:
     ai = r.get("geo_ai") or {}
     answered = ai.get("answered_names") or []
@@ -540,26 +554,52 @@ def _ai_section(r: dict) -> str:
 
     brand = ai.get("brand", r["domain"])
     country = ai.get("country") or ""
+    zona = ai.get("zona") or country
     knows = ai.get("knows_brand"); reco = ai.get("recommended")
-    # respuesta textual sobre la marca (de ChatGPT), presentada como "la IA"
-    raw = (ai.get("brand_description") or "").strip()
-    if not raw:
-        raw = "Te reconoce y te describe." if knows else "No tengo informacion fiable sobre esta empresa."
+    recg = ai.get("recognition") or ("strong" if knows else ("weak" if ai.get("knows_with_web") else "none"))
+    mentions = (ai.get("mentions") or ai.get("web_description") or ai.get("brand_description") or "").strip()
     comps = _comp_names(ai) or "otras firmas de tu sector"
 
-    kww = ai.get("knows_with_web")
-    web_desc = (ai.get("web_description") or "").strip()
-    sin_web = raw if not knows else raw  # raw ya es descripcion (sin web) o el mensaje de que no la conoce
-    con_web = web_desc or ("No pudo describir tu web." if kww is False else "")
-    verdict_tag = "TE CONOCE" if knows else ("SOLO SI LE DAS TU WEB" if kww else "NO TE CONOCE")
+    # Tarjeta 1: lo que la IA MENCIONA de ti (verde/ambar/rojo segun reconocimiento)
+    rec_tag = {"strong": "TE RECONOCE", "weak": "SOLO CON TU WEB", "none": "NO TE RECONOCE"}[recg]
+    rec_v = {"strong": "yes", "weak": "", "none": "no"}[recg]
+    if recg == "strong":
+        m_line = f'Esto es lo que la IA sabe de ti: "{_esc(mentions[:220])}"'
+        m_src = "La IA te reconoce por su cuenta: vas por delante de la mayoria."
+    elif recg == "weak":
+        m_line = (f'Solo cuando le das tu web, la IA te describe asi: "{_esc(mentions[:200])}". '
+                  f'Por su cuenta, no te reconoce.')
+        m_src = "Solo te reconoce si le pasas tu dominio; el objetivo es que te conozca sin darselo."
+    else:
+        m_line = "Ni dandole tu web la IA encuentra informacion fiable de tu marca."
+        m_src = "La IA no te encuentra: hoy no existes para quien pregunta a la IA antes de comprar."
     card1 = f"""
     <div class="aiq">
       <div class="q"><div class="ico">IA</div><div>
-        <div class="ask">Le preguntamos a la IA por tu marca "{brand}" ({_esc(r.get('domain',''))}):</div>
-        <div class="qt"><b>Por tu cuenta (sin darle tu web):</b> "{_esc(sin_web[:200])}"<br>
-        <b>Dandole tu web:</b> "{_esc(con_web[:200]) if con_web else 'sin datos'}"</div></div></div>
-      <div class="src"><span>La IA {'te reconoce sola' if knows else 'solo te reconoce si le pasas tu web exacta' if kww else 'no te reconoce'}: tu objetivo es que te conozca sin que se la des.</span>
-        <span class="v {'yes' if knows else 'no'}">{verdict_tag}</span></div>
+        <div class="ask">Le preguntamos a la IA por tu marca "{_esc(brand)}" ({_esc(r.get('domain',''))}):</div>
+        <div class="qt">{m_line}</div></div></div>
+      <div class="src"><span>{m_src}</span><span class="v {rec_v}">{rec_tag}</span></div>
+    </div>"""
+
+    # Tarjeta ficha de Google Business (real, buscada por nombre y dominio)
+    gbp = ai.get("gbp"); gbp_rev = _esc(ai.get("gbp_reviews") or "")
+    gbp_card = ""
+    if gbp is not None:
+        if gbp:
+            gbp_card = f"""
+    <div class="aiq">
+      <div class="q"><div class="ico">IA</div><div>
+        <div class="ask">Tu ficha de Google Business / Maps</div>
+        <div class="qt">Encontramos tu ficha activa{(' (' + gbp_rev + ')') if gbp_rev else ''}. Las resenas de Google son una de las fuentes que la IA cita: cuidalas y pide mas.</div></div></div>
+      <div class="src"><span>Buscada por nombre en {_esc(zona)} y por tu dominio</span><span class="v yes">TIENES FICHA</span></div>
+    </div>"""
+        else:
+            gbp_card = f"""
+    <div class="aiq">
+      <div class="q"><div class="ico">IA</div><div>
+        <div class="ask">Tu ficha de Google Business / Maps</div>
+        <div class="qt">No encontramos una ficha activa. Es clave para el mapa, las busquedas locales y para que la IA te cite con resenas reales.</div></div></div>
+      <div class="src"><span>Buscada por nombre en {_esc(zona)} y por tu dominio</span><span class="v no">SIN FICHA</span></div>
     </div>"""
     card2 = f"""
     <div class="aiq">
@@ -589,36 +629,28 @@ def _ai_section(r: dict) -> str:
     q_block = (f'<div class="sectic" style="margin-top:12px">Las 3 busquedas reales de un cliente'
                f'{(" en " + _esc(country)) if country else ""} · ¿sales tu?</div>{q_cards}') if q_cards else ""
 
-    knows_any = knows; reco_any = reco
-    verdict = ("La IA te reconoce y te recomienda: vas por delante de la mayoria." if knows_any and reco_any
-               else f"La IA te describe, pero cuando alguien pide tu servicio nombra a {comps}, no a ti: pierdes a los clientes que aun no te conocen." if knows_any
-               else f"La IA no sabe quien eres y recomienda a {comps}: hoy no apareces cuando preguntan por tu servicio.")
-
-    if knows_any and not reco_any:
-        topnote = ("<b>Solo apareces si dan tu direccion exacta.</b> La IA te describe cuando le pasan tu web, "
-                   "pero cuando alguien busca tu servicio sin conocerte, no te nombra: ahi es donde pierdes clientes.")
-    elif not knows_any:
+    # Veredicto segun reconocimiento + recomendacion (verde/ambar/rojo)
+    if recg == "strong" and reco:
+        topnote = "<b>Buena senal:</b> la IA te reconoce y te incluye cuando piden tu servicio. Toca mantener la ventaja."
+        vcol, verdict = "g", "La IA te reconoce y te recomienda: vas por delante de la mayoria en tu zona."
+    elif recg == "none":
         topnote = ("<b>La IA no te encuentra.</b> Ni sabiendo tu nombre te reconoce: hoy no existes para quien "
                    "pregunta a la IA antes de comprar.")
+        vcol, verdict = "r", f"La IA no sabe quien eres y recomienda a {comps}: hoy no apareces cuando preguntan por tu servicio."
     else:
-        topnote = "<b>Buena senal:</b> la IA te reconoce y te incluye. Toca mantener la ventaja."
+        topnote = ("<b>Te reconoce por encima.</b> La IA te describe cuando le pasan tu web, pero cuando alguien "
+                   "busca tu servicio sin conocerte, nombra antes a la competencia: ahi es donde pierdes clientes.")
+        vcol, verdict = "o", (f"La IA te reconoce a medias y cuando piden tu servicio nombra a {comps}: "
+                              "trabajemos para que te cite a ti primero.")
 
-    gap_c = _clean_gap(ai.get("gap"))
-    tactics = _geo_tactics(r)
-    tac_lis = "".join(f'<li><span class="i" style="background:{CY6}">+</span>{t}</li>' for t in tactics)
-    gap_block = (f'<div class="block card" style="border-color:{CY};border-width:2px"><div class="sectic" style="margin-bottom:8px;color:{CY6}">Todo lo que necesitas para salir en la IA (plan de mejora)</div>'
-                 + (f'<p style="font-size:9.5px;color:#3d4855;line-height:1.55;margin-bottom:10px">{_esc(gap_c)}</p>' if gap_c else "")
-                 + f'<ul class="chk">{tac_lis}</ul></div>')
-
-    cards = card1 + card2
+    cards = card1 + gbp_card + card2
     return f"""
     <div class="eyebrow"><span class="bar"></span>04 · Como te ve la inteligencia artificial</div>
     <h2 class="sec">Como te ve la IA cuando preguntan por ti</h2>
-    <p class="sub">Le preguntamos a la IA, en vivo: por tu marca, por tu servicio y con busquedas reales de cliente. Cada vez mas gente busca asi antes de decidir.</p>
-    <div class="block callout {'g' if (knows_any and reco_any) else 'r'}">{topnote}</div>
+    <p class="sub">Le preguntamos a la IA, en vivo: por tu marca, por tu servicio y con busquedas reales de cliente en {_esc(zona or 'tu zona')}. Cada vez mas gente busca asi antes de decidir.</p>
+    <div class="block callout {vcol}">{topnote}</div>
     {cards}{q_block}
-    <div class="block callout {'g' if (knows_any and reco_any) else 'o' if knows_any else 'r'}"><b>Veredicto IA.</b> {verdict}</div>
-    {gap_block}"""
+    <div class="block callout {vcol}"><b>Veredicto IA.</b> {verdict}</div>"""
 
 
 def _index_block(r: dict) -> str:
@@ -1111,6 +1143,7 @@ def build_report_html(r: dict, contact: dict, name: str = "") -> str:
   <h2 class="sec">Todo lo que hay que mejorar, por orden de impacto</h2>
   <p class="sub">La lista completa de lo que corregir para posicionar en Google y en la IA: base tecnica y robots primero (que puedan leerte), luego on-page y contenido, y por ultimo las senales para que la IA te reconozca y te recomiende.</p>
   {_priority_table(r)}
+  {_geo_plan_block(r)}
   {_que_esperamos(r)}
   <div class="closeband">
     <div class="l"><b>¿Damos el siguiente paso?</b><p>Ponemos en marcha este plan contigo: base tecnica, on-page, contenido y las senales que hacen que la IA te recomiende. Primera revision sin costo.</p></div>
