@@ -72,15 +72,18 @@
 
   <div class="card" id="card">
     <div id="picker">
+      <div id="who" class="pick hidden" style="margin-bottom:20px;display:flex;align-items:center;gap:12px">
+        <span style="width:34px;height:34px;border-radius:50%;background:#1CBCE4;color:#0A1014;display:flex;align-items:center;justify-content:center;font-family:'Sora',sans-serif;font-weight:700;flex-shrink:0" id="whoIni">·</span>
+        <span id="whoTxt"></span>
+      </div>
       <div class="step"><b>1</b> ELIGE EL DÍA</div>
       <div class="days" id="days"></div>
       <div class="step"><b>2</b> ELIGE LA HORA</div>
       <div class="slots" id="slots"></div>
 
-      <div class="form">
+      <div class="form" id="idFields">
         <label class="field"><span class="lab">TU NOMBRE *</span><input id="name" placeholder="Nombre y apellido" autocomplete="name"></label>
         <label class="field"><span class="lab">CORREO *</span><input id="email" type="email" placeholder="nombre@tucorreo.com" autocomplete="email"></label>
-        <label class="field full"><span class="lab">¿ALGO QUE QUIERAS ADELANTARNOS? (OPCIONAL)</span><textarea id="note" rows="2" placeholder="Tu web, tu objetivo…"></textarea></label>
       </div>
       <div id="pickBox" class="pick hidden" style="margin-top:16px"></div>
       <div style="display:flex;align-items:center;gap:18px;margin-top:18px;flex-wrap:wrap">
@@ -134,13 +137,28 @@
   ["name","email"].forEach(function(id){ document.getElementById(id).addEventListener("input",check); });
   if(DAYS.length){ selectDay(0, dayEl.children[0]); }
 
+  // El cliente llega desde el correo YA identificado (hizo el analisis): prefill.
+  var qp=new URLSearchParams(location.search);
+  var pn=(qp.get("n")||"").trim(), pe=(qp.get("e")||"").trim(), pd=(qp.get("d")||"").trim();
+  if(pn) document.getElementById("name").value=pn;
+  if(pe) document.getElementById("email").value=pe;
+  window.__dom=pd;
+  if(pn && pe){
+    // Ya sabemos quien es: ocultamos los campos y mostramos un saludo
+    document.getElementById("idFields").classList.add("hidden");
+    var who=document.getElementById("who"); who.classList.remove("hidden");
+    document.getElementById("whoIni").textContent=(pn[0]||"·").toUpperCase();
+    document.getElementById("whoTxt").innerHTML="Agendas como <b>"+pn.replace(/</g,"")+"</b>"+(pd?' · sobre <b>'+pd.replace(/</g,"")+"</b>":"")+"<br><span style='color:rgba(10,16,20,.5);font-size:12.5px'>"+pe.replace(/</g,"")+" · ¿no eres tú? <a href='/agenda' style='color:#0E8FB0'>cambiar</a></span>";
+    check();
+  }
+
   go.addEventListener("click", async function(){
     err.style.display="none";
     if(!sel.slot){ err.textContent="Elige día y hora."; err.style.display="inline"; return; }
     go.disabled=true; go.textContent="Agendando…";
     try{
       var r=await fetch("/api/book",{method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({name:document.getElementById("name").value.trim(),email:document.getElementById("email").value.trim(),slot:sel.slot,note:document.getElementById("note").value.trim()})});
+        body:JSON.stringify({name:document.getElementById("name").value.trim(),email:document.getElementById("email").value.trim(),slot:sel.slot,domain:window.__dom||""})});
       var d=await r.json();
       if(!r.ok){ err.textContent=d.error||"No se pudo agendar."; err.style.display="inline"; go.disabled=false; go.textContent="Confirmar reunión →"; return; }
       document.getElementById("picker").classList.add("hidden");

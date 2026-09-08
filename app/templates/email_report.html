@@ -122,7 +122,7 @@
     <table width="100%" cellpadding="0" cellspacing="0" style="background:#0e1319;border-radius:14px"><tr><td style="padding:24px">
       <div style="color:#ffffff;font-size:18px;font-weight:bold;font-family:Georgia,serif">Agenda tu sesión de 30 minutos</div>
       <div style="margin:6px 0 16px;color:#a3adba;font-size:13px;line-height:1.5">Elige el hueco que mejor te venga y lo vemos juntos, en directo sobre tu web.</div>
-      <a href="{{ calendly or agenda_url }}" style="display:inline-block;background:#f46434;color:#fff;text-decoration:none;font-weight:bold;padding:13px 26px;border-radius:10px;font-size:14px">📅 Agendar 30 minutos →</a>
+      <a href="{{ book_url or calendly or agenda_url }}" style="display:inline-block;background:#f46434;color:#fff;text-decoration:none;font-weight:bold;padding:13px 26px;border-radius:10px;font-size:14px">📅 Agendar 30 minutos →</a>
       <table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:16px"><tr>
         <td style="color:#a3adba;font-size:13px">O escríbenos / llámanos:&nbsp;</td>
         <td><a href="tel:{{ phone|replace(' ','') }}" style="color:#1cbce4;text-decoration:none;font-weight:bold;font-size:14px">{{ phone }}</a></td>

@@ -29,8 +29,26 @@ _DIAS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domin
 _MESES = ["", "ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]
 
 
-def available_days() -> list[dict]:
-    """Proximos dias laborables con sus huecos de 30 min (hora local Madrid)."""
+def _is_busy(start: datetime, busy: list[dict]) -> bool:
+    """True si el hueco [start, start+30min) solapa con algo ocupado del calendario."""
+    if not busy:
+        return False
+    end = start + timedelta(minutes=SLOT_MIN)
+    for b in busy:
+        try:
+            bs = datetime.fromisoformat((b.get("start") or "").replace("Z", "+00:00"))
+            be = datetime.fromisoformat((b.get("end") or "").replace("Z", "+00:00"))
+        except Exception:  # noqa: BLE001
+            continue
+        if start < be and end > bs:
+            return True
+    return False
+
+
+def available_days(busy: list[dict] | None = None) -> list[dict]:
+    """Proximos dias laborables con sus huecos de 30 min (hora local Madrid).
+    Si se pasa 'busy' (intervalos ocupados del Google Calendar), descarta los
+    huecos que solapen: disponibilidad REAL (Fase 2)."""
     now = datetime.now(_TZ)
     out = []
     added = 0
@@ -45,6 +63,8 @@ def available_days() -> list[dict]:
             for mnt in (0, 30):
                 start = datetime(day.year, day.month, day.day, h, mnt, tzinfo=_TZ)
                 if start <= now + timedelta(hours=2):   # margen de 2h
+                    continue
+                if _is_busy(start, busy):               # ocupado en el calendario
                     continue
                 slots.append({"value": start.strftime("%Y-%m-%dT%H:%M"),
                               "label": start.strftime("%H:%M")})
@@ -115,4 +135,4 @@ def build_invite(slot_value: str, client_name: str, client_email: str,
     # traducimos el dia al espanol
     when_txt = f"{_DIAS[start.weekday()]} {start.day} {_MESES[start.month]} · {start.strftime('%H:%M')}"
     return {"ics": ics, "gcal_link": gcal, "when_txt": when_txt,
-            "start": start, "title": _MEET_TITLE}
+            "start": start, "title": _MEET_TITLE, "desc": desc}

@@ -91,9 +91,17 @@ async def index(request: Request):
 
 @app.get("/agenda", response_class=HTMLResponse)
 async def agenda(request: Request):
-    import booking  # noqa: PLC0415
+    import booking, gcal  # noqa: PLC0415
+    busy = []
+    if gcal.enabled():
+        try:
+            from datetime import timedelta as _td  # noqa: PLC0415
+            now = datetime.now(timezone.utc)
+            busy = await gcal.busy(now, now + _td(days=20))
+        except Exception as exc:  # noqa: BLE001
+            print(f"[agenda:busy] {exc}")
     return templates.TemplateResponse("agenda.html", {
-        "request": request, "days": booking.available_days(), **_ctx()})
+        "request": request, "days": booking.available_days(busy), "realtime": gcal.enabled(), **_ctx()})
 
 
 @app.post("/api/book")
@@ -108,14 +116,25 @@ async def api_book(request: Request):
     name = (body.get("name") or "").strip()[:80]
     email = (body.get("email") or "").strip()[:120]
     slot = (body.get("slot") or "").strip()
-    note = (body.get("note") or "").strip()[:300]
+    domain = (body.get("domain") or "").strip()[:120]
     if not name:
         return JSONResponse({"error": "Falta tu nombre."}, status_code=400)
     if not EMAIL_RE.match(email):
         return JSONResponse({"error": "Necesitamos un correo valido."}, status_code=400)
+    note = f"web analizada: {domain}" if domain else ""
     inv = booking.build_invite(slot, name, email, emailer.CUPPERLAB_EMAIL, emailer.CUPPERLAB_PHONE, note)
     if not inv:
         return JSONResponse({"error": "Elige un hueco valido."}, status_code=400)
+    # Fase 2: si el Google Calendar esta conectado, crea el evento de verdad
+    try:
+        import gcal  # noqa: PLC0415
+        if gcal.enabled():
+            from datetime import timedelta as _td  # noqa: PLC0415
+            start = inv["start"]
+            await gcal.create_event(start, start + _td(minutes=30), inv["title"],
+                                    inv.get("desc", note), email, name)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[book:gcal] {exc}")
     try:
         await asyncio.to_thread(emailer.send_booking, email, name, inv, emailer.CUPPERLAB_PHONE)
     except Exception as exc:  # noqa: BLE001
@@ -295,9 +314,16 @@ async def _build_and_send(data: dict, email: str, name: str, lead: dict, ai) -> 
         except Exception as exc:  # noqa: BLE001
             print(f"[report-save:ERROR] {exc}")
 
-    # 3) Correo con el enlace + el adjunto
+    # 3) Correo con el enlace + el adjunto. El boton de agendar lleva al cliente
+    #    YA identificado (nombre, correo y su web analizada) a /agenda.
+    from urllib.parse import urlencode  # noqa: PLC0415
+    ctxd = _ctx()
+    if ctxd["calendly"]:
+        book_url = ctxd["calendly"]
+    else:
+        book_url = ctxd["agenda_url"] + "?" + urlencode({"n": name or "", "e": email or "", "d": domain or ""})
     email_html = templates.get_template("email_report.html").render(
-        r=data, name=name or domain, report_url=report_url, **_ctx())
+        r=data, name=name or domain, report_url=report_url, book_url=book_url, **ctxd)
     pdf_name = f"Diagnostico_Cupperlab_{domain.replace('.', '_')}.pdf"
     email_sent = False
     try:
