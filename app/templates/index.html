@@ -41,6 +41,8 @@
   .langsel button:hover{opacity:.85}
   .langsel button.on{opacity:1;border-color:#1CBCE4}
   .langsel svg{display:block;width:27px;height:18px;border-radius:3px}
+  .soc{width:42px;height:42px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:#F7F9FB;background:rgba(247,249,251,0.06);border:1px solid rgba(247,249,251,0.14);transition:background .16s,color .16s,transform .16s,border-color .16s}
+  .soc:hover{background:#1CBCE4;color:#0A1014;border-color:#1CBCE4;transform:translateY(-3px)}
   @media(max-width:640px){.hphone span span.mono{display:none!important}.hphone .sora{font-size:14px!important}header .wrap{padding-left:16px!important;padding-right:16px!important}}
   @media(max-width:430px){.htxt{display:none!important}.langsel svg{width:24px;height:16px}}
   .hidden{display:none!important}
@@ -273,6 +275,7 @@
 <section style="background:#0A1014;color:#F7F9FB;padding:clamp(48px,8vw,84px) clamp(16px,5vw,24px)">
   <div class="wrap" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));gap:clamp(36px,5vw,56px);align-items:center">
     <div>
+      <p class="mono" data-i18n="cta_eyebrow" style="font-size:11px;letter-spacing:.14em;color:#1CBCE4;margin:0 0 14px"></p>
       <h2 class="sora" data-i18n="cta_h2" style="font-weight:700;font-size:clamp(28px,3.6vw,46px);line-height:1.12;letter-spacing:-0.03em;margin:0 0 20px;text-wrap:pretty"></h2>
       <p data-i18n="cta_p" style="margin:0 0 30px;font-size:17px;line-height:1.7;color:rgba(247,249,251,0.7);max-width:46ch"></p>
       <a href="#motor" class="btn-cy" style="font-size:16px;padding:16px 26px;margin-bottom:28px" data-i18n="cta_btn">Empezar el diagnóstico</a>
@@ -291,13 +294,41 @@
   </div>
 </section>
 
-<footer style="background:#0A1014;color:rgba(247,249,251,0.55);border-top:1px solid rgba(247,249,251,0.12);padding:28px 24px 34px">
-  <div class="wrap" style="display:flex;flex-wrap:wrap;gap:16px;justify-content:space-between;align-items:center">
-    <div style="display:flex;align-items:center;gap:14px">
-      <img src="/static/img/cupperlab-logo-color.png" alt="Cupperlab" style="height:22px;width:auto;display:block">
-      <span class="sora" data-i18n="footer_tag" style="font-weight:500;font-size:14px;color:#F7F9FB">Mejoramos tu rentabilidad.</span>
+<footer style="background:#070B0E;color:rgba(247,249,251,0.6);border-top:1px solid rgba(247,249,251,0.1)">
+  <div class="wrap" style="padding:clamp(44px,6vw,64px) clamp(16px,5vw,24px) 26px;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr));gap:40px">
+    <!-- Marca -->
+    <div style="max-width:34ch">
+      <img src="/static/img/cupperlab-logo-color.png" alt="Cupperlab" style="height:26px;width:auto;display:block;margin-bottom:16px">
+      <p class="sora" data-i18n="footer_tag" style="font-weight:600;font-size:18px;color:#F7F9FB;margin:0 0 10px"></p>
+      <p data-i18n="footer_method" style="font-size:13.5px;line-height:1.6;color:rgba(247,249,251,0.5);margin:0"></p>
     </div>
-    <span class="mono" style="font-size:11.5px">SEO · GEO · Analítica{% if site %} · <a href="{{ site }}" style="color:rgba(247,249,251,0.55)">{{ site|replace('https://','')|replace('http://','') }}</a>{% endif %}</span>
+    <!-- Redes -->
+    <div>
+      <p class="mono" data-i18n="footer_follow" style="font-size:11px;letter-spacing:.14em;color:#1CBCE4;margin:0 0 16px"></p>
+      <div style="display:flex;gap:12px;margin-bottom:18px">
+        <a href="https://www.linkedin.com/company/cupperlab/" target="_blank" rel="noopener" aria-label="LinkedIn" class="soc">
+          <svg viewBox="0 0 24 24" width="19" height="19" fill="currentColor"><path d="M4.98 3.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zM3 9h4v12H3zM9 9h3.8v1.7h.05c.53-1 1.83-2.05 3.77-2.05 4.03 0 4.78 2.65 4.78 6.1V21h-4v-5.4c0-1.29-.02-2.95-1.8-2.95-1.8 0-2.08 1.4-2.08 2.85V21H9z"/></svg>
+        </a>
+        <a href="https://www.instagram.com/cupperlab.es/" target="_blank" rel="noopener" aria-label="Instagram" class="soc">
+          <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5.5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1.1" fill="currentColor" stroke="none"/></svg>
+        </a>
+      </div>
+      <p style="font-size:12.5px;color:rgba(247,249,251,0.5);margin:0"><span data-i18n="footer_explore">Descubre todo lo que hacemos en</span> <a href="https://cupperlab.com" target="_blank" rel="noopener" style="color:#1CBCE4;text-decoration:none">cupperlab.com ↗</a></p>
+    </div>
+    <!-- Contacto -->
+    <div>
+      <p class="mono" data-i18n="footer_contact" style="font-size:11px;letter-spacing:.14em;color:#1CBCE4;margin:0 0 16px"></p>
+      <a href="tel:+34914952585" style="display:block;color:#F7F9FB;text-decoration:none;font-size:15px;margin-bottom:10px" class="sora">+34 91 495 2585</a>
+      <a href="mailto:clientes@cupperlab.com" style="display:block;color:rgba(247,249,251,0.7);text-decoration:none;font-size:14px">clientes@cupperlab.com</a>
+    </div>
+  </div>
+  <div class="wrap" style="padding:18px clamp(16px,5vw,24px) 30px;border-top:1px solid rgba(247,249,251,0.08);display:flex;flex-wrap:wrap;gap:12px 22px;justify-content:space-between;align-items:center">
+    <span class="mono" style="font-size:11px;color:rgba(247,249,251,0.4)">© 2026 Cupperlab · <span data-i18n="footer_rights">Todos los derechos reservados.</span></span>
+    <span class="mono" style="font-size:11px;display:flex;flex-wrap:wrap;gap:6px 16px">
+      <a href="https://cupperlab.com/aviso-legal" target="_blank" rel="noopener" data-i18n="footer_l1" style="color:rgba(247,249,251,0.5);text-decoration:none">Aviso legal</a>
+      <a href="https://cupperlab.com/politica-de-privacidad" target="_blank" rel="noopener" data-i18n="footer_l2" style="color:rgba(247,249,251,0.5);text-decoration:none">Privacidad</a>
+      <a href="https://cupperlab.com/politica-de-cookies" target="_blank" rel="noopener" data-i18n="footer_l3" style="color:rgba(247,249,251,0.5);text-decoration:none">Cookies</a>
+    </span>
   </div>
 </footer>
 
@@ -350,12 +381,21 @@
     cls_optimo:["Óptimo","Optimal"],
     hall_title:["Hallazgos de tu sitio","Findings on your site"],
     again_btn:["← revisar otro sitio","← check another site"],
-    cta_h2:["Media hora, tu sitio en pantalla y una lista de qué mover primero.","Half an hour, your site on screen and a list of what to move first."],
-    cta_p:["Sin presentación corporativa. Abrimos tu sitio, vemos qué busca tu cliente y decidimos si tiene sentido trabajar juntos.","No corporate pitch. We open your site, see what your customer searches for and decide if it makes sense to work together."],
+    cta_eyebrow:["◆ EMPIEZA GRATIS","◆ START FREE"],
+    cta_h2:["Analizamos tu web gratis. Tú decides el siguiente paso.","We analyze your site for free. You decide the next step."],
+    cta_p:["Sin presentación corporativa: abrimos tu sitio, vemos qué busca tu cliente y te decimos qué mover primero. Si encaja, seguimos hablando.","No corporate pitch: we open your site, see what your customer is searching for and tell you what to move first. If it fits, we keep talking."],
     cta_btn:["Empezar el diagnóstico","Start the diagnosis"],
     cta_call:["Llámanos","Call us"],
     cta_write:["Escríbenos","Email us"],
     footer_tag:["Mejoramos tu rentabilidad.","We improve your profitability."],
+    footer_method:["Con nuestra metodología acercamos tu marca al futuro inmediato: visible en Google y en la IA.","With our methodology we bring your brand into the immediate future: visible on Google and in AI."],
+    footer_follow:["SÍGUENOS","FOLLOW US"],
+    footer_contact:["CONTACTO","CONTACT"],
+    footer_explore:["Descubre todo lo que hacemos en","Discover everything we do at"],
+    footer_rights:["Todos los derechos reservados.","All rights reserved."],
+    footer_l1:["Aviso legal","Legal notice"],
+    footer_l2:["Privacidad","Privacy"],
+    footer_l3:["Cookies","Cookies"],
     tag_critico:["CRÍTICO","CRITICAL"],
     tag_oportunidad:["OPORTUNIDAD","OPPORTUNITY"]
   };
