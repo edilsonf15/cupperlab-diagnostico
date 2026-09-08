@@ -95,17 +95,30 @@ def send_booking(client_email: str, client_name: str, inv: dict, phone: str,
     when = inv.get("when_txt", "")
     gcal = inv.get("gcal_link", "")
     ics = inv.get("ics", "")
-    # 1) al cliente: confirmacion + invitacion
-    html_c = f"""<div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;color:#283038">
-      <div style="height:6px;background:linear-gradient(90deg,#1cbce4,#f46434);border-radius:6px"></div>
-      <h2 style="color:#0e1319;font-family:Georgia,serif">Reunion agendada ✅</h2>
-      <p>Hola <b>{client_name or ''}</b>, tu sesion de 30 minutos con Cupperlab queda para:</p>
-      <p style="font-size:18px;color:#0f9bc2;font-weight:bold">{when}</p>
-      <p>Te llega la invitacion adjunta: acepta para que se anada a tu calendario. Tambien puedes anadirla con un clic:</p>
-      <p><a href="{gcal}" style="display:inline-block;background:#f46434;color:#fff;text-decoration:none;font-weight:bold;padding:12px 22px;border-radius:10px">Anadir a Google Calendar</a></p>
-      <p style="color:#7b8694;font-size:13px">Si necesitas cambiarla, responde a este correo o llama al {phone}.</p>
-      <p style="color:#0e1319;font-family:Georgia,serif;margin-top:20px">Mejoramos tu rentabilidad.</p>
-    </div>"""
+    # 1) al cliente: confirmacion + invitacion (correo branded)
+    html_c = f"""<div style="margin:0;background:#eef2f6;padding:28px 12px;font-family:'Helvetica Neue',Arial,sans-serif">
+    <table role="presentation" width="520" cellpadding="0" cellspacing="0" align="center" style="width:520px;max-width:100%;margin:auto;background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 10px 40px rgba(14,19,25,.10)">
+      <tr><td style="height:6px;background:linear-gradient(90deg,#1cbce4,#0f9bc2 45%,#f46434);font-size:1px;line-height:6px">&nbsp;</td></tr>
+      <tr><td style="padding:34px 36px 10px;text-align:center">
+        <div style="font-size:44px;line-height:1">✅</div>
+        <div style="font-family:Georgia,serif;font-size:24px;color:#0e1319;font-weight:bold;margin-top:10px">Reunion confirmada</div>
+        <div style="color:#5a6675;font-size:14px;margin-top:8px">Hola <b style="color:#0e1319">{client_name or ''}</b>, tu sesion de 30 minutos con Cupperlab queda para:</div>
+      </td></tr>
+      <tr><td style="padding:6px 36px 4px">
+        <table width="100%" cellpadding="0" cellspacing="0" style="background:#f6f9fb;border:1px solid #e6ebf0;border-radius:14px"><tr><td style="padding:18px 22px;text-align:center">
+          <div style="font-family:'Courier New',monospace;font-size:10px;letter-spacing:1.5px;color:#0f9bc2">TU CITA · 30 MIN</div>
+          <div style="font-size:20px;color:#0e1319;font-weight:bold;margin-top:6px">{when}</div>
+        </td></tr></table>
+      </td></tr>
+      <tr><td style="padding:16px 36px 4px;text-align:center">
+        <div style="color:#5a6675;font-size:13.5px;line-height:1.6">Te adjuntamos la invitacion: acepta para que se anada sola a tu calendario. O anadela con un clic:</div>
+        <div style="margin:16px 0 6px"><a href="{gcal}" style="display:inline-block;background:#f46434;color:#fff;text-decoration:none;font-weight:bold;padding:13px 26px;border-radius:11px;font-size:14px">📅 Anadir a Google Calendar</a></div>
+      </td></tr>
+      <tr><td style="padding:14px 36px 30px;text-align:center;border-top:1px solid #eef1f4;margin-top:12px">
+        <div style="color:#7b8694;font-size:12.5px;line-height:1.6">¿Necesitas cambiarla? Responde a este correo o llama al <b style="color:#0e1319">{phone}</b>.</div>
+        <div style="color:#0e1319;font-family:Georgia,serif;font-size:15px;margin-top:14px">Mejoramos tu rentabilidad.</div>
+      </td></tr>
+    </table></div>"""
     ok1, _ = _send(client_email, f"Tu reunion con Cupperlab · {when}", html_c,
                    reply_to=CUPPERLAB_EMAIL, ics=ics)
     # 2) al equipo: aviso + misma invitacion
