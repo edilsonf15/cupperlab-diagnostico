@@ -51,7 +51,8 @@ def _logo_uri() -> str:
 
 
 def _color(s: int) -> str:
-    return GREEN if s >= 70 else AMBER if s >= 55 else OR7 if s >= 40 else RED
+    # Exigente: verde solo desde 80; 60-79 ambar (alerta), 45-59 naranja, <45 rojo.
+    return GREEN if s >= 80 else AMBER if s >= 60 else OR7 if s >= 45 else RED
 
 
 def _lvl_color(s: int) -> str:
@@ -425,9 +426,10 @@ def _onpage_rows(r: dict) -> str:
     rows.append(("Texto ALT en imagenes", "OK" if cov >= 70 else ("Parcial" if cov >= 30 else "Pobre"),
                  "ok" if cov >= 70 else ("med" if cov >= 30 else "hi"),
                  f"{ia}/{it} imagenes con ALT ({cov}%)" if it else "sin imagenes"))
-    hl = m.get("hreflangs", [])
-    rows.append(("Idiomas / hreflang", "OK" if hl else "Uno", "ok" if hl else "med",
-                 (", ".join(hl[:6]) if hl else "Web en un solo idioma (sin hreflang)")))
+    # Indexabilidad: meta robots noindex es CRITICO (te saca de Google y la IA)
+    if m.get("robots_noindex"):
+        rows.insert(0, ("Indexabilidad (meta robots)", "noindex", "crit",
+                        "META ROBOTS = noindex: le pides a Google y a la IA que NO te muestren"))
     return _check_list(rows)
 
 
@@ -828,15 +830,24 @@ def build_report_html(r: dict, contact: dict, name: str = "") -> str:
     dom = r.get("domain", "")
     client = name if (name and "@" not in name and name.lower() != dom) else dom.split(".")[0].capitalize()
 
-    # Titular a dos tonos segun nota
-    if score >= 70:
-        h1 = 'Buena base, <span class="o">con margen para ganar en Google y en la IA</span>'
-    elif score >= 55:
-        h1 = 'Vas por buen camino, <span class="o">pero la IA todavia no te prioriza</span>'
-    elif score >= 40:
-        h1 = 'Tu web funciona, <span class="o">pero Google y la IA te dejan fuera</span>'
-    else:
-        h1 = 'Ahora mismo <span class="o">Google y la IA apenas te ven</span>'
+    # Titular a dos tonos segun nota — VARIADO por web (no siempre el mismo)
+    _h1_pool = {
+        "hi": ['Buena base, <span class="o">con margen para ganar en Google y en la IA</span>',
+               'Tienes lo tecnico resuelto, <span class="o">pero la IA aun no te nombra</span>',
+               'Vas bien en Google, <span class="o">el reto ahora es que la IA te recomiende</span>'],
+        "mid": ['Vas por buen camino, <span class="o">pero la IA todavia no te prioriza</span>',
+                'Tu web cumple, <span class="o">aunque pierdes visibilidad donde mas se decide</span>',
+                'Base aceptable, <span class="o">con puntos claros que te estan frenando</span>'],
+        "low": ['Tu web funciona, <span class="o">pero Google y la IA te dejan fuera</span>',
+                'Tienes carencias que te cuestan clientes <span class="o">en Google y en la IA</span>',
+                'Hay trabajo por hacer <span class="o">para que Google y la IA te muestren</span>'],
+        "bad": ['Ahora mismo <span class="o">Google y la IA apenas te ven</span>',
+                'Tu web es casi invisible <span class="o">para Google y para la IA</span>',
+                'Partes de cero en visibilidad: <span class="o">Google y la IA no te encuentran</span>'],
+    }
+    _band = "hi" if score >= 70 else "mid" if score >= 55 else "low" if score >= 40 else "bad"
+    _pool = _h1_pool[_band]
+    h1 = _pool[sum(ord(c) for c in (dom or "x")) % len(_pool)]
 
     # Facts de portada
     ai_fact = ""
@@ -1019,6 +1030,25 @@ def build_report_html(r: dict, contact: dict, name: str = "") -> str:
             f"pagina a pagina.{tec_bit}{ai_bit}{speed_bit} Aqui tienes lo que encontramos y el plan para "
             f"que Google y la IA te encuentren y te recomienden.")
 
+    # Analisis dinamico para "Como esta tu web hoy" (en vez de explicar la formula)
+    _areas = [("la base tecnica", cats.get("tecnico", {}).get("score", 0)),
+              ("el SEO on-page", cats.get("onpage", {}).get("score", 0)),
+              ("la preparacion para la IA (GEO)", cats.get("geo", {}).get("score", 0))]
+    _best = max(_areas, key=lambda a: a[1]); _worst = min(_areas, key=lambda a: a[1])
+    _ai_estado = ""
+    if ai.get("available") and not ai.get("error"):
+        if not ai.get("knows_brand"):
+            _ai_estado = " Y lo que mas pesa: al preguntarle a la IA, no sabe quien eres."
+        elif ai.get("recommended") is False:
+            _ai_estado = " Y aunque la IA te reconoce, cuando piden tu servicio recomienda a otros."
+    _idx = " Ademas tu web se esta bloqueando a si misma (noindex)." if m.get("robots_noindex") else ""
+    _sev = "solida" if score >= 80 else "aceptable pero mejorable" if score >= 60 else "con carencias importantes" if score >= 45 else "muy debil"
+    estado_analisis = (f"Tu web saca <b>{score}/100</b> en salud digital: una base <b>{_sev}</b>. "
+                       f"Tu punto mas fuerte es <b>{_best[0]}</b> ({_best[1]}/100) y donde mas visibilidad "
+                       f"pierdes es <b>{_worst[0]}</b> ({_worst[1]}/100).{_ai_estado}{_idx} "
+                       f"La nota combina pruebas tecnicas en vivo, velocidad real, on-page, seguridad y una "
+                       f"consulta real a la IA.")
+
     return f"""<!doctype html><html lang="es"><head><meta charset="utf-8"><style>{css}</style></head><body>
 
 <section class="cover">
@@ -1042,14 +1072,12 @@ def build_report_html(r: dict, contact: dict, name: str = "") -> str:
 <section class="pg">
   <div class="eyebrow"><span class="bar"></span>01 · Estado general</div>
   <h2 class="sec">Como esta tu web hoy</h2>
-  <p class="sub"><b>Salud digital</b> = nota 0-100 calculada con <b>mediciones reales</b>: pruebas en vivo de tu web (HTTPS, robots, enlaces rotos), <b>velocidad de carga real</b>, datos estructurados, seguridad del servidor y una <b>consulta real a la IA</b>. Ponderacion: tecnico 35% · on-page 35% · preparacion IA 30%.</p>
+  <p class="sub">{estado_analisis}</p>
   <div class="block scorewrap">
     <div class="gauge">{_gauge(score, 'Salud digital')}</div>
     <div class="levels">{_levels(r)}</div>
   </div>
   {_estado_resumen(r)}
-  <div class="block stats3">{stats3}</div>
-  {_severity_bars(r)}
 </section>
 
 <section class="pg">
