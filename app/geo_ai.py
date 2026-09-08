@@ -224,6 +224,32 @@ def _strip_cites(s: str) -> str:
     return s.strip(" .-|,(")
 
 
+_PREAMBLES = [
+    r"s[ií],?\s*", r"claro,?\s*", r"por supuesto,?\s*",
+    r"he\s+podido\s+acceder[^:.]*[:.]\s*", r"he\s+accedido[^:.]*[:.]\s*",
+    r"(?:el|al)\s+sitio\s+web[^:.]*[:.]\s*", r"tras\s+(?:acceder|visitar)[^:.]*[:.]\s*",
+    r"en\s+una\s+o?\s*dos?\s+frases?[^:]*:\s*", r"aqu[ií]\s+(?:tienes|va)[^:]*:\s*",
+    r"a\s+continuaci[oó]n[^:]*:\s*", r"lo\s+que\s+se\s+observa[^:]*:\s*",
+    r"seg[uú]n\s+(?:el|lo)\s+(?:sitio|que)[^:]*:\s*", r"esta\s+empresa\s+es\s*:?\s*",
+]
+_PRE_RE = re.compile(r"^(?:" + "|".join(_PREAMBLES) + r")+", re.I)
+
+
+def _clean_desc(s: str) -> str:
+    """Limpia una descripcion de la IA: quita markdown, citas, preambulos del
+    modelo ('he podido acceder...', 'en una o dos frases...') y palabras repetidas."""
+    s = _strip_cites(s or "")
+    s = re.sub(r"[*_`#>]+", "", s)                      # markdown
+    for _ in range(3):
+        s2 = _PRE_RE.sub("", s).strip(" \"'“”.:;-–—")
+        if s2 == s:
+            break
+        s = s2
+    s = re.sub(r"\b(\w{2,})\s+\1\b", r"\1", s, flags=re.I)  # 'con con' -> 'con'
+    s = re.sub(r"\s+", " ", s).strip(" \"'“”.:;-–—")
+    return s
+
+
 def _parse_know(txt: str) -> tuple[bool, str]:
     txt = (txt or "").strip()
     knows = bool(txt) and "NO_LA_CONOZCO" not in txt.upper()
@@ -269,7 +295,7 @@ def _parse_companies(body: str) -> list[dict]:
     """Parsea TODAS las empresas de la lista (incluida la marca si aparece).
     Formato esperado por linea: 'Nombre | dominio.com'. Devuelve {name, domain}."""
     out, seen = [], set()
-    for line in (body or "").splitlines():
+    for line in (body or "").replace("\xa0", " ").splitlines():
         line = re.sub(r"^\s*\d+[\.\)]\s*", "", line).strip(" .-*•\t")
         if not line or len(line) < 3:
             continue
@@ -457,8 +483,10 @@ async def run_ai_geo(domain: str, meta: dict) -> dict | None:
             )
             # Reconocimiento CON la web (buscando): para el contraste "sin web / con web"
             q_know_web = (
-                f"Usa búsqueda web y visita {full_url}. ¿Qué es \"{brand}\" y a qué se dedica? "
-                f"Describe en 1-2 frases lo que veas en el sitio. Si no encuentras el sitio, responde NO_ENCONTRADO."
+                f"Usa búsqueda web y visita {full_url}. En UNA sola frase, di qué es \"{brand}\" y a qué se dedica. "
+                f"Empieza DIRECTAMENTE por el nombre o por el qué (por ejemplo: \"{brand} es...\"). "
+                f"NO escribas preámbulos como 'he podido acceder', 'el sitio web' o 'en una frase', ni uses markdown "
+                f"(** o *). Si no encuentras el sitio, responde solo NO_ENCONTRADO."
             )
 
             # Ronda 1: briefing + reconocimiento (sin y con web) + gap
@@ -474,7 +502,7 @@ async def run_ai_geo(domain: str, meta: dict) -> dict | None:
             gap_txt = "" if isinstance(r_gap, Exception) else (r_gap or "")
             kw_txt = ("" if isinstance(r_kw, Exception) else (r_kw or "")).strip()
             knows_with_web = bool(kw_txt) and "NO_ENCONTRADO" not in kw_txt.upper()
-            web_desc = _strip_cites(kw_txt)[:400] if knows_with_web else ""
+            web_desc = _clean_desc(kw_txt)[:320] if knows_with_web else ""
 
             # Parseo del briefing: sector, zona (ciudad+país) y búsquedas (limpiando citas)
             sector, zona, cat_queries = sector_guess, "", []
@@ -532,13 +560,14 @@ async def run_ai_geo(domain: str, meta: dict) -> dict | None:
             # Ficha de Google Business: se busca BIEN — por NOMBRE+zona y por DOMINIO
             # (muchos negocios la tienen aunque el sitio no la enlace).
             q_gbp = (
-                f"Usa búsqueda web en Google Maps / Google Business. Busca este negocio de DOS formas: "
-                f"(1) por nombre: \"{brand}\" en {place}; (2) por su web: {domain}. "
-                f"¿Existe una ficha de Google Business / Google Maps de este negocio (con dirección, teléfono "
-                f"o reseñas)? Responde EXACTAMENTE en una línea: 'SI | <nº de reseñas o valoración si la ves, "
-                f"si no pon ->>' o 'NO'. Si hay cualquier ficha real que coincida, es SI."
+                f"Abre Google Maps y busca a fondo la ficha de este negocio LOCAL. Prueba varias busquedas: "
+                f"\"{brand}\", \"{brand} {place}\" y el dominio {domain}. Muchos negocios locales TIENEN ficha de "
+                f"Google aunque su web no la enlace: buscala bien antes de decir que no. Si encuentras una ficha de "
+                f"Google (con direccion, telefono, horario, reseñas o valoracion) que sea de ESTE negocio, responde "
+                f"'SI | <nº de reseñas o la valoracion si la ves>'. Responde 'NO' SOLO si tras buscarla de verdad no "
+                f"existe ninguna. No respondas DUDOSO."
             )
-            gbp_task = _ask(client, prov, key, strong, q_gbp, max_tokens=60, grounded=True)
+            gbp_task = _ask(client, prov, key, strong, q_gbp, max_tokens=90, grounded=True)
             cat_tasks = [_ask(client, prov, key, strong, _q_cat(s), max_tokens=700, grounded=True)
                          for s in cat_queries]
             _all = await asyncio.gather(*cat_tasks, gbp_task, return_exceptions=True)
@@ -546,11 +575,18 @@ async def run_ai_geo(domain: str, meta: dict) -> dict | None:
             r_gbp = _all[-1]
             gbp_line = _strip_cites("" if isinstance(r_gbp, Exception) else (r_gbp or ""))
             gu = gbp_line.strip().upper()
-            gbp = True if gu.startswith(("SI", "SÍ", "YES")) else (False if gu.startswith("NO") else None)
+            # Parseo lenient: SI explicito, o evidencia de ficha (reseñas/direccion/valoracion)
+            mrev = re.search(r"(\d[\d.,]*)\s*(reseñas|resenas|reviews|opiniones)", gbp_line, re.I)
+            mval = re.search(r"([0-5][.,]\d)\s*(?:★|estrellas|de 5|/5)", gbp_line)
+            has_evidence = bool(mrev or mval or re.search(r"(direcci[oó]n|tel[eé]fono|google maps|ficha)", gbp_line, re.I))
+            if gu.startswith(("SI", "SÍ", "YES")):
+                gbp = True
+            elif gu.startswith("NO") and not has_evidence:
+                gbp = False
+            else:
+                gbp = True if has_evidence else None
             gbp_reviews = ""
             if gbp:
-                mrev = re.search(r"(\d[\d.,]*)\s*(reseñas|reviews|opiniones)", gbp_line, re.I)
-                mval = re.search(r"([0-5][.,]\d)\s*(?:★|estrellas|de 5|/5)", gbp_line)
                 gbp_reviews = (mrev.group(0) if mrev else (mval.group(0) if mval else ""))
     except Exception as exc:  # noqa: BLE001
         return {"available": True, "error": str(exc), "brand": brand}
@@ -597,7 +633,7 @@ async def run_ai_geo(domain: str, meta: dict) -> dict | None:
                 seen.add(nm.lower())
                 comps.append(c)
         # Guarda un extracto legible de la respuesta real de la IA (para mostrarlo)
-        excerpt = re.sub(r"\s+", " ", body).strip()[:300]
+        excerpt = re.sub(r"[*_`]+", "", _strip_cites(body))[:300]
         questions.append({"q": search, "appears": appears_here,
                           "named": named[:4], "answer": excerpt})
 
@@ -610,7 +646,7 @@ async def run_ai_geo(domain: str, meta: dict) -> dict | None:
     reco_frac = (appears / valid) if valid else 0.0
     score = round(100 * (0.5 * (1 if knows_brand else 0) + 0.5 * reco_frac))
     gap = _strip_cites(gap_txt)[:400]
-    know_raw = _strip_cites(know_raw)
+    know_raw = _clean_desc(know_raw)
 
     # ¿Cómo te reconoce la IA? (para mostrarlo en verde/ámbar/rojo, no un frío "no la conozco")
     if knows_brand:
