@@ -499,12 +499,21 @@ def _geo_tactics(r: dict) -> list[str]:
     m = r.get("meta", {}); s = r.get("signals", {}); ai = r.get("geo_ai") or {}
     rb = s.get("robots_info") or {}
     st = [x.lower() for x in (m.get("schema_types") or [])]
+    recg = ai.get("recognition") or ("strong" if ai.get("knows_brand") else ("weak" if ai.get("knows_with_web") else "none"))
     tips = []
     if rb.get("ai_blocked"):
         tips.append("<b>Permitir el rastreo de los bots de IA</b> (hoy bloqueas " + ", ".join(rb["ai_blocked"][:4]) +
                     "): si no pueden leerte, no pueden citarte. Es lo primero.")
+    # COMO SE GANA EL RECONOCIMIENTO REAL POR LA IA (si hoy no te reconoce bien)
+    if recg in ("none", "weak"):
+        tips.append("<b>Ganar reconocimiento de la IA con presencia externa</b>: consigue que te MENCIONEN fuentes "
+                    "que la IA lee (directorios de tu sector, prensa local, comparativas, medios), no solo tu web. "
+                    "La IA reconoce a quien aparece citado por otros.")
+        tips.append("<b>Marca coherente en todas partes</b>: el MISMO nombre, direccion y telefono (NAP) en tu web, "
+                    "Google, redes y directorios. Las contradicciones hacen que la IA dude de quien eres.")
     if ai.get("knows_brand") is False:
-        tips.append("<b>Construir presencia de marca para la IA</b>: ficha, contenido propio y menciones externas para que la IA sepa quien eres (hoy no te reconoce sin darle tu web).")
+        tips.append("<b>Definir tu marca como entidad</b>: pagina 'Quienes somos' clara, sameAs a tus perfiles "
+                    "oficiales y, si aplica, ficha en Wikidata/Wikipedia, para que la IA sepa quien eres sin darle tu web.")
     if not any(x in st for x in ("organization", "localbusiness", "professionalservice")) or not m.get("has_sameas"):
         tips.append("Marcar tu <b>ficha de empresa (Organization/LocalBusiness + sameAs)</b>: nombre, direccion, telefono, zona y perfiles oficiales.")
     if "faqpage" not in st and not m.get("has_faq"):

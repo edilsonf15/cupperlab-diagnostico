@@ -704,20 +704,22 @@ async def fetch_psi_full(url: str) -> dict | None:
     import perf  # noqa: PLC0415
     key = os.getenv("GOOGLE_PSI_API_KEY", "").strip()
 
-    async def _psi(strat, tries=2):
+    async def _psi(strat, tries=4):
         if not key:
             return None
         async with httpx.AsyncClient(headers=HEADERS) as client:
-            for _ in range(tries):
+            for i in range(tries):
                 r = await fetch_psi(client, url, strat)
-                if r:
+                if r and r.get("performance") is not None:
                     return r
-                await asyncio.sleep(1.5)
+                await asyncio.sleep(2.0 + i)   # backoff creciente ante rate-limit
         return None
 
     try:
+        # movil con mas reintentos (es el que mas suele fallar por rate-limit)
         m, d, dev = await asyncio.gather(
-            _psi("mobile"), _psi("desktop"), perf.measure_device(url, mobile=True),
+            _psi("mobile", tries=5), _psi("desktop", tries=3),
+            perf.measure_device(url, mobile=True),
             return_exceptions=True,
         )
         m = m if isinstance(m, dict) else None

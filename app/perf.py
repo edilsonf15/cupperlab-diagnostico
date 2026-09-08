@@ -185,8 +185,26 @@ def _measure(url: str, mobile: bool = True) -> dict | None:
             reqs: list[str] = []
             if mobile:
                 page.on("request", lambda req: reqs.append(req.url) if len(reqs) < 400 else None)
+            # Throttling como Lighthouse para NO dar un 100 irreal midiendo desde la
+            # conexion rapida del servidor: movil = 4G lento + CPU 4x; escritorio = suave.
             try:
-                page.goto(url, wait_until="load", timeout=30000)
+                cdp = ctx.new_cdp_session(page)
+                if mobile:
+                    cdp.send("Network.emulateNetworkConditions", {
+                        "offline": False, "latency": 150,
+                        "downloadThroughput": int(1.6 * 1024 * 1024 / 8),
+                        "uploadThroughput": int(0.75 * 1024 * 1024 / 8)})
+                    cdp.send("Emulation.setCPUThrottlingRate", {"rate": 4})
+                else:
+                    cdp.send("Network.emulateNetworkConditions", {
+                        "offline": False, "latency": 40,
+                        "downloadThroughput": int(10 * 1024 * 1024 / 8),
+                        "uploadThroughput": int(10 * 1024 * 1024 / 8)})
+                    cdp.send("Emulation.setCPUThrottlingRate", {"rate": 1})
+            except Exception:  # noqa: BLE001
+                pass
+            try:
+                page.goto(url, wait_until="load", timeout=45000)
             except Exception:  # noqa: BLE001
                 # aun asi intentamos leer metricas de lo que cargo
                 pass
