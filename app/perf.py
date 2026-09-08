@@ -276,3 +276,84 @@ async def render_html(url: str) -> str:
         return await asyncio.to_thread(_render, url)
     except Exception:  # noqa: BLE001
         return ""
+
+
+def _bing_real_url(href: str) -> str:
+    """Bing envuelve las URLs en /ck/a?...&u=a1<base64>. Devuelve la URL real."""
+    import base64  # noqa: PLC0415
+    from urllib.parse import urlparse, parse_qs  # noqa: PLC0415
+    href = href or ""
+    if "bing.com/ck/a" not in href:
+        return href
+    try:
+        u = parse_qs(urlparse(href).query).get("u", [""])[0]
+        if u.startswith("a1"):
+            pad = "=" * (-len(u[2:]) % 4)
+            return base64.urlsafe_b64decode(u[2:] + pad).decode("utf-8", "ignore")
+    except Exception:  # noqa: BLE001
+        pass
+    return ""
+
+
+def _bing_site(domain: str) -> dict:
+    """Consulta 'site:dominio' en Bing con un navegador REAL. Filtra SOLO al dominio
+    objetivo (Bing ensancha la busqueda con webs ajenas cuando hay pocos resultados)."""
+    from urllib.parse import quote  # noqa: PLC0415
+    from bs4 import BeautifulSoup  # noqa: PLC0415
+    from playwright.sync_api import sync_playwright  # noqa: PLC0415
+
+    host = (domain or "").split("/")[0].replace("www.", "").lower()
+    if not host:
+        return {"urls": [], "count": None}
+    urls: list[str] = []
+    count = None
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(args=["--no-sandbox", "--disable-dev-shm-usage"])
+            ctx = browser.new_context(**_DESKTOP)
+            page = ctx.new_page()
+            for pg in range(2):   # 2 paginas de resultados (~20-30 URLs)
+                first = pg * 10 + 1
+                u = (f"https://www.bing.com/search?q={quote('site:' + host)}"
+                     f"&count=20&first={first}&setlang=es&cc=ES")
+                try:
+                    page.goto(u, wait_until="domcontentloaded", timeout=22000)
+                    page.wait_for_timeout(700)
+                    html = page.content()
+                except Exception:  # noqa: BLE001
+                    break
+                soup = BeautifulSoup(html, "html.parser")
+                if count is None:
+                    el = soup.select_one("span.sb_count")
+                    if el:
+                        mm = re.search(r"([\d][\d.,  ]*)", el.get_text())
+                        if mm:
+                            digits = re.sub(r"[^\d]", "", mm.group(1))
+                            count = int(digits) if digits else None
+                page_hits = 0
+                from urllib.parse import urlparse as _up  # noqa: PLC0415
+                for a in soup.select("li.b_algo h2 a[href]"):
+                    real = _bing_real_url(a.get("href") or "").split("#")[0]
+                    try:
+                        rh = _up(real).netloc.replace("www.", "").lower()
+                    except Exception:  # noqa: BLE001
+                        rh = ""
+                    if real.startswith("http") and (rh == host or rh.endswith("." + host)):
+                        if real not in urls:
+                            urls.append(real)
+                        page_hits += 1
+                if page_hits == 0:
+                    break
+            browser.close()
+    except Exception:  # noqa: BLE001
+        return {"urls": urls, "count": None}
+    # El total de Bing SOLO es fiable si de verdad devolvio paginas de TU dominio
+    return {"urls": urls[:30], "count": (count if urls else None)}
+
+
+async def bing_site_search(domain: str) -> dict:
+    """site:dominio en Bing con navegador real (URLs indexadas + total). En un hilo."""
+    try:
+        return await asyncio.to_thread(_bing_site, domain)
+    except Exception:  # noqa: BLE001
+        return {"urls": [], "count": None}

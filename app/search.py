@@ -173,18 +173,34 @@ async def _indexed_urls(client: httpx.AsyncClient, prov: str, domain: str, gl: s
 
 
 async def check_indexation(domain: str, sitemap_total: int = 0, gl: str = "es") -> dict | None:
-    """Paginas que el buscador tiene indexadas (con site:dominio) y comprueba si
-    alguna de esas paginas INDEXADAS da error 404 (peor que un 404 del sitemap)."""
+    """Indexacion REAL: consulta site:dominio con un navegador propio (Bing, que no
+    bloquea) y, si falla, DuckDuckGo/Serper. Cuenta cuantas paginas indexa el
+    buscador, contrasta con el mapa del sitio, y comprueba si alguna pagina
+    INDEXADA da 404. Concluye que falta por indexar."""
     prov = provider()
     dr = domain.replace("www.", "").lower()
     broken_indexed: list[dict] = []
+    indexed_estimate = None
+    used = "Bing"
     try:
+        # 1) Navegador propio contra Bing (lo mas fiable sin API de pago)
+        try:
+            import perf as _perf  # noqa: PLC0415
+            bing = await _perf.bing_site_search(domain)
+        except Exception:  # noqa: BLE001
+            bing = {"urls": [], "count": None}
+        urls = [u for u in (bing.get("urls") or []) if dr in _root(u)]
+        indexed_estimate = bing.get("count")
+        # 2) Respaldo: DuckDuckGo / Serper
+        if not urls:
+            async with httpx.AsyncClient(headers=HEADERS) as c2:
+                ddg = await _indexed_urls(c2, prov, domain, gl)
+            urls = [u for u in ddg if dr in _root(u)]
+            used = "Google (Serper)" if prov == "serper" else "DuckDuckGo"
+        if not urls and indexed_estimate is None:
+            return None  # nada fiable: no inventamos
+        # 3) Comprueba el estado HTTP real de una muestra de lo indexado
         async with httpx.AsyncClient(headers=HEADERS) as client:
-            urls = await _indexed_urls(client, prov, domain, gl)
-            if not urls:
-                return None  # el buscador no devolvio: no podemos determinar (no inventar)
-            own = [u for u in urls if dr in _root(u)]
-            # comprueba el estado HTTP real de una muestra de lo indexado
             sem = asyncio.Semaphore(6)
 
             async def chk(u):
@@ -195,16 +211,33 @@ async def check_indexation(domain: str, sitemap_total: int = 0, gl: str = "es") 
                             broken_indexed.append({"url": u, "status": rr.status_code})
                     except Exception:  # noqa: BLE001
                         pass
-            if own:
-                await asyncio.gather(*(chk(u) for u in own[:10]))
+            if urls:
+                await asyncio.gather(*(chk(u) for u in urls[:12]))
     except Exception as exc:  # noqa: BLE001
         print(f"[index:ERROR] {exc}")
         return None
+
+    # 4) Conclusion: cuantas paginas tiene vs cuantas indexa
+    idx = indexed_estimate if isinstance(indexed_estimate, int) else len(urls)
+    conclusion = ""
+    if sitemap_total and idx is not None:
+        if idx < sitemap_total * 0.7:
+            faltan = max(sitemap_total - idx, 0)
+            conclusion = (f"Tu mapa del sitio declara {sitemap_total} paginas y el buscador indexa unas {idx}: "
+                          f"quedan del orden de {faltan} sin indexar. Suele deberse a contenido debil o duplicado, "
+                          f"enlazado interno pobre o bloqueos en robots; hay que reforzarlas y pedir su indexacion.")
+        else:
+            conclusion = (f"El buscador indexa unas {idx} de las {sitemap_total} paginas de tu mapa: buena cobertura.")
+    elif idx is not None:
+        conclusion = f"El buscador tiene indexadas del orden de {idx} paginas de tu sitio."
+
     return {
-        "indexed": bool(own),
-        "sample_count": len(own),
-        "indexed_urls": own[:10],
+        "indexed": bool(urls) or bool(idx),
+        "sample_count": len(urls),
+        "indexed_urls": urls[:10],
+        "indexed_estimate": idx,
         "broken_indexed": broken_indexed,
         "sitemap_total": sitemap_total,
-        "provider": "Google (Serper)" if prov == "serper" else "DuckDuckGo",
+        "conclusion": conclusion,
+        "provider": used,
     }

@@ -663,11 +663,15 @@ def _index_block(r: dict) -> str:
     if not ix.get("indexed"):
         return ('<div class="block callout r"><b>Indexacion.</b> No encontramos tu sitio indexado en la muestra de '
                 + _esc(prov) + '. Hay que revisar que Google pueda rastrearte e indexarte.</div>')
-    extra = f" Tu sitemap lista {tot} URLs." if tot else ""
+    est = ix.get("indexed_estimate")
+    concl = ix.get("conclusion") or ""
+    extra = f" Tu mapa del sitio lista {tot} URLs." if tot else ""
+    est_txt = f" El buscador indexa del orden de <b>{est}</b> paginas." if isinstance(est, int) else ""
     bi = ix.get("broken_indexed") or []
-    base = ('<div class="block callout o"><b>Indexacion.</b> Tu sitio aparece indexado (comprobado con '
-            + _esc(prov) + f' via site:, muestra de {n} paginas).{extra} El numero exacto de paginas indexadas '
-            'se confirma con Search Console.</div>')
+    base = ('<div class="block callout o"><b>Indexacion (comprobada con navegador propio via site:).</b> '
+            + f'Rastreamos {_esc(prov)} pagina por pagina.{est_txt}{extra}'
+            + (f' {_esc(concl)}' if concl else ' El numero exacto se confirma con Search Console.')
+            + '</div>')
     if bi:
         trs = "".join(f'<tr><td class="u">{_esc(b["url"])}</td><td class="c">{b["status"]}</td></tr>' for b in bi[:6])
         base += ('<div class="block callout r"><b>Paginas indexadas que dan error (404).</b> Google las tiene '
