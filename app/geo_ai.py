@@ -16,6 +16,8 @@ from urllib.parse import urlparse
 
 import httpx
 
+from i18n import L, is_en  # idioma del analisis (ES/EN)
+
 ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
 ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
@@ -433,20 +435,28 @@ async def run_ai_geo(domain: str, meta: dict) -> dict | None:
 
     # SIN búsqueda web a proposito: mide si la IA CONOCE la marca de por si (no si
     # encuentra la URL). Es el reconocimiento real que importa para el GEO.
-    q_know = (
+    q_know = L(
         f"Sin usar búsqueda web, solo con lo que ya sabes: ¿conoces la empresa o marca \"{brand}\" "
         f"(sitio {domain})? Si la conoces con certeza, describe en 2-3 frases a qué se dedica. "
         f"Si NO tienes información fiable propia sobre ella, responde EXACTAMENTE con NO_LA_CONOZCO "
-        f"y nada más. No inventes ni supongas por el nombre."
-    )
-    q_country = (
+        f"y nada más. No inventes ni supongas por el nombre.",
+        f"Without using web search, only from what you already know: do you know the company or brand "
+        f"\"{brand}\" (site {domain})? If you know it for sure, describe in 2-3 sentences what it does. "
+        f"If you do NOT have reliable knowledge of it, reply EXACTLY with NO_LA_CONOZCO and nothing else. "
+        f"Do not invent or guess from the name.")
+    q_country = L(
         f"Usa búsqueda web y entra en {full_url}. ¿En qué PAÍS está basado y opera principalmente este "
         f"negocio? Fíjate SOLO en evidencia real del sitio: idioma, prefijo telefónico, direcciones o "
         f"ciudades, moneda y dominio. Responde SOLO así, sin nada más: Nombre del país|cc|evidencia  "
         f"(cc = código ISO de 2 letras; evidencia = el dato concreto que lo prueba, p. ej. 'teléfono +57' "
         f"o 'precios en COP' o 'dirección en Bogotá'). Si NO encuentras evidencia clara, responde "
-        f"EXACTAMENTE DESCONOCIDO y nada más. No supongas por el nombre de la marca."
-    )
+        f"EXACTAMENTE DESCONOCIDO y nada más. No supongas por el nombre de la marca.",
+        f"Use web search and open {full_url}. In which COUNTRY is this business based and mainly operating? "
+        f"Look ONLY at real evidence on the site: language, phone prefix, addresses or cities, currency and "
+        f"domain. Reply ONLY like this, nothing else: Country name|cc|evidence  (cc = 2-letter ISO code; "
+        f"evidence = the concrete fact that proves it, e.g. 'phone +57' or 'prices in COP' or 'address in "
+        f"Bogotá'). If you find no clear evidence, reply EXACTLY DESCONOCIDO and nothing else. Do not guess "
+        f"from the brand name.")
 
     try:
         async with httpx.AsyncClient() as client:
@@ -473,13 +483,13 @@ async def run_ai_geo(domain: str, meta: dict) -> dict | None:
                     country, gl = "", "es"
             if not gl:
                 gl = "es"
-            ctx_pais = f"en {country}" if country else "en su país"
-            pais_txt = country or "su país"
+            ctx_pais = (f"en {country}" if country else "en su país") if not is_en() else (f"in {country}" if country else "in their area")
+            pais_txt = country or (L("su país", "their area"))
 
             # BRIEFING (con búsqueda web, modelo preciso): entra al sitio y devuelve
             # el sector concreto, la ZONA (ciudad+país) y 3 búsquedas de categoría
             # locales. Así la competencia se enfoca de verdad (belleza, abogados...).
-            q_brief = (
+            q_brief = L(
                 f"Usa búsqueda web y entra en {full_url}. Analiza el negocio \"{brand}\" y responde "
                 f"EXACTAMENTE en este formato, sin nada más:\n"
                 f"SECTOR: <sector concreto, p. ej. 'clínica de acupuntura', 'bufete de abogados laboralistas', "
@@ -491,20 +501,37 @@ async def run_ai_geo(domain: str, meta: dict) -> dict | None:
                 f"escribiría en Google o en un asistente de IA para encontrar ESE tipo de servicio SIN conocer la "
                 f"marca; incluye la ciudad o zona en cada una>\n"
                 f"Pista de sector (por si ayuda): {sector_guess or 'dedúcelo del sitio'}. "
-                f"IMPORTANTE: responde en texto plano, SIN enlaces, SIN citas y SIN markdown."
-            )
-            q_gap = (
+                f"IMPORTANTE: responde en texto plano, SIN enlaces, SIN citas y SIN markdown.",
+                f"Use web search and open {full_url}. Analyze the business \"{brand}\" and reply EXACTLY in this "
+                f"format, nothing else. KEEP the labels SECTOR/ZONA/BUSQUEDAS exactly as written, but the CONTENT "
+                f"in English:\n"
+                f"SECTOR: <specific sector, e.g. 'acupuncture clinic', 'employment law firm', 'digital marketing "
+                f"agency', 'beauty salon'>\n"
+                f"ZONA: <ONLY city and country where it serves, e.g. 'Alcobendas, Spain' or 'Medellín, Colombia'; "
+                f"if no clear city, put only the country. NO parentheses, no 'expanding to', no 'and surroundings', "
+                f"no explanations>\n"
+                f"BUSQUEDAS: <exactly 3 searches, separated by the character |, that a customer in that ZONA would "
+                f"type in Google or an AI assistant to find THAT kind of service WITHOUT knowing the brand; include "
+                f"the city or area in each one>\n"
+                f"Sector hint (if helpful): {sector_guess or 'deduce it from the site'}. "
+                f"IMPORTANT: reply in plain text, NO links, NO citations, NO markdown.")
+            q_gap = L(
                 f"Usa búsqueda web sobre {full_url}. En 2 frases y en lenguaje sencillo de negocio: "
                 f"¿qué le falta a \"{brand}\" para que la IA la reconozca y la recomiende cuando alguien pide su "
-                f"tipo de servicio {ctx_pais} (sin nombrar la marca)? Sé concreto y accionable. Sin viñetas."
-            )
+                f"tipo de servicio {ctx_pais} (sin nombrar la marca)? Sé concreto y accionable. Sin viñetas.",
+                f"Use web search on {full_url}. In 2 sentences, in plain business language: what does \"{brand}\" "
+                f"need so that AI recognizes and recommends it when someone asks for its type of service {ctx_pais} "
+                f"(without naming the brand)? Be concrete and actionable. No bullet points.")
             # Reconocimiento CON la web (buscando): para el contraste "sin web / con web"
-            q_know_web = (
+            q_know_web = L(
                 f"Usa búsqueda web y visita {full_url}. En UNA sola frase, di qué es \"{brand}\" y a qué se dedica. "
                 f"Empieza DIRECTAMENTE por el nombre o por el qué (por ejemplo: \"{brand} es...\"). "
                 f"NO escribas preámbulos como 'he podido acceder', 'el sitio web' o 'en una frase', ni uses markdown "
-                f"(** o *). Si no encuentras el sitio, responde solo NO_ENCONTRADO."
-            )
+                f"(** o *). Si no encuentras el sitio, responde solo NO_ENCONTRADO.",
+                f"Use web search and visit {full_url}. In ONE single sentence, say what \"{brand}\" is and what it "
+                f"does. Start DIRECTLY with the name or the what (e.g. \"{brand} is...\"). Do NOT write preambles "
+                f"like 'I could access', 'the website' or 'in one sentence', and do not use markdown (** or *). "
+                f"If you can't find the site, reply only NO_ENCONTRADO.")
 
             # Ronda 1: briefing + reconocimiento (sin y con web) + gap
             r_brief, r_know, r_gap, r_kw = await asyncio.gather(
@@ -566,25 +593,35 @@ async def run_ai_geo(domain: str, meta: dict) -> dict | None:
             # marca, para no inducir que la incluya: el "apareces" lo comprobamos
             # nosotros parseando su lista. Antes se colaba un falso positivo.)
             def _q_cat(search: str) -> str:
-                return (
+                return L(
                     f"Usa búsqueda web. Un cliente en {place} busca en un asistente de IA: \"{search}\". "
                     f"Respóndele EXACTAMENTE como lo harías de verdad: recomienda 4-5 EMPRESAS o profesionales "
                     f"REALES de {sec_txt} en {place}, cada una en una línea con el formato 'Nombre real | dominio.com'. "
                     f"Reglas estrictas: (1) solo negocios REALES que existan y tengan web propia; (2) el 'Nombre' es "
                     f"el nombre de la empresa, NO una categoría, servicio, ciudad ni término genérico (nada de "
                     f"'Acupuntura', 'Clínica', 'Fisioterapia Medellín'); (3) si no encuentras 4-5 reales, pon solo "
-                    f"las que sean reales. No añadas explicaciones ni una línea de conclusión."
-                )
+                    f"las que sean reales. No añadas explicaciones ni una línea de conclusión.",
+                    f"Use web search. A customer in {place} asks an AI assistant: \"{search}\". "
+                    f"Answer EXACTLY as you really would: recommend 4-5 REAL companies or professionals of "
+                    f"{sec_txt} in {place}, each on one line in the format 'Real name | domain.com'. "
+                    f"Strict rules: (1) only REAL businesses that exist and have their own website; (2) the 'Name' is "
+                    f"the company name, NOT a category, service, city or generic term; (3) if you can't find 4-5 real "
+                    f"ones, list only the real ones. Do not add explanations or a conclusion line.")
             # Ficha de Google Business: se busca BIEN — por NOMBRE+zona y por DOMINIO
             # (muchos negocios la tienen aunque el sitio no la enlace).
-            q_gbp = (
+            q_gbp = L(
                 f"Abre Google Maps y busca a fondo la ficha de este negocio LOCAL. Prueba varias busquedas: "
                 f"\"{brand}\", \"{brand} {place}\" y el dominio {domain}. Muchos negocios locales TIENEN ficha de "
                 f"Google aunque su web no la enlace: buscala bien antes de decir que no. Si encuentras una ficha de "
                 f"Google (con direccion, telefono, horario, reseñas o valoracion) que sea de ESTE negocio, responde "
                 f"'SI | <nº de reseñas o la valoracion si la ves>'. Responde 'NO' SOLO si tras buscarla de verdad no "
-                f"existe ninguna. No respondas DUDOSO."
-            )
+                f"existe ninguna. No respondas DUDOSO.",
+                f"Open Google Maps and search thoroughly for this LOCAL business listing. Try several searches: "
+                f"\"{brand}\", \"{brand} {place}\" and the domain {domain}. Many local businesses HAVE a Google "
+                f"listing even if their site doesn't link it: search well before saying no. If you find a Google "
+                f"listing (with address, phone, hours, reviews or rating) that belongs to THIS business, reply "
+                f"'SI | <number of reviews or the rating if you see it>'. Reply 'NO' ONLY if after really searching "
+                f"none exists. Do not reply DUDOSO.")
             gbp_task = _ask(client, prov, key, strong, q_gbp, max_tokens=90, grounded=True)
             cat_tasks = [_ask(client, prov, key, strong, _q_cat(s), max_tokens=700, grounded=True)
                          for s in cat_queries]

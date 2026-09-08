@@ -211,6 +211,8 @@ async def api_status(job_id: str):
 
 
 async def _run_job(job_id: str, url: str, email: str, name: str, lead: dict, lang: str = "es") -> None:
+    import i18n  # noqa: PLC0415
+    i18n.set_lang(lang)  # idioma del analisis (lo leen analyzer, geo_ai, report_pdf)
     """Analisis REAL por etapas, con progreso. El mismo resultado que ve la pantalla
     es el que va al correo (mismo dict de datos)."""
     try:
@@ -321,12 +323,15 @@ async def _build_and_send(data: dict, email: str, name: str, lead: dict, ai) -> 
     # el horario real de Google. Lleva al cliente ya identificado.
     book_url = ctxd["agenda_url"] + "?" + urlencode({"n": name or "", "e": email or "", "d": domain or ""})
     email_html = templates.get_template("email_report.html").render(
-        r=data, name=name or domain, report_url=report_url, book_url=book_url, **ctxd)
-    pdf_name = f"Diagnostico_Cupperlab_{domain.replace('.', '_')}.pdf"
+        r=data, name=name or domain, report_url=report_url, book_url=book_url,
+        lang=data.get("lang", "es"), **ctxd)
+    _lang = data.get("lang", "es")
+    _stub = "Cupperlab_SEO_GEO_Report" if _lang == "en" else "Diagnostico_Cupperlab"
+    pdf_name = f"{_stub}_{domain.replace('.', '_')}.pdf"
     email_sent = False
     try:
         email_sent, _ = await asyncio.to_thread(
-            emailer.send_client_report, email, name, email_html, pdf_bytes, pdf_name)
+            emailer.send_client_report, email, name, email_html, pdf_bytes, pdf_name, _lang)
     except Exception as exc:  # noqa: BLE001
         print(f"[email:ERROR] {exc}")
     lead.update(domain=domain, url=data.get("final_url"), score=data.get("score"),

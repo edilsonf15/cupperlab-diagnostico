@@ -88,8 +88,11 @@ def _send(to_addr: str, subject: str, html: str, reply_to: str | None = None,
 
 
 def send_client_report(to_addr: str, name: str, html_body: str,
-                       pdf: bytes | None = None, pdf_name: str = "Diagnostico_Cupperlab.pdf") -> tuple[bool, str]:
-    subject = "Tu diagnostico de visibilidad en Google y en la IA"
+                       pdf: bytes | None = None, pdf_name: str = "Diagnostico_Cupperlab.pdf",
+                       lang: str = "es") -> tuple[bool, str]:
+    en = str(lang or "es").strip().lower().startswith("en")
+    subject = ("Your visibility diagnosis on Google and AI" if en
+               else "Tu diagnostico de visibilidad en Google y en la IA")
     return _send(to_addr, subject, html_body, reply_to=CUPPERLAB_EMAIL,
                  attachment=pdf, attachment_name=pdf_name)
 

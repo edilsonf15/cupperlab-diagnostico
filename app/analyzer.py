@@ -22,6 +22,8 @@ from xml.etree import ElementTree as ET
 import httpx
 from bs4 import BeautifulSoup
 
+from i18n import L  # idioma del analisis (ES/EN)
+
 # ---- Presupuestos de tiempo (segundos) ---------------------------------------
 TOTAL_BUDGET = float(os.getenv("ANALYSIS_TOTAL_BUDGET", "45"))
 HOME_TIMEOUT = 12.0
@@ -1119,88 +1121,113 @@ def _score(res: Result) -> None:
 
     # ---------- Hallazgos en lenguaje de cliente ----------
     if m.get("robots_noindex"):
-        improve.insert(0, {"title": "Tu web se está bloqueando a sí misma (noindex)",
-                           "detail": "La etiqueta meta robots dice 'noindex': le pides a Google y a la IA que NO "
-                                     "te muestren. Es lo más grave que puede tener una web; hay que quitarlo ya.",
+        improve.insert(0, {"title": L("Tu web se está bloqueando a sí misma (noindex)",
+                                      "Your site is blocking itself (noindex)"),
+                           "detail": L("La etiqueta meta robots dice 'noindex': le pides a Google y a la IA que NO "
+                                       "te muestren. Es lo más grave que puede tener una web; hay que quitarlo ya.",
+                                       "The meta robots tag says 'noindex': you're telling Google and AI NOT to show "
+                                       "you. It's the worst thing a site can have; remove it right away."),
                            "severity": "alto"})
     if s["https"]:
-        good.append("Tu web usa conexion segura (HTTPS).")
+        good.append(L("Tu web usa conexion segura (HTTPS).", "Your site uses a secure connection (HTTPS)."))
     else:
-        improve.append({"title": "Falta conexion segura (HTTPS)",
-                        "detail": "Los navegadores y Google penalizan las webs sin candado de seguridad.",
+        improve.append({"title": L("Falta conexion segura (HTTPS)", "No secure connection (HTTPS)"),
+                        "detail": L("Los navegadores y Google penalizan las webs sin candado de seguridad.",
+                                    "Browsers and Google penalize sites without the security padlock."),
                         "severity": "alto"})
     if s["sitemap"]:
-        good.append("Tienes mapa del sitio, Google sabe que paginas rastrear.")
+        good.append(L("Tienes mapa del sitio, Google sabe que paginas rastrear.",
+                      "You have a sitemap, so Google knows which pages to crawl."))
     else:
-        improve.append({"title": "No encontramos el mapa del sitio",
-                        "detail": "Sin sitemap, Google y la IA tardan mas en descubrir tus paginas.",
+        improve.append({"title": L("No encontramos el mapa del sitio", "We couldn't find your sitemap"),
+                        "detail": L("Sin sitemap, Google y la IA tardan mas en descubrir tus paginas.",
+                                    "Without a sitemap, Google and AI take longer to discover your pages."),
                         "severity": "medio"})
     if s["links_checked"] and s["links_broken"] > 0:
         ex = ", ".join(e["url"] for e in s["broken_examples"][:2])
-        improve.append({"title": f'Encontramos {s["links_broken"]} enlace(s) roto(s) en la muestra',
-                        "detail": f"Paginas que ya no existen restan confianza. Ejemplo: {ex}",
+        improve.append({"title": L(f'Encontramos {s["links_broken"]} enlace(s) roto(s) en la muestra',
+                                   f'We found {s["links_broken"]} broken link(s) in the sample'),
+                        "detail": L(f"Paginas que ya no existen restan confianza. Ejemplo: {ex}",
+                                    f"Pages that no longer exist erode trust. Example: {ex}"),
                         "severity": "alto" if s["broken_ratio"] > 0.2 else "medio"})
     elif s["links_checked"]:
-        good.append("En nuestra muestra no encontramos enlaces rotos.")
+        good.append(L("En nuestra muestra no encontramos enlaces rotos.", "No broken links found in our sample."))
 
     # ---------- Analitica / medicion ----------
     an = s.get("analytics") or {}
     if an.get("duplicated"):
-        improve.append({"title": "Tu analitica esta duplicada",
-                        "detail": "Detectamos medicion repetida (" + "; ".join(an.get("dup_notes", [])) +
-                                  "). Eso infla visitas y conversiones y ensucia tus decisiones. Hay que dejar una sola.",
+        improve.append({"title": L("Tu analitica esta duplicada", "Your analytics is duplicated"),
+                        "detail": L("Detectamos medicion repetida (" + "; ".join(an.get("dup_notes", [])) +
+                                    "). Eso infla visitas y conversiones y ensucia tus decisiones. Hay que dejar una sola.",
+                                    "We detected repeated tracking (" + "; ".join(an.get("dup_notes", [])) +
+                                    "). It inflates visits and conversions and muddies your decisions. Keep only one."),
                         "severity": "medio"})
     elif not an.get("has_any"):
-        improve.append({"title": "No detectamos analitica web",
-                        "detail": "Sin Google Analytics 4 ni Tag Manager no sabes que paginas te traen clientes "
-                                  "ni de donde llegan. Es lo primero para poder mejorar con datos.",
+        improve.append({"title": L("No detectamos analitica web", "No web analytics detected"),
+                        "detail": L("Sin Google Analytics 4 ni Tag Manager no sabes que paginas te traen clientes "
+                                    "ni de donde llegan. Es lo primero para poder mejorar con datos.",
+                                    "Without Google Analytics 4 or Tag Manager you don't know which pages bring "
+                                    "customers or where they come from. It's the first step to improve with data."),
                         "severity": "medio"})
     else:
-        good.append("Tienes analitica instalada (" + ", ".join(an.get("tools", [])[:3]) + ").")
+        good.append(L("Tienes analitica instalada (" + ", ".join(an.get("tools", [])[:3]) + ").",
+                      "You have analytics installed (" + ", ".join(an.get("tools", [])[:3]) + ")."))
 
     # ---------- Seguridad / tecnologia ----------
     sec = s.get("security") or {}
     if sec.get("exposed"):
-        improve.insert(0, {"title": f"Seguridad: {len(sec['exposed'])} archivo(s) sensible(s) expuesto(s)",
-                           "detail": "; ".join(e["what"] for e in sec["exposed"][:3]) +
-                                     ". Hay que bloquear el acceso cuanto antes.",
+        improve.insert(0, {"title": L(f"Seguridad: {len(sec['exposed'])} archivo(s) sensible(s) expuesto(s)",
+                                      f"Security: {len(sec['exposed'])} sensitive file(s) exposed"),
+                           "detail": L("; ".join(e["what"] for e in sec["exposed"][:3]) +
+                                       ". Hay que bloquear el acceso cuanto antes.",
+                                       "; ".join(e["what"] for e in sec["exposed"][:3]) +
+                                       ". Block access as soon as possible."),
                            "severity": "alto"})
     if sec.get("headers_missing"):
-        improve.append({"title": "Faltan cabeceras de seguridad",
-                        "detail": "No estan: " + ", ".join(sec["headers_missing"][:4]) +
-                                  ". Protegen frente a clickjacking, sniffing y robo de sesion.",
+        improve.append({"title": L("Faltan cabeceras de seguridad", "Missing security headers"),
+                        "detail": L("No estan: " + ", ".join(sec["headers_missing"][:4]) +
+                                    ". Protegen frente a clickjacking, sniffing y robo de sesion.",
+                                    "Missing: " + ", ".join(sec["headers_missing"][:4]) +
+                                    ". They protect against clickjacking, sniffing and session theft."),
                         "severity": "medio" if len(sec["headers_missing"]) >= 4 else "bajo"})
     if sec.get("leaks"):
-        improve.append({"title": "El servidor revela su version/tecnologia",
-                        "detail": ", ".join(sec["leaks"][:3]) + ". Ocultarlo dificulta ataques dirigidos.",
+        improve.append({"title": L("El servidor revela su version/tecnologia", "The server reveals its version/tech"),
+                        "detail": L(", ".join(sec["leaks"][:3]) + ". Ocultarlo dificulta ataques dirigidos.",
+                                    ", ".join(sec["leaks"][:3]) + ". Hiding it makes targeted attacks harder."),
                         "severity": "bajo"})
     if sec and not sec.get("exposed") and sec.get("score", 0) >= 75:
-        good.append("Seguridad basica correcta: sin archivos sensibles expuestos.")
+        good.append(L("Seguridad basica correcta: sin archivos sensibles expuestos.",
+                      "Basic security is fine: no sensitive files exposed."))
     if s.get("llms_txt") and s.get("llms_len", 0) < 200:
-        improve.append({"title": "Tu guia para la IA (llms.txt) es muy corta",
-                        "detail": "Existe pero apenas tiene contenido; conviene ampliarla con tus servicios y paginas clave.",
+        improve.append({"title": L("Tu guia para la IA (llms.txt) es muy corta", "Your AI guide (llms.txt) is too short"),
+                        "detail": L("Existe pero apenas tiene contenido; conviene ampliarla con tus servicios y paginas clave.",
+                                    "It exists but has almost no content; expand it with your services and key pages."),
                         "severity": "bajo"})
 
     if not m["description"]:
-        improve.append({"title": "Falta la descripcion de la pagina",
-                        "detail": "Es el resumen que Google muestra en resultados y que la IA usa para citarte.",
+        improve.append({"title": L("Falta la descripcion de la pagina", "Missing meta description"),
+                        "detail": L("Es el resumen que Google muestra en resultados y que la IA usa para citarte.",
+                                    "It's the summary Google shows in results and that AI uses to cite you."),
                         "severity": "medio"})
     if m["h1_count"] != 1:
-        improve.append({"title": "El titular principal no esta bien definido",
-                        "detail": f'Detectamos {m["h1_count"]} titulares H1. Lo ideal es uno claro por pagina.',
+        improve.append({"title": L("El titular principal no esta bien definido", "The main heading (H1) isn't well defined"),
+                        "detail": L(f'Detectamos {m["h1_count"]} titulares H1. Lo ideal es uno claro por pagina.',
+                                    f'We found {m["h1_count"]} H1 headings. The ideal is one clear H1 per page.'),
                         "severity": "bajo"})
 
     if not res.categories["geo"] or cats["geo"]["score"] < 60:
-        detail_bits = []
+        bits_es, bits_en = [], []
         if not m["schema_types"]:
-            detail_bits.append("sin datos estructurados")
+            bits_es.append("sin datos estructurados"); bits_en.append("no structured data")
         if not s["llms_txt"]:
-            detail_bits.append("sin guia para IA (llms.txt)")
+            bits_es.append("sin guia para IA (llms.txt)"); bits_en.append("no AI guide (llms.txt)")
         if not m["has_sameas"]:
-            detail_bits.append("marca poco definida como entidad")
-        improve.append({"title": "La IA aun no te entiende bien",
-                        "detail": "Preparacion para buscadores con IA mejorable: " +
-                                  (", ".join(detail_bits) if detail_bits else "faltan senales GEO") + ".",
+            bits_es.append("marca poco definida como entidad"); bits_en.append("brand weakly defined as an entity")
+        improve.append({"title": L("La IA aun no te entiende bien", "AI doesn't understand you well yet"),
+                        "detail": L("Preparacion para buscadores con IA mejorable: " +
+                                    (", ".join(bits_es) if bits_es else "faltan senales GEO") + ".",
+                                    "AI readiness needs work: " +
+                                    (", ".join(bits_en) if bits_en else "GEO signals missing") + "."),
                         "severity": "alto"})
     else:
         good.append("Tu web tiene buenas senales para los buscadores con IA.")
@@ -1280,28 +1307,37 @@ def apply_ai_to_result(data: dict, ai: dict | None) -> dict:
     good = data.setdefault("findings_good", [])
     improve = data.setdefault("findings_improve", [])
     if ai.get("knows_brand"):
-        good.insert(0, "Cuando preguntan por tu marca a la IA, sabe quien eres y te describe bien.")
+        good.insert(0, L("Cuando preguntan por tu marca a la IA, sabe quien eres y te describe bien.",
+                         "When people ask the AI about your brand, it knows who you are and describes you well."))
     else:
         improve.insert(0, {
-            "title": "La IA no sabe quien eres",
-            "detail": "Le preguntamos a la IA por tu empresa y no tiene informacion fiable de ti. "
-                      "Cada vez mas clientes preguntan a la IA antes de decidir, y hoy no te encuentran.",
+            "title": L("La IA no sabe quien eres", "AI doesn't know who you are"),
+            "detail": L("Le preguntamos a la IA por tu empresa y no tiene informacion fiable de ti. "
+                        "Cada vez mas clientes preguntan a la IA antes de decidir, y hoy no te encuentran.",
+                        "We asked the AI about your company and it has no reliable info about you. More and more "
+                        "customers ask AI before deciding, and today they don't find you."),
             "severity": "alto"})
     if ai.get("recommended") is True:
-        good.insert(0, "Cuando piden tu servicio a la IA, te incluye entre las opciones recomendadas.")
+        good.insert(0, L("Cuando piden tu servicio a la IA, te incluye entre las opciones recomendadas.",
+                         "When people ask the AI for your service, it includes you among the recommended options."))
     elif ai.get("recommended") is False:
         improve.insert(0, {
-            "title": "Cuando piden tu servicio, la IA recomienda a otros",
-            "detail": "Al pedirle recomendaciones de tu sector, la IA nombra a otras empresas antes que a la tuya: "
-                      "pierdes a los clientes que aun no te conocen.",
+            "title": L("Cuando piden tu servicio, la IA recomienda a otros",
+                       "When people ask for your service, AI recommends others"),
+            "detail": L("Al pedirle recomendaciones de tu sector, la IA nombra a otras empresas antes que a la tuya: "
+                        "pierdes a los clientes que aun no te conocen.",
+                        "When asked for recommendations in your sector, the AI names other companies before yours: "
+                        "you lose the customers who don't know you yet."),
             "severity": "alto"})
     # Ficha de Google Business (investigado con busqueda real)
     if ai.get("gbp") is False:
         improve.append({
-            "title": "No encontramos tu ficha de Google Business",
-            "detail": "Buscamos tu negocio en Google/Maps y no aparece una ficha activa. Crearla y verificarla es "
-                      "clave para salir en el mapa, en las busquedas locales y en la IA local.",
+            "title": L("No encontramos tu ficha de Google Business", "We couldn't find your Google Business profile"),
+            "detail": L("Buscamos tu negocio en Google/Maps y no aparece una ficha activa. Crearla y verificarla es "
+                        "clave para salir en el mapa, en las busquedas locales y en la IA local.",
+                        "We searched Google/Maps and found no active listing. Creating and verifying it is key to "
+                        "appear on the map, in local searches and in local AI."),
             "severity": "medio"})
     elif ai.get("gbp") is True:
-        good.append("Tienes ficha de Google Business activa.")
+        good.append(L("Tienes ficha de Google Business activa.", "You have an active Google Business profile."))
     return data
