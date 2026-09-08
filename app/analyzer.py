@@ -882,6 +882,17 @@ async def analyze(raw_url: str) -> Result:
             security = None
 
     llms_len = len(llms_text or "")
+    # Calidad del llms.txt (guia para la IA): no basta con que exista, debe estar
+    # bien estructurado (secciones/titulos y enlaces a paginas clave).
+    _lt = llms_text or ""
+    _llms_sections = len(re.findall(r"(?m)^\s*#", _lt))
+    _llms_links = len(re.findall(r"\]\(|https?://", _lt))
+    if not llms_ok:
+        llms_quality = "none"
+    elif llms_len >= 300 and _llms_sections >= 2 and _llms_links >= 2:
+        llms_quality = "good"
+    else:
+        llms_quality = "thin"
     res.elapsed = round(time.perf_counter() - t0, 1)
 
     res.signals = {
@@ -896,6 +907,7 @@ async def analyze(raw_url: str) -> Result:
         "sitemap_total": sitemap_total,
         "llms_txt": llms_ok,
         "llms_len": llms_len,
+        "llms_quality": llms_quality,
         "security": security,
         "links_checked": checked,
         "links_broken": broken,
@@ -1044,7 +1056,12 @@ def _score(res: Result) -> None:
         9, heading_ok, f'{m["h1_count"]} H1 / {m["h2_count"]} H2')
     add(geo, "contact", "Ficha de contacto (nombre, telefono, direccion)", 6 if m.get("has_contact") else 0, 6, m.get("has_contact"),
         "Datos de contacto visibles" if m.get("has_contact") else "sin telefono/direccion clara")
-    add(geo, "llms", "Guia para buscadores con IA (llms.txt)", 6 if s["llms_txt"] else 0, 6, s["llms_txt"])
+    _lq = s.get("llms_quality", "none" if not s["llms_txt"] else "thin")
+    _lq_pts = 6 if _lq == "good" else (3 if _lq == "thin" else 0)
+    _lq_det = ("presente y bien estructurado" if _lq == "good"
+               else ("presente pero pobre: amplíalo con tus servicios y páginas clave" if _lq == "thin"
+                     else "no existe: guía a los buscadores con IA sobre tu web"))
+    add(geo, "llms", "Guia para buscadores con IA (llms.txt)", _lq_pts, 6, _lq == "good", _lq_det)
     dlen = len(m["description"])
     add(geo, "desc_ia", "Resumen que la IA puede citar", 5 if 70 <= dlen <= 165 else (2 if dlen else 0),
         5, bool(m["description"]), f"{dlen} car.")

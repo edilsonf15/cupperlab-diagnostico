@@ -454,30 +454,23 @@ async def run_ai_geo(domain: str, meta: dict) -> dict | None:
                 f"¿qué le falta a \"{brand}\" para que la IA la reconozca y la recomiende cuando alguien pide su "
                 f"tipo de servicio {ctx_pais} (sin nombrar la marca)? Sé concreto y accionable. Sin viñetas."
             )
-            q_gbp = (
-                f"Usa búsqueda web (Google Maps). ¿La empresa \"{brand}\" ({full_url}) tiene una ficha de "
-                f"Google Business / Google Maps activa {ctx_pais}? Responde SOLO una palabra: SI, NO o DUDOSO."
-            )
             # Reconocimiento CON la web (buscando): para el contraste "sin web / con web"
             q_know_web = (
                 f"Usa búsqueda web y visita {full_url}. ¿Qué es \"{brand}\" y a qué se dedica? "
                 f"Describe en 1-2 frases lo que veas en el sitio. Si no encuentras el sitio, responde NO_ENCONTRADO."
             )
 
-            # Ronda 1: briefing + reconocimiento (sin y con web) + gap + ficha Google Business
-            r_brief, r_know, r_gap, r_gbp, r_kw = await asyncio.gather(
+            # Ronda 1: briefing + reconocimiento (sin y con web) + gap
+            r_brief, r_know, r_gap, r_kw = await asyncio.gather(
                 _ask(client, prov, key, strong, q_brief, max_tokens=320, grounded=True),
                 _ask(client, prov, key, model, q_know, max_tokens=500, grounded=False),
                 _ask(client, prov, key, strong, q_gap, max_tokens=300, grounded=True),
-                _ask(client, prov, key, model, q_gbp, max_tokens=20, grounded=True),
                 _ask(client, prov, key, strong, q_know_web, max_tokens=300, grounded=True),
                 return_exceptions=True,
             )
             brief_txt = "" if isinstance(r_brief, Exception) else (r_brief or "")
             know_txt = "" if isinstance(r_know, Exception) else (r_know or "")
             gap_txt = "" if isinstance(r_gap, Exception) else (r_gap or "")
-            gbp_up = ("" if isinstance(r_gbp, Exception) else (r_gbp or "")).strip().upper()
-            gbp = True if gbp_up.startswith(("SI", "SÍ", "YES")) else (False if gbp_up.startswith("NO") else None)
             kw_txt = ("" if isinstance(r_kw, Exception) else (r_kw or "")).strip()
             knows_with_web = bool(kw_txt) and "NO_ENCONTRADO" not in kw_txt.upper()
             web_desc = _strip_cites(kw_txt)[:400] if knows_with_web else ""
@@ -535,9 +528,29 @@ async def run_ai_geo(domain: str, meta: dict) -> dict | None:
                     f"las que sean reales. Al final, en una línea aparte, escribe 'INCLUIDA: SI' si entre las "
                     f"recomendadas está \"{brand}\" ({domain}), o 'INCLUIDA: NO'."
                 )
+            # Ficha de Google Business: se busca BIEN — por NOMBRE+zona y por DOMINIO
+            # (muchos negocios la tienen aunque el sitio no la enlace).
+            q_gbp = (
+                f"Usa búsqueda web en Google Maps / Google Business. Busca este negocio de DOS formas: "
+                f"(1) por nombre: \"{brand}\" en {place}; (2) por su web: {domain}. "
+                f"¿Existe una ficha de Google Business / Google Maps de este negocio (con dirección, teléfono "
+                f"o reseñas)? Responde EXACTAMENTE en una línea: 'SI | <nº de reseñas o valoración si la ves, "
+                f"si no pon ->>' o 'NO'. Si hay cualquier ficha real que coincida, es SI."
+            )
+            gbp_task = _ask(client, prov, key, strong, q_gbp, max_tokens=60, grounded=True)
             cat_tasks = [_ask(client, prov, key, strong, _q_cat(s), max_tokens=700, grounded=True)
                          for s in cat_queries]
-            cat_results = await asyncio.gather(*cat_tasks, return_exceptions=True)
+            _all = await asyncio.gather(*cat_tasks, gbp_task, return_exceptions=True)
+            cat_results = list(_all[:len(cat_tasks)])
+            r_gbp = _all[-1]
+            gbp_line = _strip_cites("" if isinstance(r_gbp, Exception) else (r_gbp or ""))
+            gu = gbp_line.strip().upper()
+            gbp = True if gu.startswith(("SI", "SÍ", "YES")) else (False if gu.startswith("NO") else None)
+            gbp_reviews = ""
+            if gbp:
+                mrev = re.search(r"(\d[\d.,]*)\s*(reseñas|reviews|opiniones)", gbp_line, re.I)
+                mval = re.search(r"([0-5][.,]\d)\s*(?:★|estrellas|de 5|/5)", gbp_line)
+                gbp_reviews = (mrev.group(0) if mrev else (mval.group(0) if mval else ""))
     except Exception as exc:  # noqa: BLE001
         return {"available": True, "error": str(exc), "brand": brand}
 
@@ -625,6 +638,7 @@ async def run_ai_geo(domain: str, meta: dict) -> dict | None:
         "mentions": (mentions or "")[:400],
         "recommended": recommended,
         "gbp": gbp,
+        "gbp_reviews": gbp_reviews,
         "competitors": comps[:6],
         "questions": questions,
         "gap": gap,
