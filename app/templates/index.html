@@ -13,7 +13,8 @@
 <style>
   *{box-sizing:border-box}
   html{scroll-behavior:smooth}
-  body{margin:0;background:#F7F9FB;font-family:'Plus Jakarta Sans',system-ui,sans-serif;color:#0A1014;-webkit-font-smoothing:antialiased}
+  body{margin:0;background:#F7F9FB;font-family:'Plus Jakarta Sans',system-ui,sans-serif;color:#0A1014;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+  img{max-width:100%}
   a{color:#0A1014;text-decoration-color:#1CBCE4;text-underline-offset:3px}
   a:hover{color:#1CBCE4}
   input,select,button,textarea{font:inherit}
@@ -61,6 +62,17 @@
   .ip-ck{flex-shrink:0;width:22px;height:22px;border-radius:50%;background:#1CBCE4;color:#fff;font-weight:700;font-size:12px;display:flex;align-items:center;justify-content:center;margin-top:1px}
   .ip-foot{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px;padding-top:18px;border-top:1px solid #eef1f4}
   .ip-foot span{font-family:'JetBrains Mono',monospace;font-size:11px;color:#0E8FB0;background:rgba(28,188,228,0.10);border-radius:999px;padding:5px 11px}
+  /* ---- Responsive / movil ---- */
+  @media(max-width:760px){
+    .hero-img{aspect-ratio:16/10!important;max-width:100%!important;justify-self:stretch!important}
+    .infopanel{padding:24px 20px}
+    .stamp-wrap{justify-content:flex-start!important}
+  }
+  @media(max-width:520px){
+    .hdr-cta{display:none!important}
+    .ucard{padding:22px 18px 18px}
+    .field input,.field select{font-size:16px}
+  }
 </style>
 </head>
 <body>
@@ -78,14 +90,14 @@
           <span class="sora" style="font-size:16px;font-weight:700;color:#fff">+34 91 495 2585</span>
         </span>
       </a>
-      <a href="#motor" class="btn-cy" style="font-size:13.5px;padding:11px 18px">Diagnosticar mi sitio</a>
+      <a href="#motor" class="btn-cy hdr-cta" style="font-size:13.5px;padding:11px 18px">Diagnosticar mi sitio</a>
     </div>
   </div>
 </header>
 
 <!-- HERO -->
 <section style="background:#FFFFFF;border-bottom:1px solid rgba(10,16,20,0.08)">
-  <div class="wrap" style="padding:76px 24px 84px;display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:60px;align-items:center">
+  <div class="wrap" style="padding:clamp(44px,7vw,76px) clamp(16px,5vw,24px) clamp(52px,8vw,84px);display:grid;grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr));gap:clamp(32px,5vw,60px);align-items:center">
     <div>
       <h1 class="sora" style="font-weight:700;font-size:clamp(34px,4.6vw,58px);line-height:1.06;letter-spacing:-0.03em;margin:0 0 22px;text-wrap:pretty">
         Diagnóstico gratuito de tu sitio: <span style="color:#1CBCE4">qué tan visible eres en Google y en las respuestas de IA.</span>
@@ -110,14 +122,14 @@
 
 <!-- URGENCIA -->
 <section style="background:#F7F9FB;border-bottom:1px solid rgba(10,16,20,0.08)">
-  <div class="wrap" style="padding:60px 24px">
-    <div style="display:flex;align-items:center;gap:14px;margin-bottom:34px">
+  <div class="wrap" style="padding:clamp(40px,7vw,60px) clamp(16px,5vw,24px)">
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:34px;flex-wrap:wrap">
       <span class="mono" style="display:inline-flex;align-items:center;gap:8px;background:rgba(28,188,228,0.12);color:#0A1014;font-size:11px;padding:7px 12px;border-radius:999px">
         <span style="width:6px;height:6px;border-radius:50%;background:#1CBCE4;animation:cl-blip 1.4s ease-in-out infinite"></span>AHORA MISMO
       </span>
       <p class="sora" style="margin:0;font-weight:600;font-size:19px;letter-spacing:-0.01em">Lo que está pasando mientras lees esto</p>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:22px">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr));gap:22px">
       <div class="ucard reveal"><span class="unum">01</span><p>Nadie compara diez opciones: se revisan las <b>primeras</b> y se contacta a una.</p></div>
       <div class="ucard reveal" style="transition-delay:.08s"><span class="unum">02</span><p>Los asistentes de <b>IA</b> ya recomiendan proveedores por nombre, citando muy pocas fuentes.</p></div>
       <div class="ucard reveal orange" style="transition-delay:.16s"><span class="unum">03</span><p>Un sitio lento o mal indexado <b>no se penaliza en público</b>: simplemente deja de aparecer.</p></div>
@@ -126,15 +138,15 @@
 </section>
 
 <!-- MOTOR: FORM / ANALIZANDO / RESULTADO -->
-<section id="motor" style="background:#FFFFFF;padding:88px 24px 96px">
+<section id="motor" style="background:#FFFFFF;padding:clamp(48px,8vw,88px) clamp(16px,5vw,24px) clamp(52px,9vw,96px)">
   <div class="wrap">
 
     <!-- FORMULARIO (único punto de entrada) -->
-    <div id="formBlock" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:44px;align-items:start">
+    <div id="formBlock" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr));gap:clamp(28px,4vw,44px);align-items:start">
      <div>
       <h2 class="sora" style="font-weight:600;font-size:clamp(24px,2.8vw,33px);letter-spacing:-0.025em;margin:0 0 12px">Analiza tu web</h2>
       <p style="margin:0 0 32px;font-size:16px;line-height:1.65;color:rgba(10,16,20,0.6)">Datos reales, comprobados en vivo. El resultado aparece en esta misma pantalla y el informe completo te llega al correo.</p>
-      <form id="diagForm" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:20px 22px">
+      <form id="diagForm" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(200px,100%),1fr));gap:20px 22px">
         <label class="field" style="grid-column:1/-1">
           <span class="lab">SITIO DE TU NEGOCIO *</span>
           <input id="url" name="url" type="text" placeholder="www.tusitio.com" autocomplete="url" required>
@@ -190,8 +202,8 @@
     <!-- RESULTADO -->
     <div id="results" class="hidden">
       <!-- Tarjeta índice -->
-      <div style="background:#0A1014;color:#F7F9FB;border-radius:16px;padding:clamp(30px,4vw,54px)">
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:44px;align-items:center">
+      <div style="background:#0A1014;color:#F7F9FB;border-radius:16px;padding:clamp(24px,4vw,54px)">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(280px,100%),1fr));gap:clamp(28px,4vw,44px);align-items:center">
           <div>
             <p id="resDomLab" class="mono" style="font-size:11.5px;color:rgba(247,249,251,0.55);margin:0 0 12px">ÍNDICE DE VISIBILIDAD · TU SITIO</p>
             <div style="display:flex;align-items:flex-start;gap:8px">
@@ -200,7 +212,7 @@
             </div>
             <p id="resTitle" style="margin:22px 0 0;font-size:16.5px;line-height:1.65;color:rgba(247,249,251,0.72);max-width:44ch"></p>
           </div>
-          <div style="display:flex;justify-content:center">
+          <div class="stamp-wrap" style="display:flex;justify-content:center">
             <div id="stamp" style="border:2px solid #1CBCE4;border-radius:12px;padding:22px 26px;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;animation:cl-stamp 1s cubic-bezier(0.2,0.9,0.2,1) both">
               <span class="mono" style="font-size:10px;letter-spacing:0.18em;opacity:0.8;white-space:nowrap;color:inherit">CUPPERLAB · DIAGNÓSTICO</span>
               <span id="verdict" class="sora" style="font-weight:700;font-size:26px;letter-spacing:-0.02em;white-space:nowrap;color:inherit">—</span>
@@ -227,8 +239,8 @@
 </section>
 
 <!-- CTA -->
-<section style="background:#0A1014;color:#F7F9FB;padding:84px 24px">
-  <div class="wrap" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:56px;align-items:center">
+<section style="background:#0A1014;color:#F7F9FB;padding:clamp(48px,8vw,84px) clamp(16px,5vw,24px)">
+  <div class="wrap" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));gap:clamp(36px,5vw,56px);align-items:center">
     <div>
       <h2 class="sora" style="font-weight:700;font-size:clamp(28px,3.6vw,46px);line-height:1.12;letter-spacing:-0.03em;margin:0 0 20px;text-wrap:pretty">Media hora, tu sitio en pantalla y una lista de qué mover primero.</h2>
       <p style="margin:0 0 30px;font-size:17px;line-height:1.7;color:rgba(247,249,251,0.7);max-width:46ch">Sin presentación corporativa. Abrimos tu sitio, vemos qué busca tu cliente y decidimos si tiene sentido trabajar juntos.</p>
