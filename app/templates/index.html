@@ -35,11 +35,14 @@
   .hphone-ic{width:38px;height:38px;border-radius:50%;background:#F46434;display:flex;align-items:center;justify-content:center;flex-shrink:0;animation:cl-ring 1.9s ease-out infinite;transition:background .16s}
   .hphone:hover .hphone-ic{background:#0f9bc2}
   .hphone:hover .sora{color:#1CBCE4!important}
-  /* Selector de idioma */
-  .langsel{display:inline-flex;border:1px solid rgba(247,249,251,0.22);border-radius:8px;overflow:hidden}
-  .langsel button{background:transparent;color:rgba(247,249,251,0.6);border:none;padding:6px 10px;font-family:'JetBrains Mono',monospace;font-size:11px;cursor:pointer;transition:background .15s,color .15s}
-  .langsel button.on{background:#1CBCE4;color:#0A1014;font-weight:600}
-  @media(max-width:640px){.hphone span span.mono{display:none!important}.hphone .sora{font-size:14px!important}}
+  /* Selector de idioma (banderas SVG) */
+  .langsel{display:inline-flex;gap:7px;align-items:center}
+  .langsel button{background:none;border:2px solid transparent;border-radius:6px;padding:2px;cursor:pointer;line-height:0;opacity:.45;transition:opacity .15s,border-color .15s,transform .12s}
+  .langsel button:hover{opacity:.85}
+  .langsel button.on{opacity:1;border-color:#1CBCE4}
+  .langsel svg{display:block;width:27px;height:18px;border-radius:3px}
+  @media(max-width:640px){.hphone span span.mono{display:none!important}.hphone .sora{font-size:14px!important}header .wrap{padding-left:16px!important;padding-right:16px!important}}
+  @media(max-width:430px){.htxt{display:none!important}.langsel svg{width:24px;height:16px}}
   .hidden{display:none!important}
   .hero-img,.cta-img{background-size:cover;background-position:center;background-repeat:no-repeat;background-color:#F7F9FB}
   .ucard{position:relative;background:#fff;border:1px solid rgba(10,16,20,0.09);border-top:3px solid #1CBCE4;border-radius:14px;padding:26px 22px 20px;transition:transform .22s ease,box-shadow .22s ease,border-color .22s ease;overflow:hidden}
@@ -101,13 +104,18 @@
     <img src="/static/img/cupperlab-logo-color.png" alt="Cupperlab" style="height:26px;width:auto;display:block;flex-shrink:0">
     <div style="display:flex;align-items:center;gap:12px">
       <div class="langsel" id="langSel">
-        <button type="button" data-lang="es">ES</button><button type="button" data-lang="en">EN</button>
+        <button type="button" data-lang="es" title="Español" aria-label="Español">
+          <svg viewBox="0 0 30 20"><rect width="30" height="20" fill="#c60b1e"/><rect y="5" width="30" height="10" fill="#ffc400"/></svg>
+        </button>
+        <button type="button" data-lang="en" title="English" aria-label="English">
+          <svg viewBox="0 0 30 20"><rect width="30" height="20" fill="#b22234"/><g fill="#fff"><rect y="1.54" width="30" height="1.54"/><rect y="4.62" width="30" height="1.54"/><rect y="7.69" width="30" height="1.54"/><rect y="10.77" width="30" height="1.54"/><rect y="13.85" width="30" height="1.54"/><rect y="16.92" width="30" height="1.54"/></g><rect width="13" height="10.77" fill="#3c3b6e"/></svg>
+        </button>
       </div>
       <a href="tel:+34914952585" class="hphone" style="display:flex;align-items:center;gap:11px;text-decoration:none;color:#F7F9FB">
         <span class="hphone-ic">
           <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
         </span>
-        <span style="line-height:1.15">
+        <span class="htxt" style="line-height:1.15">
           <span style="display:block;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#f0a58a" class="mono" data-i18n="hphone_label">Llámanos ahora</span>
           <span class="sora" style="font-size:16px;font-weight:700;color:#fff">+34 91 495 2585</span>
         </span>
