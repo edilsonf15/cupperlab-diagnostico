@@ -522,7 +522,14 @@ def _geo_tactics(r: dict) -> list[str]:
         tips.append("Escribir un <b>resumen citable (meta descripcion)</b> de 70-160 caracteres por pagina: es lo que la IA usa para citarte.")
     if not s.get("llms_txt"):
         tips.append("Publicar <b>llms.txt</b> como guia para los buscadores con IA.")
-    tips.append("Sumar <b>resenas y casos de exito verificables</b> (Google, directorios, prensa): la IA cita fuentes con reputacion.")
+    # Reseñas: senal clave para que la IA recomiende. Adaptado a tu ficha real.
+    gbp = ai.get("gbp"); gn = ai.get("gbp_reviews_n")
+    if gbp is False:
+        tips.append("Crear tu <b>ficha de Google Business y conseguir reseñas</b>: la IA recomienda a negocios con opiniones reales y buena valoracion.")
+    elif gbp and (gn is None or (isinstance(gn, int) and gn < 15)):
+        tips.append("<b>Conseguir mas reseñas en tu ficha de Google</b>: tienes ficha pero pocas valoraciones, y la IA prioriza a los negocios mejor valorados. Pide reseñas a tus clientes de forma sistematica.")
+    else:
+        tips.append("<b>Sumar reseñas y casos de exito verificables</b> (Google, directorios, prensa): la IA cita fuentes con reputacion.")
     return tips[:8]
 
 
@@ -583,15 +590,25 @@ def _ai_section(r: dict) -> str:
 
     # Tarjeta ficha de Google Business (real, buscada por nombre y dominio)
     gbp = ai.get("gbp"); gbp_rev = _esc(ai.get("gbp_reviews") or "")
+    gbp_n = ai.get("gbp_reviews_n")
+    few_reviews = gbp and (gbp_n is None or (isinstance(gbp_n, int) and gbp_n < 15))
     gbp_card = ""
     if gbp is not None:
-        if gbp:
+        if gbp and not few_reviews:
             gbp_card = f"""
     <div class="aiq">
       <div class="q"><div class="ico">IA</div><div>
         <div class="ask">Tu ficha de Google Business / Maps</div>
-        <div class="qt">Encontramos tu ficha activa{(' (' + gbp_rev + ')') if gbp_rev else ''}. Las resenas de Google son una de las fuentes que la IA cita: cuidalas y pide mas.</div></div></div>
+        <div class="qt">Encontramos tu ficha activa{(' (' + gbp_rev + ')') if gbp_rev else ''}. Buenas reseñas: son una de las fuentes que la IA cita para recomendarte. Mantenlas y sigue pidiendo mas.</div></div></div>
       <div class="src"><span>Buscada por nombre en {_esc(zona)} y por tu dominio</span><span class="v yes">TIENES FICHA</span></div>
+    </div>"""
+        elif gbp and few_reviews:
+            gbp_card = f"""
+    <div class="aiq">
+      <div class="q"><div class="ico">IA</div><div>
+        <div class="ask">Tu ficha de Google Business / Maps</div>
+        <div class="qt">Tienes ficha{(' (' + gbp_rev + ')') if gbp_rev else ''}, pero <b>te faltan reseñas y valoraciones</b>. Las opiniones buenas son una de las señales que la IA usa para recomendarte: sin ellas, apareces por detras de la competencia mejor valorada. Hay que pedir reseñas a tus clientes de forma sistematica.</div></div></div>
+      <div class="src"><span>Buscada por nombre en {_esc(zona)} y por tu dominio</span><span class="v">FALTAN RESEÑAS</span></div>
     </div>"""
         else:
             gbp_card = f"""
@@ -987,10 +1004,11 @@ def build_report_html(r: dict, contact: dict, name: str = "") -> str:
     .cover .foot b{{color:{INK9}}}
     .pg{{padding:0}}
     .newpage{{break-before:page}}
-    .eyebrow{{font-family:"JetBrains Mono",monospace;font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:{CY6};margin:0 0 6px;display:flex;align-items:center;gap:8px}}
-    .eyebrow .bar{{width:22px;height:2px;background:{OR};display:inline-block}}
-    h2.sec{{font-family:"Sora",sans-serif;font-weight:800;font-size:20px;letter-spacing:-.01em;color:{INK9};line-height:1.14;margin:0 0 4px}}
-    .sub{{font-size:11px;color:#7b8694;margin-bottom:13px}}
+    .eyebrow{{font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:{CY6};margin:0 0 8px;display:flex;align-items:center;gap:8px;break-after:avoid}}
+    .eyebrow .bar{{width:26px;height:2px;background:{OR};display:inline-block}}
+    h2.sec{{font-family:"Sora",sans-serif;font-weight:800;font-size:27px;letter-spacing:-.02em;color:{INK9};line-height:1.1;margin:0 0 5px;break-after:avoid}}
+    .sub{{font-size:11.5px;color:#7b8694;margin-bottom:15px;break-after:avoid}}
+    .eyebrow+h2.sec,h2.sec+.sub{{break-before:avoid}}
     p{{margin:0 0 9px}}
     .block{{margin-bottom:11px;break-inside:avoid}}
     .two{{display:grid;grid-template-columns:1fr 1fr;gap:14px}}
@@ -1161,8 +1179,10 @@ def build_report_html(r: dict, contact: dict, name: str = "") -> str:
   {_crawl_structure_block(r)}
   {_index_block(r)}
   {(''.join('<div class="block callout r"><b>Enlaces rotos.</b> Ejemplos reales encontrados: ' + ', '.join(e["url"] for e in s["broken_examples"][:3]) + '.</div>' for _ in [0]) if s.get("broken_examples") else '')}
+</section>
 
-  <div class="eyebrow" style="margin-top:16px"><span class="bar"></span>03 · SEO on-page</div>
+<section class="pg">
+  <div class="eyebrow"><span class="bar"></span>03 · SEO on-page</div>
   <h2 class="sec">Que le falta a tus paginas para posicionar</h2>
   <p class="sub">Primero lo que falla y hay que corregir; despues lo que ya esta bien. Son las senales que deciden si Google te muestra y si la IA te cita.</p>
   {_onpage_rows(r)}

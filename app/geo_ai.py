@@ -586,8 +586,14 @@ async def run_ai_geo(domain: str, meta: dict) -> dict | None:
             else:
                 gbp = True if has_evidence else None
             gbp_reviews = ""
+            gbp_reviews_n = None
             if gbp:
                 gbp_reviews = (mrev.group(0) if mrev else (mval.group(0) if mval else ""))
+                if mrev:
+                    try:
+                        gbp_reviews_n = int(re.sub(r"[^\d]", "", mrev.group(1)))
+                    except Exception:  # noqa: BLE001
+                        gbp_reviews_n = None
     except Exception as exc:  # noqa: BLE001
         return {"available": True, "error": str(exc), "brand": brand}
 
@@ -676,6 +682,7 @@ async def run_ai_geo(domain: str, meta: dict) -> dict | None:
         "recommended": recommended,
         "gbp": gbp,
         "gbp_reviews": gbp_reviews,
+        "gbp_reviews_n": gbp_reviews_n,
         "competitors": comps[:6],
         "questions": questions,
         "gap": gap,
