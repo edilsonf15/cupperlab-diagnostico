@@ -653,6 +653,23 @@ def _ai_section(r: dict) -> str:
     <div class="block callout {vcol}"><b>Veredicto IA.</b> {verdict}</div>"""
 
 
+def _crawl_structure_block(r: dict) -> str:
+    """Estructura del sitio medida por NUESTRO rastreo (fiable, no depende de
+    buscadores): cuantas paginas tiene y cuantas revisamos una a una."""
+    s = r.get("signals") or {}
+    pf = s.get("pages_found", 0)
+    checked = s.get("links_checked", 0)
+    broken = s.get("links_broken", 0)
+    if not pf and not checked:
+        return ""
+    sm = s.get("sitemap_total", 0)
+    fuente = (f"segun tu mapa del sitio ({sm} URLs)" if sm else f"por los enlaces internos de tu web")
+    rota = (f" De ellas, <b>{broken}</b> daban error 404." if broken else " No encontramos enlaces rotos en la muestra.")
+    return (f'<div class="block callout o"><b>Estructura de tu sitio (rastreo pagina por pagina).</b> '
+            f'Tu web tiene del orden de <b>{pf}</b> paginas {fuente}. Revisamos {checked} una a una.{rota} '
+            f'El numero exacto que Google tiene indexado se confirma con Search Console (lo activamos al empezar).</div>')
+
+
 def _index_block(r: dict) -> str:
     ix = r.get("indexation")
     if not ix:
@@ -1141,6 +1158,7 @@ def build_report_html(r: dict, contact: dict, name: str = "") -> str:
   <p class="sub">Lo tecnico que Google mira para decidir si te muestra: seguridad, respuesta del servidor, robots, mapa del sitio y enlaces rotos. En rojo lo que falla, en verde lo que ya funciona.</p>
   {_tech_rows(r)}
   {_robots_block(r)}
+  {_crawl_structure_block(r)}
   {_index_block(r)}
   {(''.join('<div class="block callout r"><b>Enlaces rotos.</b> Ejemplos reales encontrados: ' + ', '.join(e["url"] for e in s["broken_examples"][:3]) + '.</div>' for _ in [0]) if s.get("broken_examples") else '')}
 

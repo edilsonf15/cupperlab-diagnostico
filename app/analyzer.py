@@ -829,6 +829,8 @@ async def analyze(raw_url: str) -> Result:
         broken_examples = []
         sitemap_total = 0
         sitemap_comp = None
+        pages_found = 0
+        internal_links = 0
         try:
             if sitemap_text:
                 locs, is_index = parse_sitemap_locs(sitemap_text)
@@ -859,6 +861,10 @@ async def analyze(raw_url: str) -> Result:
                             and not re.search(r"\.(jpg|jpeg|png|gif|webp|svg|pdf|zip|css|js)$", href, re.I):
                         internal.append(href)
                 internal = list(dict.fromkeys(internal))
+            # Cuantas paginas tiene el sitio (descubiertas por NOSOTROS, fiable):
+            # el mapa del sitio o, si no hay, los enlaces internos reales del home.
+            pages_found = max(sitemap_total, len(internal))
+            internal_links = len(internal)
             # combina enlaces internos (prioridad) + muestra del sitemap
             sample = list(dict.fromkeys(internal[:LINK_SAMPLE] + sample))[:LINK_SAMPLE]
             if sample:
@@ -912,6 +918,8 @@ async def analyze(raw_url: str) -> Result:
         "sitemap": sitemap_ok,
         "sitemap_in_robots": sitemap_in_robots,
         "sitemap_total": sitemap_total,
+        "pages_found": pages_found,
+        "internal_links": internal_links,
         "llms_txt": llms_ok,
         "llms_len": llms_len,
         "llms_quality": llms_quality,
