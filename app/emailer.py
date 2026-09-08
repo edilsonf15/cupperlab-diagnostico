@@ -23,7 +23,8 @@ def smtp_configured() -> bool:
 
 
 def _send(to_addr: str, subject: str, html: str, reply_to: str | None = None,
-          attachment: bytes | None = None, attachment_name: str = "diagnostico.pdf") -> tuple[bool, str]:
+          attachment: bytes | None = None, attachment_name: str = "diagnostico.pdf",
+          ics: str | None = None) -> tuple[bool, str]:
     host = os.getenv("SMTP_HOST", "")
     port = int(os.getenv("SMTP_PORT", "587"))
     user = os.getenv("SMTP_USER", "")
@@ -48,6 +49,15 @@ def _send(to_addr: str, subject: str, html: str, reply_to: str | None = None,
         part = MIMEApplication(attachment, _subtype="pdf")
         part.add_header("Content-Disposition", "attachment", filename=attachment_name)
         msg.attach(part)
+    if ics:
+        # Parte de calendario: Gmail/Google Calendar la reconocen como invitacion
+        cal = MIMEText(ics, "calendar", "utf-8")
+        cal.replace_header("Content-Type", 'text/calendar; charset="utf-8"; method=REQUEST')
+        msg.attach(cal)
+        # Ademas como .ics descargable (respaldo universal)
+        ib = MIMEApplication(ics.encode("utf-8"), _subtype="ics")
+        ib.add_header("Content-Disposition", "attachment", filename="reunion-cupperlab.ics")
+        msg.attach(ib)
 
     try:
         if port == 465:
@@ -77,6 +87,35 @@ def send_client_report(to_addr: str, name: str, html_body: str,
     subject = "Tu diagnostico de visibilidad en Google y en la IA"
     return _send(to_addr, subject, html_body, reply_to=CUPPERLAB_EMAIL,
                  attachment=pdf, attachment_name=pdf_name)
+
+
+def send_booking(client_email: str, client_name: str, inv: dict, phone: str,
+                 site_url: str = "") -> tuple[bool, str]:
+    """Envia la invitacion de calendario al cliente y al equipo (con .ics)."""
+    when = inv.get("when_txt", "")
+    gcal = inv.get("gcal_link", "")
+    ics = inv.get("ics", "")
+    # 1) al cliente: confirmacion + invitacion
+    html_c = f"""<div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;color:#283038">
+      <div style="height:6px;background:linear-gradient(90deg,#1cbce4,#f46434);border-radius:6px"></div>
+      <h2 style="color:#0e1319;font-family:Georgia,serif">Reunion agendada ✅</h2>
+      <p>Hola <b>{client_name or ''}</b>, tu sesion de 30 minutos con Cupperlab queda para:</p>
+      <p style="font-size:18px;color:#0f9bc2;font-weight:bold">{when}</p>
+      <p>Te llega la invitacion adjunta: acepta para que se anada a tu calendario. Tambien puedes anadirla con un clic:</p>
+      <p><a href="{gcal}" style="display:inline-block;background:#f46434;color:#fff;text-decoration:none;font-weight:bold;padding:12px 22px;border-radius:10px">Anadir a Google Calendar</a></p>
+      <p style="color:#7b8694;font-size:13px">Si necesitas cambiarla, responde a este correo o llama al {phone}.</p>
+      <p style="color:#0e1319;font-family:Georgia,serif;margin-top:20px">Mejoramos tu rentabilidad.</p>
+    </div>"""
+    ok1, _ = _send(client_email, f"Tu reunion con Cupperlab · {when}", html_c,
+                   reply_to=CUPPERLAB_EMAIL, ics=ics)
+    # 2) al equipo: aviso + misma invitacion
+    team = os.getenv("LEAD_INBOX", CUPPERLAB_EMAIL)
+    html_t = f"""<div style="font-family:Arial,sans-serif;color:#283038">
+      <h2 style="color:#0e1319">Nueva reunion agendada</h2>
+      <p><b>{when}</b> · con <b>{client_name}</b> ({client_email})</p>
+      <p><a href="{gcal}">Anadir a Google Calendar</a></p></div>"""
+    _send(team, f"[Reunion] {when} — {client_name}", html_t, reply_to=client_email, ics=ics)
+    return ok1, "ok"
 
 
 def send_lead_notification(lead: dict) -> tuple[bool, str]:

@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agenda tu sesión de 30 min · Cupperlab</title>
+<link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#F7F9FB;font-family:'Plus Jakarta Sans',system-ui,sans-serif;color:#0A1014;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+  .mono{font-family:'JetBrains Mono',monospace}.sora{font-family:'Sora',sans-serif}
+  a{color:#0A1014}
+  .wrap{max-width:860px;margin:0 auto;padding:0 clamp(16px,5vw,24px)}
+  header{background:#0A1014;color:#F7F9FB;position:sticky;top:0;z-index:20}
+  .hd{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 0}
+  .hd img{height:26px}
+  .hphone{display:flex;align-items:center;gap:10px;text-decoration:none;color:#fff}
+  .hphone .ic{width:36px;height:36px;border-radius:50%;background:#F46434;display:flex;align-items:center;justify-content:center}
+  .hero{padding:clamp(40px,7vw,68px) 0 20px;text-align:center}
+  .eyebrow{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.16em;color:#0E8FB0;margin-bottom:14px}
+  h1{font-family:'Sora',sans-serif;font-weight:800;font-size:clamp(30px,5vw,46px);line-height:1.08;letter-spacing:-.03em;margin:0 0 16px}
+  h1 .o{color:#1CBCE4}
+  .lead{font-size:17px;line-height:1.6;color:rgba(10,16,20,.6);max-width:52ch;margin:0 auto}
+  .card{background:#fff;border:1px solid rgba(10,16,20,.09);border-radius:18px;box-shadow:0 16px 44px rgba(10,16,20,.07);padding:clamp(22px,4vw,34px);margin:26px 0 60px}
+  .step{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.12em;color:#0E8FB0;margin:0 0 12px;display:flex;align-items:center;gap:8px}
+  .step b{width:20px;height:20px;border-radius:6px;background:#1CBCE4;color:#0A1014;display:flex;align-items:center;justify-content:center;font-size:11px}
+  .days{display:flex;gap:9px;overflow-x:auto;padding-bottom:6px;margin-bottom:20px;scrollbar-width:thin}
+  .day{flex:0 0 auto;border:1.5px solid rgba(10,16,20,.14);background:#fff;border-radius:12px;padding:11px 15px;cursor:pointer;text-align:center;transition:all .15s;min-width:96px}
+  .day:hover{border-color:#1CBCE4}
+  .day.on{border-color:#1CBCE4;background:#1CBCE4;color:#0A1014}
+  .day .d{font-family:'Sora',sans-serif;font-weight:600;font-size:13.5px}
+  .day .n{font-size:11px;color:rgba(10,16,20,.5)}.day.on .n{color:rgba(10,16,20,.7)}
+  .slots{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:9px;margin-bottom:6px}
+  .slot{border:1.5px solid rgba(10,16,20,.14);background:#fff;border-radius:10px;padding:11px 0;text-align:center;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:500;transition:all .12s}
+  .slot:hover{border-color:#1CBCE4}
+  .slot.on{border-color:#0A1014;background:#0A1014;color:#fff}
+  .form{margin-top:24px;display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .field{display:flex;flex-direction:column;gap:7px}
+  .field.full{grid-column:1/-1}
+  .lab{font-family:'JetBrains Mono',monospace;font-size:11px;color:rgba(10,16,20,.55)}
+  input,textarea{background:#F7F9FB;border:1px solid rgba(10,16,20,.14);border-radius:10px;padding:13px 14px;font:inherit;font-size:16px;width:100%}
+  input:focus,textarea:focus{outline:none;border-color:#1CBCE4;box-shadow:0 0 0 3px rgba(28,188,228,.2)}
+  .btn{display:inline-flex;align-items:center;gap:10px;background:#1CBCE4;color:#0A1014;border:none;border-radius:11px;font-family:'Sora',sans-serif;font-weight:700;font-size:16px;padding:15px 28px;cursor:pointer;transition:background .16s}
+  .btn:hover{background:#0A1014;color:#fff}
+  .btn:disabled{opacity:.5;cursor:default}
+  .pick{background:#F1F5F7;border-radius:10px;padding:12px 16px;font-size:14px;color:#12324a;margin-top:4px}
+  .pick b{color:#0A1014}
+  .err{color:#C4551F;font-size:13px;font-family:'JetBrains Mono',monospace;display:none}
+  .ok{text-align:center;padding:14px 0}
+  .ok .big{font-family:'Sora',sans-serif;font-weight:800;font-size:26px;color:#1f9d6b;margin:8px 0}
+  .ok .when{font-size:19px;color:#0f9bc2;font-weight:700;margin:6px 0 18px}
+  .hidden{display:none!important}
+  footer{color:rgba(10,16,20,.5);font-size:12px;text-align:center;padding:24px 0 40px}
+  @media(max-width:560px){.form{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header><div class="wrap hd">
+  <a href="/"><img src="/static/img/cupperlab-logo-color.png" alt="Cupperlab"></a>
+  <a href="tel:{{ phone|replace(' ','') }}" class="hphone"><span class="ic"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg></span><b class="sora">{{ phone }}</b></a>
+</div></header>
+
+<div class="wrap">
+  <div class="hero">
+    <div class="eyebrow">◆ 30 MINUTOS · SIN COMPROMISO</div>
+    <h1>Agenda tu sesión <span class="o">de diagnóstico</span></h1>
+    <p class="lead">Revisamos tu web en directo, te explicamos por dónde empezar para que Google y la IA te recomienden, y resolvemos tus dudas. Elige el hueco que mejor te venga.</p>
+  </div>
+
+  <div class="card" id="card">
+    <div id="picker">
+      <div class="step"><b>1</b> ELIGE EL DÍA</div>
+      <div class="days" id="days"></div>
+      <div class="step"><b>2</b> ELIGE LA HORA</div>
+      <div class="slots" id="slots"></div>
+
+      <div class="form">
+        <label class="field"><span class="lab">TU NOMBRE *</span><input id="name" placeholder="Nombre y apellido" autocomplete="name"></label>
+        <label class="field"><span class="lab">CORREO *</span><input id="email" type="email" placeholder="nombre@tucorreo.com" autocomplete="email"></label>
+        <label class="field full"><span class="lab">¿ALGO QUE QUIERAS ADELANTARNOS? (OPCIONAL)</span><textarea id="note" rows="2" placeholder="Tu web, tu objetivo…"></textarea></label>
+      </div>
+      <div id="pickBox" class="pick hidden" style="margin-top:16px"></div>
+      <div style="display:flex;align-items:center;gap:18px;margin-top:18px;flex-wrap:wrap">
+        <button class="btn" id="go" disabled>Confirmar reunión →</button>
+        <span class="err" id="err"></span>
+      </div>
+    </div>
+
+    <div id="done" class="ok hidden">
+      <div style="font-size:40px">✅</div>
+      <div class="big">¡Reunión agendada!</div>
+      <div class="when" id="doneWhen"></div>
+      <p style="color:rgba(10,16,20,.6);max-width:44ch;margin:0 auto 18px">Te enviamos la invitación a tu correo. Acéptala para que se añada a tu calendario, o añádela aquí con un clic:</p>
+      <a class="btn" id="gcal" href="#" target="_blank" rel="noopener">📅 Añadir a Google Calendar</a>
+    </div>
+  </div>
+</div>
+
+<footer class="wrap">Cupperlab · Mejoramos tu rentabilidad. · <a href="/" style="color:#0E8FB0;text-decoration:none">volver al inicio</a></footer>
+
+<script>
+(function(){
+  "use strict";
+  var DAYS = {{ days|tojson }};
+  var dayEl=document.getElementById("days"), slotEl=document.getElementById("slots");
+  var go=document.getElementById("go"), err=document.getElementById("err"), pickBox=document.getElementById("pickBox");
+  var sel={day:null,slot:null,label:""};
+
+  DAYS.forEach(function(d,i){
+    var b=document.createElement("div"); b.className="day"; b.setAttribute("data-i",i);
+    b.innerHTML='<div class="d">'+d.label.split(" ").slice(0,1)+'</div><div class="n">'+d.label.split(" ").slice(1).join(" ")+'</div>';
+    b.onclick=function(){ selectDay(i,b); }; dayEl.appendChild(b);
+  });
+  function selectDay(i,el){
+    [].forEach.call(dayEl.children,function(c){c.classList.remove("on");}); el.classList.add("on");
+    sel.day=i; sel.slot=null; renderSlots(DAYS[i]); check();
+  }
+  function renderSlots(d){
+    slotEl.innerHTML="";
+    d.slots.forEach(function(s){
+      var b=document.createElement("div"); b.className="slot"; b.textContent=s.label;
+      b.onclick=function(){ [].forEach.call(slotEl.children,function(c){c.classList.remove("on");}); b.classList.add("on"); sel.slot=s.value; sel.label=DAYS[sel.day].label+" · "+s.label; check(); };
+      slotEl.appendChild(b);
+    });
+  }
+  function check(){
+    var ok = sel.slot && document.getElementById("name").value.trim() && /.+@.+\..+/.test(document.getElementById("email").value.trim());
+    go.disabled=!ok;
+    if(sel.slot){ pickBox.classList.remove("hidden"); pickBox.innerHTML="Tu reunión: <b>"+sel.label+"</b> (30 min)"; }
+  }
+  ["name","email"].forEach(function(id){ document.getElementById(id).addEventListener("input",check); });
+  if(DAYS.length){ selectDay(0, dayEl.children[0]); }
+
+  go.addEventListener("click", async function(){
+    err.style.display="none";
+    if(!sel.slot){ err.textContent="Elige día y hora."; err.style.display="inline"; return; }
+    go.disabled=true; go.textContent="Agendando…";
+    try{
+      var r=await fetch("/api/book",{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({name:document.getElementById("name").value.trim(),email:document.getElementById("email").value.trim(),slot:sel.slot,note:document.getElementById("note").value.trim()})});
+      var d=await r.json();
+      if(!r.ok){ err.textContent=d.error||"No se pudo agendar."; err.style.display="inline"; go.disabled=false; go.textContent="Confirmar reunión →"; return; }
+      document.getElementById("picker").classList.add("hidden");
+      var done=document.getElementById("done"); done.classList.remove("hidden");
+      document.getElementById("doneWhen").textContent=d.when;
+      document.getElementById("gcal").href=d.gcal;
+      window.scrollTo({top:0,behavior:"smooth"});
+    }catch(e){ err.textContent="Error de conexión. Inténtalo de nuevo."; err.style.display="inline"; go.disabled=false; go.textContent="Confirmar reunión →"; }
+  });
+})();
+</script>
+</body>
+</html>

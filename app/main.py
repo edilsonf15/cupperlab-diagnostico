@@ -79,6 +79,7 @@ def _ctx() -> dict:
         "email": emailer.CUPPERLAB_EMAIL,
         "site": emailer.CUPPERLAB_SITE,
         "calendly": emailer.CUPPERLAB_CAL,
+        "agenda_url": (PUBLIC_BASE_URL + "/agenda") if PUBLIC_BASE_URL else "/agenda",
         "year": datetime.now().year,
     }
 
@@ -86,6 +87,40 @@ def _ctx() -> dict:
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
     return templates.TemplateResponse("index.html", {"request": request, **_ctx()})
+
+
+@app.get("/agenda", response_class=HTMLResponse)
+async def agenda(request: Request):
+    import booking  # noqa: PLC0415
+    return templates.TemplateResponse("agenda.html", {
+        "request": request, "days": booking.available_days(), **_ctx()})
+
+
+@app.post("/api/book")
+async def api_book(request: Request):
+    import booking  # noqa: PLC0415
+    if not _rate_ok(_client_ip(request)):
+        return JSONResponse({"error": "Demasiadas solicitudes. Intentalo mas tarde."}, status_code=429)
+    try:
+        body = await request.json()
+    except Exception:  # noqa: BLE001
+        return JSONResponse({"error": "Solicitud invalida."}, status_code=400)
+    name = (body.get("name") or "").strip()[:80]
+    email = (body.get("email") or "").strip()[:120]
+    slot = (body.get("slot") or "").strip()
+    note = (body.get("note") or "").strip()[:300]
+    if not name:
+        return JSONResponse({"error": "Falta tu nombre."}, status_code=400)
+    if not EMAIL_RE.match(email):
+        return JSONResponse({"error": "Necesitamos un correo valido."}, status_code=400)
+    inv = booking.build_invite(slot, name, email, emailer.CUPPERLAB_EMAIL, emailer.CUPPERLAB_PHONE, note)
+    if not inv:
+        return JSONResponse({"error": "Elige un hueco valido."}, status_code=400)
+    try:
+        await asyncio.to_thread(emailer.send_booking, email, name, inv, emailer.CUPPERLAB_PHONE)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[book:ERROR] {exc}")
+    return JSONResponse({"ok": True, "when": inv["when_txt"], "gcal": inv["gcal_link"]})
 
 
 @app.get("/reporte/{token}.pdf")
