@@ -622,7 +622,7 @@
     var worst=dims[0];
     if(worst && worst.score<55) probs.push(worst.name.toLowerCase()+" "+worst.score+"/100");
     var rt;
-    if(probs.length) rt=P("Lo más urgente para "+(r.domain||"tu web")+": ","Most urgent for "+(r.domain||"your site")+": ")+probs.slice(0,3).join("; ")+P(". Ahí es donde pierdes clientes que hoy se van con la competencia."," . That's where you lose customers who today go to your competitors.");
+    if(probs.length) rt=P("Lo más urgente para "+(r.domain||"tu web")+": ","Most urgent for "+(r.domain||"your site")+": ")+probs.slice(0,3).join("; ")+P(". Ahí es donde pierdes clientes que hoy se van con la competencia.",". That's where you lose customers who today go to your competitors.");
     else rt=score>=70?P("Tu base está bien; lo que falta es ganar la capa de IA antes que la competencia. El plan va en el informe.","Your foundation is solid; what's left is winning the AI layer before your competitors. The plan is in the report."):P("Hay puntos claros que corregir para que Google y la IA te prioricen. El detalle va en el informe.","There are clear things to fix so Google and AI prioritize you. The detail is in the report.");
     document.getElementById("resTitle").textContent=rt;
 
