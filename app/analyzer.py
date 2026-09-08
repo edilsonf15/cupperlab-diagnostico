@@ -919,30 +919,36 @@ def _vel_from_psi_full(pf: dict) -> int | None:
     return round(sum(vals) / len(vals)) if vals else None
 
 
-def _overall_score(cats: dict, psi_full: dict, security: dict) -> tuple[int, str]:
-    """Score global ponderando tecnico, on-page, GEO, velocidad y seguridad.
-    Velocidad y seguridad SI cuentan: dos webs distintas no pueden dar lo mismo."""
-    w = {"tecnico": 0.26, "onpage": 0.26, "geo": 0.24, "vel": 0.12, "sec": 0.12}
-    parts = [((cats.get("tecnico") or {}).get("score", 0), w["tecnico"]),
-             ((cats.get("onpage") or {}).get("score", 0), w["onpage"]),
-             ((cats.get("geo") or {}).get("score", 0), w["geo"])]
+def _overall_score(cats: dict, psi_full: dict, security: dict,
+                   ai_score: int | None = None) -> tuple[int, str]:
+    """Score global. La IA es un EJE PRINCIPAL: el reconocimiento real de la IA
+    (ai_score) y la preparacion para la IA (GEO) pesan casi el 40% juntos, asi la
+    nota refleja de verdad la visibilidad en IA y no queda inflada."""
+    # pesos pro-IA y exigentes (suman 1.0 con ai_score presente)
+    parts = [((cats.get("tecnico") or {}).get("score", 0), 0.17),
+             ((cats.get("onpage") or {}).get("score", 0), 0.15),
+             ((cats.get("geo") or {}).get("score", 0), 0.18)]
+    if isinstance(ai_score, (int, float)):
+        parts.append((ai_score, 0.20))
     vel = _vel_from_psi_full(psi_full)
     if vel is not None:
-        parts.append((vel, w["vel"]))
+        parts.append((vel, 0.15))
     sec = (security or {}).get("score")
     if isinstance(sec, (int, float)):
-        parts.append((sec, w["sec"]))
+        parts.append((sec, 0.15))
     tot = sum(pw for _, pw in parts)
     overall = round(sum(sv * pw for sv, pw in parts) / tot) if tot else 0
     return overall, _grade(overall)
 
 
 def finalize_score(data: dict) -> dict:
-    """Recalcula score/grade con la velocidad REAL (psi_full) que se adjunta
-    despues del analisis. main.py lo llama al terminar. Idempotente."""
+    """Recalcula score/grade con TODO ya presente (velocidad real + IA). main.py lo
+    llama al terminar. Idempotente."""
     cats = data.get("categories") or {}
     security = (data.get("signals") or {}).get("security") or {}
-    overall, grade = _overall_score(cats, data.get("psi_full") or {}, security)
+    ai = data.get("geo_ai") or {}
+    ai_score = ai.get("ai_score") if (ai.get("available") and not ai.get("error")) else None
+    overall, grade = _overall_score(cats, data.get("psi_full") or {}, security, ai_score)
     data["score"] = overall
     data["grade"] = grade
     return data
@@ -1216,19 +1222,9 @@ def apply_ai_to_result(data: dict, ai: dict | None) -> dict:
     if not (ai and ai.get("available") and not ai.get("error")):
         return data
 
-    cats = data["categories"]
-    geo = cats.get("geo", {})
-    if ai.get("ai_score") is not None and geo:
-        # las senales tecnicas reales (que varian por sitio) pesan 60%; la prueba a
-        # la IA (reconocimiento + recomendacion) 40%. Asi la nota discrimina de verdad.
-        geo["score"] = round(0.6 * geo["score"] + 0.4 * ai["ai_score"])
-        geo["ai"] = True
-        overall = round(0.35 * cats["tecnico"]["score"] +
-                        0.35 * cats["onpage"]["score"] +
-                        0.30 * geo["score"])
-        data["score"] = overall
-        data["grade"] = _grade(overall)
-
+    # El GEO se queda como HEURISTICO puro (preparacion de la web para la IA).
+    # El reconocimiento real de la IA (ai_score) es su PROPIA dimension y entra en
+    # el score global en finalize_score(). No se mezclan para no confundir.
     good = data.setdefault("findings_good", [])
     improve = data.setdefault("findings_improve", [])
     if ai.get("knows_brand"):
