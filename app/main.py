@@ -91,17 +91,10 @@ async def index(request: Request):
 
 @app.get("/agenda", response_class=HTMLResponse)
 async def agenda(request: Request):
-    import booking, gcal  # noqa: PLC0415
-    busy = []
-    if gcal.enabled():
-        try:
-            from datetime import timedelta as _td  # noqa: PLC0415
-            now = datetime.now(timezone.utc)
-            busy = await gcal.busy(now, now + _td(days=20))
-        except Exception as exc:  # noqa: BLE001
-            print(f"[agenda:busy] {exc}")
+    # Envuelve el Horario de citas de Google (disponibilidad real + Meet) con la
+    # marca Cupperlab. Si no hay embed configurado, usa nuestro selector propio.
     return templates.TemplateResponse("agenda.html", {
-        "request": request, "days": booking.available_days(busy), "realtime": gcal.enabled(), **_ctx()})
+        "request": request, "book_embed": emailer.GOOGLE_BOOK_EMBED, **_ctx()})
 
 
 @app.post("/api/book")
@@ -318,10 +311,9 @@ async def _build_and_send(data: dict, email: str, name: str, lead: dict, ai) -> 
     #    YA identificado (nombre, correo y su web analizada) a /agenda.
     from urllib.parse import urlencode  # noqa: PLC0415
     ctxd = _ctx()
-    if ctxd["calendly"]:
-        book_url = ctxd["calendly"]
-    else:
-        book_url = ctxd["agenda_url"] + "?" + urlencode({"n": name or "", "e": email or "", "d": domain or ""})
+    # El boton lleva a NUESTRA pagina /agenda (marca Cupperlab) que dentro incrusta
+    # el horario real de Google. Lleva al cliente ya identificado.
+    book_url = ctxd["agenda_url"] + "?" + urlencode({"n": name or "", "e": email or "", "d": domain or ""})
     email_html = templates.get_template("email_report.html").render(
         r=data, name=name or domain, report_url=report_url, book_url=book_url, **ctxd)
     pdf_name = f"Diagnostico_Cupperlab_{domain.replace('.', '_')}.pdf"

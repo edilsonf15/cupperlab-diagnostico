@@ -13,48 +13,29 @@
   body{margin:0;background:#F7F9FB;font-family:'Plus Jakarta Sans',system-ui,sans-serif;color:#0A1014;-webkit-font-smoothing:antialiased;overflow-x:hidden}
   .mono{font-family:'JetBrains Mono',monospace}.sora{font-family:'Sora',sans-serif}
   a{color:#0A1014}
-  .wrap{max-width:860px;margin:0 auto;padding:0 clamp(16px,5vw,24px)}
+  .wrap{max-width:820px;margin:0 auto;padding:0 clamp(16px,5vw,24px)}
   header{background:#0A1014;color:#F7F9FB;position:sticky;top:0;z-index:20}
   .hd{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 0}
   .hd img{height:26px}
   .hphone{display:flex;align-items:center;gap:10px;text-decoration:none;color:#fff}
   .hphone .ic{width:36px;height:36px;border-radius:50%;background:#F46434;display:flex;align-items:center;justify-content:center}
-  .hero{padding:clamp(40px,7vw,68px) 0 20px;text-align:center}
+  .hero{padding:clamp(38px,7vw,60px) 0 14px;text-align:center}
   .eyebrow{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.16em;color:#0E8FB0;margin-bottom:14px}
-  h1{font-family:'Sora',sans-serif;font-weight:800;font-size:clamp(30px,5vw,46px);line-height:1.08;letter-spacing:-.03em;margin:0 0 16px}
+  h1{font-family:'Sora',sans-serif;font-weight:800;font-size:clamp(28px,5vw,44px);line-height:1.08;letter-spacing:-.03em;margin:0 0 16px}
   h1 .o{color:#1CBCE4}
-  .lead{font-size:17px;line-height:1.6;color:rgba(10,16,20,.6);max-width:52ch;margin:0 auto}
-  .card{background:#fff;border:1px solid rgba(10,16,20,.09);border-radius:18px;box-shadow:0 16px 44px rgba(10,16,20,.07);padding:clamp(22px,4vw,34px);margin:26px 0 60px}
-  .step{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.12em;color:#0E8FB0;margin:0 0 12px;display:flex;align-items:center;gap:8px}
-  .step b{width:20px;height:20px;border-radius:6px;background:#1CBCE4;color:#0A1014;display:flex;align-items:center;justify-content:center;font-size:11px}
-  .days{display:flex;gap:9px;overflow-x:auto;padding-bottom:6px;margin-bottom:20px;scrollbar-width:thin}
-  .day{flex:0 0 auto;border:1.5px solid rgba(10,16,20,.14);background:#fff;border-radius:12px;padding:11px 15px;cursor:pointer;text-align:center;transition:all .15s;min-width:96px}
-  .day:hover{border-color:#1CBCE4}
-  .day.on{border-color:#1CBCE4;background:#1CBCE4;color:#0A1014}
-  .day .d{font-family:'Sora',sans-serif;font-weight:600;font-size:13.5px}
-  .day .n{font-size:11px;color:rgba(10,16,20,.5)}.day.on .n{color:rgba(10,16,20,.7)}
-  .slots{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:9px;margin-bottom:6px}
-  .slot{border:1.5px solid rgba(10,16,20,.14);background:#fff;border-radius:10px;padding:11px 0;text-align:center;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:500;transition:all .12s}
-  .slot:hover{border-color:#1CBCE4}
-  .slot.on{border-color:#0A1014;background:#0A1014;color:#fff}
-  .form{margin-top:24px;display:grid;grid-template-columns:1fr 1fr;gap:16px}
-  .field{display:flex;flex-direction:column;gap:7px}
-  .field.full{grid-column:1/-1}
-  .lab{font-family:'JetBrains Mono',monospace;font-size:11px;color:rgba(10,16,20,.55)}
-  input,textarea{background:#F7F9FB;border:1px solid rgba(10,16,20,.14);border-radius:10px;padding:13px 14px;font:inherit;font-size:16px;width:100%}
-  input:focus,textarea:focus{outline:none;border-color:#1CBCE4;box-shadow:0 0 0 3px rgba(28,188,228,.2)}
-  .btn{display:inline-flex;align-items:center;gap:10px;background:#1CBCE4;color:#0A1014;border:none;border-radius:11px;font-family:'Sora',sans-serif;font-weight:700;font-size:16px;padding:15px 28px;cursor:pointer;transition:background .16s}
-  .btn:hover{background:#0A1014;color:#fff}
-  .btn:disabled{opacity:.5;cursor:default}
-  .pick{background:#F1F5F7;border-radius:10px;padding:12px 16px;font-size:14px;color:#12324a;margin-top:4px}
-  .pick b{color:#0A1014}
-  .err{color:#C4551F;font-size:13px;font-family:'JetBrains Mono',monospace;display:none}
-  .ok{text-align:center;padding:14px 0}
-  .ok .big{font-family:'Sora',sans-serif;font-weight:800;font-size:26px;color:#1f9d6b;margin:8px 0}
-  .ok .when{font-size:19px;color:#0f9bc2;font-weight:700;margin:6px 0 18px}
+  .lead{font-size:16.5px;line-height:1.6;color:rgba(10,16,20,.6);max-width:56ch;margin:0 auto}
+  .card{background:#fff;border:1px solid rgba(10,16,20,.09);border-radius:18px;box-shadow:0 16px 44px rgba(10,16,20,.07);padding:clamp(16px,3vw,22px);margin:22px 0 20px}
+  .who{display:flex;align-items:center;gap:12px;background:#F1F5F7;border-radius:12px;padding:12px 16px;margin-bottom:16px}
+  .who .ini{width:36px;height:36px;border-radius:50%;background:#1CBCE4;color:#0A1014;display:flex;align-items:center;justify-content:center;font-family:'Sora',sans-serif;font-weight:700;flex-shrink:0}
+  .who .t{font-size:14px;color:#12324a}
+  .who a{color:#0E8FB0}
+  .embed{border:0;width:100%;min-height:660px;border-radius:12px;background:#fff}
+  .feats{display:flex;justify-content:center;flex-wrap:wrap;gap:10px 22px;margin:0 0 34px;color:rgba(10,16,20,.6);font-size:13px}
+  .feats span{display:inline-flex;align-items:center;gap:7px}
+  .feats .d{width:7px;height:7px;border-radius:50%;background:#1f9d6b}
+  .fb{text-align:center;font-size:13px;color:rgba(10,16,20,.55);margin:6px 0 0}
   .hidden{display:none!important}
-  footer{color:rgba(10,16,20,.5);font-size:12px;text-align:center;padding:24px 0 40px}
-  @media(max-width:560px){.form{grid-template-columns:1fr}}
+  footer{color:rgba(10,16,20,.5);font-size:12px;text-align:center;padding:22px 0 40px}
 </style>
 </head>
 <body>
@@ -65,40 +46,28 @@
 
 <div class="wrap">
   <div class="hero">
-    <div class="eyebrow">◆ 30 MINUTOS · SIN COMPROMISO</div>
+    <div class="eyebrow">◆ 30 MINUTOS · CON GOOGLE MEET</div>
     <h1>Agenda tu sesión <span class="o">de diagnóstico</span></h1>
-    <p class="lead">Sin presentación corporativa. Abrimos tu web contigo, te decimos <b style="color:#0A1014">qué mover primero</b> para que Google y la IA te recomienden, y respondemos tus dudas. 30 minutos, sin compromiso.</p>
+    <p class="lead">Sin presentación corporativa. Abrimos tu web contigo, te decimos <b style="color:#0A1014">qué mover primero</b> para que Google y la IA te recomienden, y respondemos tus dudas. Elige el hueco que mejor te venga.</p>
   </div>
 
-  <div class="card" id="card">
-    <div id="picker">
-      <div id="who" class="pick hidden" style="margin-bottom:20px;display:flex;align-items:center;gap:12px">
-        <span style="width:34px;height:34px;border-radius:50%;background:#1CBCE4;color:#0A1014;display:flex;align-items:center;justify-content:center;font-family:'Sora',sans-serif;font-weight:700;flex-shrink:0" id="whoIni">·</span>
-        <span id="whoTxt"></span>
-      </div>
-      <div class="step"><b>1</b> ELIGE EL DÍA</div>
-      <div class="days" id="days"></div>
-      <div class="step"><b>2</b> ELIGE LA HORA</div>
-      <div class="slots" id="slots"></div>
+  <div class="feats">
+    <span><span class="d"></span>Videollamada de Google Meet</span>
+    <span><span class="d"></span>Confirmación al instante</span>
+    <span><span class="d"></span>Sin compromiso</span>
+  </div>
 
-      <div class="form" id="idFields">
-        <label class="field"><span class="lab">TU NOMBRE *</span><input id="name" placeholder="Nombre y apellido" autocomplete="name"></label>
-        <label class="field"><span class="lab">CORREO *</span><input id="email" type="email" placeholder="nombre@tucorreo.com" autocomplete="email"></label>
-      </div>
-      <div id="pickBox" class="pick hidden" style="margin-top:16px"></div>
-      <div style="display:flex;align-items:center;gap:18px;margin-top:18px;flex-wrap:wrap">
-        <button class="btn" id="go" disabled>Confirmar reunión →</button>
-        <span class="err" id="err"></span>
-      </div>
+  <div class="card">
+    <div id="who" class="who hidden">
+      <span class="ini" id="whoIni">·</span>
+      <span class="t" id="whoTxt"></span>
     </div>
-
-    <div id="done" class="ok hidden">
-      <div style="font-size:40px">✅</div>
-      <div class="big">¡Reunión agendada!</div>
-      <div class="when" id="doneWhen"></div>
-      <p style="color:rgba(10,16,20,.6);max-width:44ch;margin:0 auto 18px">Te enviamos la invitación a tu correo. Acéptala para que se añada a tu calendario, o añádela aquí con un clic:</p>
-      <a class="btn" id="gcal" href="#" target="_blank" rel="noopener">📅 Añadir a Google Calendar</a>
-    </div>
+    {% if book_embed %}
+    <iframe class="embed" src="{{ book_embed }}" title="Reserva tu cita" loading="lazy"></iframe>
+    <p class="fb">¿No carga el calendario? <a href="{{ book_embed }}" target="_blank" rel="noopener" style="color:#0E8FB0">ábrelo aquí →</a></p>
+    {% else %}
+    <p class="fb" style="padding:30px 0">El calendario no está configurado todavía. Escríbenos a <a href="mailto:{{ email }}">{{ email }}</a> o llama al {{ phone }}.</p>
+    {% endif %}
   </div>
 </div>
 
@@ -107,67 +76,14 @@
 <script>
 (function(){
   "use strict";
-  var DAYS = {{ days|tojson }};
-  var dayEl=document.getElementById("days"), slotEl=document.getElementById("slots");
-  var go=document.getElementById("go"), err=document.getElementById("err"), pickBox=document.getElementById("pickBox");
-  var sel={day:null,slot:null,label:""};
-
-  DAYS.forEach(function(d,i){
-    var b=document.createElement("div"); b.className="day"; b.setAttribute("data-i",i);
-    b.innerHTML='<div class="d">'+d.label.split(" ").slice(0,1)+'</div><div class="n">'+d.label.split(" ").slice(1).join(" ")+'</div>';
-    b.onclick=function(){ selectDay(i,b); }; dayEl.appendChild(b);
-  });
-  function selectDay(i,el){
-    [].forEach.call(dayEl.children,function(c){c.classList.remove("on");}); el.classList.add("on");
-    sel.day=i; sel.slot=null; renderSlots(DAYS[i]); check();
-  }
-  function renderSlots(d){
-    slotEl.innerHTML="";
-    d.slots.forEach(function(s){
-      var b=document.createElement("div"); b.className="slot"; b.textContent=s.label;
-      b.onclick=function(){ [].forEach.call(slotEl.children,function(c){c.classList.remove("on");}); b.classList.add("on"); sel.slot=s.value; sel.label=DAYS[sel.day].label+" · "+s.label; check(); };
-      slotEl.appendChild(b);
-    });
-  }
-  function check(){
-    var ok = sel.slot && document.getElementById("name").value.trim() && /.+@.+\..+/.test(document.getElementById("email").value.trim());
-    go.disabled=!ok;
-    if(sel.slot){ pickBox.classList.remove("hidden"); pickBox.innerHTML="Tu reunión: <b>"+sel.label+"</b> (30 min)"; }
-  }
-  ["name","email"].forEach(function(id){ document.getElementById(id).addEventListener("input",check); });
-  if(DAYS.length){ selectDay(0, dayEl.children[0]); }
-
-  // El cliente llega desde el correo YA identificado (hizo el analisis): prefill.
   var qp=new URLSearchParams(location.search);
   var pn=(qp.get("n")||"").trim(), pe=(qp.get("e")||"").trim(), pd=(qp.get("d")||"").trim();
-  if(pn) document.getElementById("name").value=pn;
-  if(pe) document.getElementById("email").value=pe;
-  window.__dom=pd;
-  if(pn && pe){
-    // Ya sabemos quien es: ocultamos los campos y mostramos un saludo
-    document.getElementById("idFields").classList.add("hidden");
+  if(pn){
     var who=document.getElementById("who"); who.classList.remove("hidden");
     document.getElementById("whoIni").textContent=(pn[0]||"·").toUpperCase();
-    document.getElementById("whoTxt").innerHTML="Agendas como <b>"+pn.replace(/</g,"")+"</b>"+(pd?' · sobre <b>'+pd.replace(/</g,"")+"</b>":"")+"<br><span style='color:rgba(10,16,20,.5);font-size:12.5px'>"+pe.replace(/</g,"")+" · ¿no eres tú? <a href='/agenda' style='color:#0E8FB0'>cambiar</a></span>";
-    check();
+    var t="Hola <b>"+pn.replace(/</g,"")+"</b>"+(pd?", reservamos tu sesión sobre <b>"+pd.replace(/</g,"")+"</b>":"")+". Elige tu hueco 👇";
+    document.getElementById("whoTxt").innerHTML=t;
   }
-
-  go.addEventListener("click", async function(){
-    err.style.display="none";
-    if(!sel.slot){ err.textContent="Elige día y hora."; err.style.display="inline"; return; }
-    go.disabled=true; go.textContent="Agendando…";
-    try{
-      var r=await fetch("/api/book",{method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({name:document.getElementById("name").value.trim(),email:document.getElementById("email").value.trim(),slot:sel.slot,domain:window.__dom||""})});
-      var d=await r.json();
-      if(!r.ok){ err.textContent=d.error||"No se pudo agendar."; err.style.display="inline"; go.disabled=false; go.textContent="Confirmar reunión →"; return; }
-      document.getElementById("picker").classList.add("hidden");
-      var done=document.getElementById("done"); done.classList.remove("hidden");
-      document.getElementById("doneWhen").textContent=d.when;
-      document.getElementById("gcal").href=d.gcal;
-      window.scrollTo({top:0,behavior:"smooth"});
-    }catch(e){ err.textContent="Error de conexión. Inténtalo de nuevo."; err.style.display="inline"; go.disabled=false; go.textContent="Confirmar reunión →"; }
-  });
 })();
 </script>
 </body>
