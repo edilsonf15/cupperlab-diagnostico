@@ -42,6 +42,10 @@ LEADS_FILE = DATA_DIR / "leads.jsonl"
 REPORTS_DIR = DATA_DIR / "reports"
 REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "").rstrip("/")
+# En el correo los enlaces DEBEN ser absolutos. Si la variable no apunta a un
+# dominio publico (vacia o localhost), usamos el dominio real de produccion.
+if not PUBLIC_BASE_URL or "localhost" in PUBLIC_BASE_URL or "127.0.0.1" in PUBLIC_BASE_URL:
+    PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL_FALLBACK", "https://analisis.cupperlab.com").rstrip("/")
 
 RATE_LIMIT = int(os.getenv("RATE_LIMIT_PER_HOUR", "30"))
 ANALYSIS_HARD_TIMEOUT = float(os.getenv("ANALYSIS_HARD_TIMEOUT", "50"))
