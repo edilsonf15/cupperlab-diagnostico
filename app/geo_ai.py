@@ -278,7 +278,8 @@ def _parse_companies(body: str) -> list[dict]:
         name = re.split(r"\s*[|\-–—:]\s*", line)[0].strip()
         if domain and domain in name:
             name = name.replace(domain, "").strip(" |-–—:")
-        name = re.sub(r"\(.*?\)", "", name).strip(" .|-–—:")
+        name = re.sub(r"\*+", "", name)                # quita ** de markdown
+        name = re.sub(r"\(.*?\)", "", name).strip(" .|-–—:*_`")
         if not name or len(name) > 48:
             continue
         key = name.lower()
