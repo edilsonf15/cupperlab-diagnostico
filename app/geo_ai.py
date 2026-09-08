@@ -235,6 +235,21 @@ _PREAMBLES = [
 _PRE_RE = re.compile(r"^(?:" + "|".join(_PREAMBLES) + r")+", re.I)
 
 
+def _clean_zona(s: str) -> str:
+    """Deja la zona como 'Ciudad, País' o 'País', sin parentesis ni clausulas
+    ('Colombia (con expansión a Centroamérica...)' -> 'Colombia')."""
+    s = _strip_cites(s or "")
+    s = re.sub(r"\(.*?\)", "", s)                    # (con expansión...)
+    s = re.split(r"(?i)\s+(?:con\s+expansi|con\s+alcance|para\s+todo|y\s+alrededores|"
+                 r"y\s+resto|;|·|–|—)", s)[0]
+    s = re.sub(r"\s+", " ", s).strip(" .,-")
+    # como mucho 'ciudad, país'
+    parts = [p.strip() for p in s.split(",") if p.strip()]
+    if len(parts) > 2:
+        parts = [parts[0], parts[-1]]
+    return ", ".join(parts)[:50]
+
+
 def _clean_desc(s: str) -> str:
     """Limpia una descripcion de la IA: quita markdown, citas, preambulos del
     modelo ('he podido acceder...', 'en una o dos frases...') y palabras repetidas."""
@@ -295,7 +310,8 @@ def _parse_companies(body: str) -> list[dict]:
     """Parsea TODAS las empresas de la lista (incluida la marca si aparece).
     Formato esperado por linea: 'Nombre | dominio.com'. Devuelve {name, domain}."""
     out, seen = [], set()
-    for line in (body or "").replace("\xa0", " ").splitlines():
+    body = "".join(" " if ord(ch) in (0xa0,0x202f,0x2009,0x2007,0x2008,0x2002,0x2003,0x2060) else ch for ch in (body or ""))  # normaliza espacios raros
+    for line in body.splitlines():
         line = re.sub(r"^\s*\d+[\.\)]\s*", "", line).strip(" .-*•\t")
         if not line or len(line) < 3:
             continue
@@ -468,8 +484,9 @@ async def run_ai_geo(domain: str, meta: dict) -> dict | None:
                 f"EXACTAMENTE en este formato, sin nada más:\n"
                 f"SECTOR: <sector concreto, p. ej. 'clínica de acupuntura', 'bufete de abogados laboralistas', "
                 f"'agencia de marketing digital', 'centro de estética'>\n"
-                f"ZONA: <ciudad y país donde presta servicio, p. ej. 'Alcobendas, España' o 'Medellín, Colombia'; "
-                f"si no hay ciudad clara, pon solo el país>\n"
+                f"ZONA: <SOLO ciudad y país donde presta servicio, p. ej. 'Alcobendas, España' o 'Medellín, "
+                f"Colombia'; si no hay ciudad clara, pon solo el país. NADA de parentesis, 'con expansión a', "
+                f"'y alrededores' ni explicaciones>\n"
                 f"BUSQUEDAS: <exactamente 3 búsquedas, separadas por el carácter |, que un cliente de esa ZONA "
                 f"escribiría en Google o en un asistente de IA para encontrar ESE tipo de servicio SIN conocer la "
                 f"marca; incluye la ciudad o zona en cada una>\n"
@@ -515,7 +532,7 @@ async def run_ai_geo(domain: str, meta: dict) -> dict | None:
                 if m_s:
                     sector = _strip_cites(m_s.group(1))[:60]; in_busq = False
                 elif m_z:
-                    zona = _strip_cites(m_z.group(1))[:60]; in_busq = False
+                    zona = _clean_zona(m_z.group(1)); in_busq = False
                 elif m_b:
                     in_busq = True
                     rest = m_b.group(1)
@@ -545,7 +562,9 @@ async def run_ai_geo(domain: str, meta: dict) -> dict | None:
             if not cat_queries:               # reserva coherente (mostrada = preguntada)
                 cat_queries = [f"{sec_txt} en {place}"]
 
-            # Ronda 2: por cada búsqueda, ¿aparece la marca? ¿a quién recomienda la IA?
+            # Ronda 2: por cada búsqueda, ¿a quién recomienda la IA? (SIN nombrar la
+            # marca, para no inducir que la incluya: el "apareces" lo comprobamos
+            # nosotros parseando su lista. Antes se colaba un falso positivo.)
             def _q_cat(search: str) -> str:
                 return (
                     f"Usa búsqueda web. Un cliente en {place} busca en un asistente de IA: \"{search}\". "
@@ -554,8 +573,7 @@ async def run_ai_geo(domain: str, meta: dict) -> dict | None:
                     f"Reglas estrictas: (1) solo negocios REALES que existan y tengan web propia; (2) el 'Nombre' es "
                     f"el nombre de la empresa, NO una categoría, servicio, ciudad ni término genérico (nada de "
                     f"'Acupuntura', 'Clínica', 'Fisioterapia Medellín'); (3) si no encuentras 4-5 reales, pon solo "
-                    f"las que sean reales. Al final, en una línea aparte, escribe 'INCLUIDA: SI' si entre las "
-                    f"recomendadas está \"{brand}\" ({domain}), o 'INCLUIDA: NO'."
+                    f"las que sean reales. No añadas explicaciones ni una línea de conclusión."
                 )
             # Ficha de Google Business: se busca BIEN — por NOMBRE+zona y por DOMINIO
             # (muchos negocios la tienen aunque el sitio no la enlace).
