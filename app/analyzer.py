@@ -174,6 +174,10 @@ def parse_home(html: str, base_url: str) -> dict:
 
     favicon = bool(soup.find("link", attrs={"rel": re.compile("icon", re.I)}))
     viewport = meta(name="viewport")
+    # Meta robots del home: noindex/nofollow aquí es CRÍTICO (te saca de Google/IA)
+    meta_robots = (meta(name="robots") or "").lower()
+    robots_noindex = "noindex" in meta_robots
+    robots_nofollow = "nofollow" in meta_robots
 
     text = soup.get_text(" ", strip=True)
     word_count = len(text.split())
@@ -204,6 +208,9 @@ def parse_home(html: str, base_url: str) -> dict:
         "canonical": bool(canonical),
         "favicon": favicon,
         "viewport": bool(viewport),
+        "meta_robots": meta_robots,
+        "robots_noindex": robots_noindex,
+        "robots_nofollow": robots_nofollow,
         "og_title": meta(prop="og:title"),
         "og_image": meta(prop="og:image"),
         "og_desc": meta(prop="og:description"),
@@ -991,6 +998,9 @@ def _score(res: Result) -> None:
     speed = 12 if ht < 0.6 else (9 if ht < 1.2 else (6 if ht < 2 else (3 if ht < 3.5 else 0)))
     add(tecnico, "speed", "Tiempo de respuesta del servidor", speed, 12, ht < 1.2, f"{ht}s")
     add(tecnico, "robots", "Archivo robots.txt", 8 if s["robots"] else 0, 8, s["robots"])
+    idx_ok = not m.get("robots_noindex")
+    add(tecnico, "indexable", "La web permite indexarse (no 'noindex')", 10 if idx_ok else 0, 10, idx_ok,
+        "Indexable por Google y la IA" if idx_ok else "META ROBOTS = noindex: NO apareces en Google ni en la IA")
     # Sitemap: presente Y anunciado en robots.txt (lo ideal) vale mas
     if s["sitemap"] and s.get("sitemap_in_robots"):
         sm_pts, sm_ok, sm_det = 10, True, "presente y enlazado en robots.txt"
@@ -1098,6 +1108,11 @@ def _score(res: Result) -> None:
     res.grade = grade
 
     # ---------- Hallazgos en lenguaje de cliente ----------
+    if m.get("robots_noindex"):
+        improve.insert(0, {"title": "Tu web se está bloqueando a sí misma (noindex)",
+                           "detail": "La etiqueta meta robots dice 'noindex': le pides a Google y a la IA que NO "
+                                     "te muestren. Es lo más grave que puede tener una web; hay que quitarlo ya.",
+                           "severity": "alto"})
     if s["https"]:
         good.append("Tu web usa conexion segura (HTTPS).")
     else:
