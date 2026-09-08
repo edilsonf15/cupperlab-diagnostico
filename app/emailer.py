@@ -15,7 +15,7 @@ from email.mime.text import MIMEText
 CUPPERLAB_PHONE = os.getenv("CUPPERLAB_PHONE", "+34 600 000 000")
 CUPPERLAB_EMAIL = os.getenv("CUPPERLAB_EMAIL", "soporte@cupperlab.com")
 CUPPERLAB_SITE = os.getenv("CUPPERLAB_SITE", "https://cupperlab.com")
-CUPPERLAB_CAL = os.getenv("CUPPERLAB_CALENDLY", "")
+CUPPERLAB_CAL = os.getenv("CUPPERLAB_CALENDLY", "https://calendar.app.google/eeUCgZDjU7RJhf2G6")
 
 
 def smtp_configured() -> bool:
