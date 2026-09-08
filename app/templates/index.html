@@ -645,7 +645,7 @@
     if(!phone){ err.textContent=P("Falta tu teléfono.","Your phone is missing."); err.style.display="inline"; return; }
     if(!document.getElementById("consent").checked){ err.textContent=P("Marca la casilla para que podamos analizar tu web.","Tick the box so we can analyze your site."); err.style.display="inline"; return; }
 
-    var payload={ url:url, email:email, name:name, phone:phone, company:"" };
+    var payload={ url:url, email:email, name:name, phone:phone, company:"", lang:LANG };
     submitBtn.disabled=true; submitBtn.textContent=P("Analizando…","Analyzing…");
     startLoading(url.replace(/^https?:\/\//,"").replace(/\/$/,""));
 

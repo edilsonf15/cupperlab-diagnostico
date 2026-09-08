@@ -181,6 +181,7 @@ async def api_analyze(request: Request):
     email = (body.get("email") or "").strip()[:120]
     phone = (body.get("phone") or "").strip()[:40]
     company = (body.get("company") or "").strip()[:120]
+    lang = "en" if (body.get("lang") or "es").strip().lower().startswith("en") else "es"
 
     if not url:
         return JSONResponse({"error": "Escribe la direccion de tu web."}, status_code=400)
@@ -191,8 +192,8 @@ async def api_analyze(request: Request):
     _jobs[job_id] = {"progress": 3, "stage": "Conectando con tu web...", "done": False,
                      "error": None, "result": None, "ts": time.time()}
     lead = {"ts": datetime.now(timezone.utc).isoformat(), "name": name, "email": email,
-            "phone": phone, "company": company, "ip": ip}
-    task = asyncio.create_task(_run_job(job_id, url, email, name, lead))
+            "phone": phone, "company": company, "ip": ip, "lang": lang}
+    task = asyncio.create_task(_run_job(job_id, url, email, name, lead, lang))
     _bg_tasks.add(task)
     task.add_done_callback(_bg_tasks.discard)
     return JSONResponse({"job_id": job_id})
@@ -209,7 +210,7 @@ async def api_status(job_id: str):
     })
 
 
-async def _run_job(job_id: str, url: str, email: str, name: str, lead: dict) -> None:
+async def _run_job(job_id: str, url: str, email: str, name: str, lead: dict, lang: str = "es") -> None:
     """Analisis REAL por etapas, con progreso. El mismo resultado que ve la pantalla
     es el que va al correo (mismo dict de datos)."""
     try:
@@ -220,6 +221,7 @@ async def _run_job(job_id: str, url: str, email: str, name: str, lead: dict) -> 
             _jobs[job_id].update(done=True, error=res.error or "No pudimos acceder a la web.")
             return
         data = result_to_dict(res)
+        data["lang"] = lang
         domain = data.get("domain", "")
         final_url = data.get("final_url") or f"https://{domain}"
         _set(job_id, 26, "Analizando titulos, textos e imagenes...")
