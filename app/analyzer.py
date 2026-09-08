@@ -1222,6 +1222,16 @@ def apply_ai_to_result(data: dict, ai: dict | None) -> dict:
     if not (ai and ai.get("available") and not ai.get("error")):
         return data
 
+    # La IA entró al sitio y leyó la ubicación real (zona/ciudad): si trae país,
+    # corrige el del crawl para que TODO el informe sea coherente.
+    if ai.get("country"):
+        meta = data.setdefault("meta", {})
+        meta["country"] = ai["country"]
+        if ai.get("gl"):
+            meta["gl"] = ai["gl"]
+        if ai.get("zona"):
+            meta["zona"] = ai["zona"]
+
     # El GEO se queda como HEURISTICO puro (preparacion de la web para la IA).
     # El reconocimiento real de la IA (ai_score) es su PROPIA dimension y entra en
     # el score global en finalize_score(). No se mezclan para no confundir.
