@@ -43,6 +43,23 @@
   .langsel svg{display:block;width:27px;height:18px;border-radius:3px}
   .soc{width:42px;height:42px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:#F7F9FB;background:rgba(247,249,251,0.06);border:1px solid rgba(247,249,251,0.14);transition:background .16s,color .16s,transform .16s,border-color .16s}
   .soc:hover{background:#1CBCE4;color:#0A1014;border-color:#1CBCE4;transform:translateY(-3px)}
+  .legal-lnk{background:none;border:none;padding:0;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:11px;color:rgba(247,249,251,0.5);transition:color .15s}
+  .legal-lnk:hover{color:#1CBCE4}
+  .modal-ov{position:fixed;inset:0;z-index:60;background:rgba(7,11,14,0.7);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:20px;opacity:0;transition:opacity .2s ease}
+  .modal-ov.show{opacity:1}
+  .modal-card{background:#fff;color:#0A1014;border-radius:16px;max-width:640px;width:100%;max-height:86vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 30px 80px rgba(7,11,14,0.5);transform:translateY(12px);transition:transform .22s ease}
+  .modal-ov.show .modal-card{transform:none}
+  .modal-head{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:22px 26px;border-bottom:1px solid #eef1f4}
+  .modal-head h3{font-family:'Sora',sans-serif;font-weight:600;font-size:20px;margin:0;letter-spacing:-0.01em}
+  .modal-x{background:#F1F5F7;border:none;width:34px;height:34px;border-radius:50%;cursor:pointer;font-size:18px;color:#5a6675;flex-shrink:0;transition:background .15s}
+  .modal-x:hover{background:#e2e8ec}
+  .modal-body{padding:22px 26px 28px;overflow-y:auto;font-size:14px;line-height:1.65;color:#3a4655}
+  .modal-body h4{font-family:'Sora',sans-serif;font-size:14.5px;color:#12324a;margin:18px 0 6px}
+  .modal-body h4:first-child{margin-top:0}
+  .modal-body p{margin:0 0 10px}
+  .modal-body a{color:#0f9bc2}
+  .modal-body ul{margin:0 0 10px;padding-left:18px}
+  .modal-body li{margin:3px 0}
   @media(max-width:640px){.hphone span span.mono{display:none!important}.hphone .sora{font-size:14px!important}header .wrap{padding-left:16px!important;padding-right:16px!important}}
   @media(max-width:430px){.htxt{display:none!important}.langsel svg{width:24px;height:16px}}
   .hidden{display:none!important}
@@ -325,12 +342,22 @@
   <div class="wrap" style="padding:18px clamp(16px,5vw,24px) 30px;border-top:1px solid rgba(247,249,251,0.08);display:flex;flex-wrap:wrap;gap:12px 22px;justify-content:space-between;align-items:center">
     <span class="mono" style="font-size:11px;color:rgba(247,249,251,0.4)">© 2026 Cupperlab · <span data-i18n="footer_rights">Todos los derechos reservados.</span></span>
     <span class="mono" style="font-size:11px;display:flex;flex-wrap:wrap;gap:6px 16px">
-      <a href="https://cupperlab.com/aviso-legal" target="_blank" rel="noopener" data-i18n="footer_l1" style="color:rgba(247,249,251,0.5);text-decoration:none">Aviso legal</a>
-      <a href="https://cupperlab.com/politica-de-privacidad" target="_blank" rel="noopener" data-i18n="footer_l2" style="color:rgba(247,249,251,0.5);text-decoration:none">Privacidad</a>
-      <a href="https://cupperlab.com/politica-de-cookies" target="_blank" rel="noopener" data-i18n="footer_l3" style="color:rgba(247,249,251,0.5);text-decoration:none">Cookies</a>
+      <button type="button" class="legal-lnk" data-legal="aviso" data-i18n="footer_l1">Aviso legal</button>
+      <button type="button" class="legal-lnk" data-legal="privacidad" data-i18n="footer_l2">Privacidad</button>
+      <button type="button" class="legal-lnk" data-legal="cookies" data-i18n="footer_l3">Cookies</button>
     </span>
   </div>
 </footer>
+
+<div id="legalModal" class="modal-ov hidden" role="dialog" aria-modal="true">
+  <div class="modal-card">
+    <div class="modal-head">
+      <h3 id="legalTitle"></h3>
+      <button type="button" class="modal-x" id="legalClose" aria-label="Cerrar">✕</button>
+    </div>
+    <div class="modal-body" id="legalBody"></div>
+  </div>
+</div>
 
 <script>
 (function(){
@@ -684,6 +711,67 @@
     results.classList.add("hidden"); formBlock.classList.remove("hidden");
     err.style.display="none"; document.getElementById("motor").scrollIntoView({behavior:"smooth"});
   });
+
+  /* ============ modales legales ============ */
+  var ENTITY='PUBLICIDAD DIGITAL MULTIMEDIA INTERNACIONAL, S.L.U. ("Cupperlab") · NIF B-87580866 · Calle Zurbano 23, Bajo Dcha, 28010 Madrid (España) · +34 91 495 2585 · <a href="mailto:dpo@cupperlab.com">dpo@cupperlab.com</a>';
+  var LEGAL={
+    aviso:{
+      es:{title:"Aviso legal",html:
+        '<h4>Titular</h4><p>'+ENTITY+'</p>'+
+        '<p>Inscrita en el Registro Mercantil de Madrid (Tomo 34.799, Folio 189, Sección 8ª, Hoja M-625954). Representante: D. Juan José Santana Pérez.</p>'+
+        '<h4>Objeto</h4><p>Este sitio (<b>analisis.cupperlab.com</b>) es una herramienta gratuita de diagnóstico de visibilidad en Google y en la IA. El acceso y uso es libre y gratuito, y no genera relación comercial alguna por sí mismo.</p>'+
+        '<h4>Propiedad intelectual</h4><p>Los contenidos, la marca y el software de este sitio pertenecen a Cupperlab o a sus licenciantes. No se permite su reproducción sin autorización.</p>'+
+        '<h4>Responsabilidad</h4><p>El diagnóstico se genera con datos medidos en vivo y tiene carácter orientativo. Cupperlab no garantiza la disponibilidad continua del servicio ni se responsabiliza del uso que se haga de los resultados.</p>'},
+      en:{title:"Legal notice",html:
+        '<h4>Owner</h4><p>'+ENTITY+'</p>'+
+        '<p>Registered at the Madrid Commercial Registry (Vol. 34,799, Sheet 189, Section 8, Page M-625954). Representative: Mr. Juan José Santana Pérez.</p>'+
+        '<h4>Purpose</h4><p>This site (<b>analisis.cupperlab.com</b>) is a free tool to diagnose your visibility on Google and AI. Access and use are free and do not create any commercial relationship on their own.</p>'+
+        '<h4>Intellectual property</h4><p>The contents, brand and software of this site belong to Cupperlab or its licensors. Reproduction without authorization is not permitted.</p>'+
+        '<h4>Liability</h4><p>The diagnosis is generated from data measured live and is indicative only. Cupperlab does not guarantee continuous availability nor accepts liability for the use made of the results.</p>'}
+    },
+    privacidad:{
+      es:{title:"Política de privacidad",html:
+        '<h4>Responsable</h4><p>'+ENTITY+'. Delegado de Protección de Datos: <a href="mailto:dpo@cupperlab.com">dpo@cupperlab.com</a>.</p>'+
+        '<h4>¿Qué datos tratamos?</h4><p>Los que nos facilitas en el formulario: <b>nombre, correo electrónico, teléfono y la URL de tu web</b>. Además, datos técnicos de la web que analizamos (que son públicos).</p>'+
+        '<h4>¿Para qué?</h4><ul><li>Realizar el diagnóstico y enviarte el informe a tu correo.</li><li>Contactarte con los resultados y, si procede, propuestas comerciales.</li></ul>'+
+        '<h4>Base jurídica</h4><p>Tu <b>consentimiento</b> (art. 6.1.a del RGPD), que marcas al enviar el formulario. Puedes retirarlo en cualquier momento.</p>'+
+        '<h4>Conservación y destinatarios</h4><p>Conservamos tus datos mientras no retires el consentimiento o solicites su supresión. No cedemos tus datos a terceros salvo obligación legal; nos apoyamos en proveedores tecnológicos (correo y alojamiento) que actúan como encargados del tratamiento.</p>'+
+        '<h4>Tus derechos</h4><p>Puedes ejercer los derechos de acceso, rectificación, supresión, oposición, limitación y portabilidad escribiendo a <a href="mailto:dpo@cupperlab.com">dpo@cupperlab.com</a>. También puedes reclamar ante la Agencia Española de Protección de Datos (<a href="https://www.aepd.es" target="_blank" rel="noopener">www.aepd.es</a>).</p>'},
+      en:{title:"Privacy policy",html:
+        '<h4>Controller</h4><p>'+ENTITY+'. Data Protection Officer: <a href="mailto:dpo@cupperlab.com">dpo@cupperlab.com</a>.</p>'+
+        '<h4>What data do we process?</h4><p>What you provide in the form: <b>name, email, phone and your website URL</b>. Plus technical data from the site we analyze (which is public).</p>'+
+        '<h4>What for?</h4><ul><li>To run the diagnosis and email you the report.</li><li>To contact you with the results and, where appropriate, commercial proposals.</li></ul>'+
+        '<h4>Legal basis</h4><p>Your <b>consent</b> (art. 6.1.a GDPR), given when you submit the form. You may withdraw it at any time.</p>'+
+        '<h4>Retention and recipients</h4><p>We keep your data until you withdraw consent or request deletion. We do not share your data with third parties except by legal obligation; we rely on technology providers (email and hosting) acting as processors.</p>'+
+        '<h4>Your rights</h4><p>You can exercise access, rectification, erasure, objection, restriction and portability by writing to <a href="mailto:dpo@cupperlab.com">dpo@cupperlab.com</a>. You may also complain to the Spanish Data Protection Agency (<a href="https://www.aepd.es" target="_blank" rel="noopener">www.aepd.es</a>).</p>'}
+    },
+    cookies:{
+      es:{title:"Política de cookies",html:
+        '<h4>¿Usamos cookies?</h4><p>Este sitio <b>no usa cookies publicitarias ni de seguimiento de terceros</b>.</p>'+
+        '<h4>Almacenamiento técnico</h4><p>Usamos almacenamiento local del navegador (localStorage) con una única finalidad técnica: <b>recordar el idioma</b> que eliges. No identifica a personas y no se comparte.</p>'+
+        '<h4>Cómo borrarlo</h4><p>Puedes eliminarlo en cualquier momento desde la configuración de tu navegador (borrar datos del sitio).</p>'+
+        '<h4>Cambios</h4><p>Si en el futuro incorporamos cookies analíticas o de terceros, te lo pediremos mediante un aviso de consentimiento.</p>'},
+      en:{title:"Cookie policy",html:
+        '<h4>Do we use cookies?</h4><p>This site <b>does not use advertising or third-party tracking cookies</b>.</p>'+
+        '<h4>Technical storage</h4><p>We use the browser\'s local storage (localStorage) for a single technical purpose: <b>to remember the language</b> you pick. It does not identify people and is not shared.</p>'+
+        '<h4>How to clear it</h4><p>You can remove it at any time from your browser settings (clear site data).</p>'+
+        '<h4>Changes</h4><p>If we add analytics or third-party cookies in the future, we\'ll ask for your consent via a banner.</p>'}
+    }
+  };
+  var legalModal=document.getElementById("legalModal");
+  function openLegal(key){
+    var d=(LEGAL[key]||{})[LANG]||(LEGAL[key]||{}).es; if(!d) return;
+    document.getElementById("legalTitle").textContent=d.title;
+    document.getElementById("legalBody").innerHTML=d.html;
+    legalModal.classList.remove("hidden");
+    requestAnimationFrame(function(){ legalModal.classList.add("show"); });
+    document.body.style.overflow="hidden";
+  }
+  function closeLegal(){ legalModal.classList.remove("show"); document.body.style.overflow=""; setTimeout(function(){ legalModal.classList.add("hidden"); },200); }
+  document.querySelectorAll(".legal-lnk").forEach(function(b){ b.addEventListener("click",function(){ openLegal(b.getAttribute("data-legal")); }); });
+  document.getElementById("legalClose").addEventListener("click", closeLegal);
+  legalModal.addEventListener("click", function(e){ if(e.target===legalModal) closeLegal(); });
+  document.addEventListener("keydown", function(e){ if(e.key==="Escape" && !legalModal.classList.contains("hidden")) closeLegal(); });
 
   /* ============ init ============ */
   LANG=detectLang(); applyStatic();
