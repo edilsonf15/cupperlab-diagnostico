@@ -64,6 +64,22 @@
   @media(max-width:430px){.htxt{display:none!important}.langsel svg{width:24px;height:16px}}
   .hidden{display:none!important}
   .hero-img,.cta-img{background-size:cover;background-position:center;background-repeat:no-repeat;background-color:#F7F9FB}
+  /* Mockup on-brand del hero */
+  .hero-mock{position:relative;width:100%;max-width:440px;justify-self:end;margin:8px 10px 30px 0}
+  .hm-card{background:#fff;border:1px solid rgba(10,16,20,0.09);border-radius:18px;box-shadow:0 26px 64px rgba(10,16,20,0.13);padding:24px 24px 20px;animation:cl-rise .6s ease both}
+  .hm-ai{display:flex;align-items:center;gap:10px;font-size:12.5px;color:#5a6675;font-weight:500}
+  .hm-ava{width:30px;height:30px;border-radius:8px;background:#0A1014;color:#1CBCE4;font-family:'Sora',sans-serif;font-weight:700;font-size:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .hm-q{margin:15px 0 6px;font-family:'Sora',sans-serif;font-weight:600;font-size:16.5px;color:#12324a;letter-spacing:-0.01em}
+  .hm-row{display:flex;align-items:center;gap:11px;padding:11px 0;border-top:1px solid #eef1f4;font-size:13.5px}
+  .hm-row .rk{width:22px;height:22px;border-radius:50%;background:#F1F5F7;color:#5a6675;font-family:'JetBrains Mono',monospace;font-size:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .hm-row .nm{flex:1;color:#3a4655;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .hm-row .bar{height:6px;border-radius:999px;background:linear-gradient(90deg,#1CBCE4,#0f9bc2);flex-shrink:0}
+  .hm-row.you{background:rgba(244,100,52,0.08);margin:6px -12px 0;padding:11px 12px;border-radius:10px;border-top:none}
+  .hm-row.you .rk{background:#F46434;color:#fff}
+  .hm-row.you .nm{color:#c4551f;font-weight:600;white-space:normal}
+  .hm-gauge{position:absolute;right:2px;bottom:-16px;background:#0A1014;color:#fff;border-radius:14px;padding:13px 17px;box-shadow:0 18px 40px rgba(10,16,20,0.28);text-align:center;animation:cl-rise .6s .12s ease both}
+  .hm-gauge .n{font-family:'Sora',sans-serif;font-weight:800;font-size:30px;color:#1CBCE4;line-height:1}
+  .hm-gauge .l{font-family:'JetBrains Mono',monospace;font-size:8.5px;letter-spacing:.1em;color:rgba(255,255,255,.6);margin-top:4px}
   .ucard{position:relative;background:#fff;border:1px solid rgba(10,16,20,0.09);border-top:3px solid #1CBCE4;border-radius:14px;padding:26px 22px 20px;transition:transform .22s ease,box-shadow .22s ease,border-color .22s ease;overflow:hidden}
   .ucard.orange{border-top-color:#F46434}
   .ucard:hover{transform:translateY(-6px);box-shadow:0 14px 34px rgba(10,16,20,0.10);border-color:rgba(28,188,228,0.5)}
@@ -159,7 +175,18 @@
         <span class="mono" style="font-size:12.5px;color:rgba(10,16,20,0.45)" data-i18n="hero_cta_note">y el informe completo te llega al correo</span>
       </div>
     </div>
-    <div class="hero-img" style="width:100%;max-width:460px;justify-self:end;aspect-ratio:4/5;border-radius:14px;background-image:url('/static/img/hero-generic.webp')"></div>
+    <div class="hero-mock" aria-hidden="true">
+      <div class="hm-card">
+        <div class="hm-ai"><span class="hm-ava">IA</span><span data-i18n="mock_ai">Un cliente le pregunta a la IA</span></div>
+        <div class="hm-q" data-i18n="mock_q">“¿Los mejores para esto cerca de mí?”</div>
+        <div>
+          <div class="hm-row"><span class="rk">1</span><span class="nm" data-i18n="mock_c1">Tu competencia</span><span class="bar" style="width:64px"></span></div>
+          <div class="hm-row"><span class="rk">2</span><span class="nm" data-i18n="mock_c2">Tu competencia</span><span class="bar" style="width:44px"></span></div>
+          <div class="hm-row you"><span class="rk">?</span><span class="nm" data-i18n="mock_you">Tu marca — hoy no apareces</span></div>
+        </div>
+      </div>
+      <div class="hm-gauge"><div class="n">?</div><div class="l" data-i18n="mock_gauge">VISIBILIDAD IA</div></div>
+    </div>
   </div>
 </section>
 
@@ -371,6 +398,12 @@
     hero_h1:['Diagnóstico gratuito de tu sitio: <span style="color:#1CBCE4">qué tan visible eres en Google y en las respuestas de IA.</span>','Free diagnosis of your site: <span style="color:#1CBCE4">how visible you are on Google and in AI answers.</span>'],
     hero_p1:["Tu próximo cliente ya empezó a buscar: escribe lo que necesita en Google o se lo pregunta a la IA. Alguien va a aparecer en esa respuesta — revisemos si eres tú.","Your next customer has already started searching: they type what they need on Google or ask the AI. Someone will show up in that answer — let's check if it's you."],
     hero_p2:['Pones tu sitio y tus datos. Analizamos tu web <strong style="font-weight:600;color:#0A1014">en vivo</strong> y te devolvemos un índice de visibilidad, cómo te ve la IA y los arreglos que más mueven la aguja. Además te enviamos el informe completo en PDF al correo. Sin costo.','Enter your site and details. We analyze your website <strong style="font-weight:600;color:#0A1014">live</strong> and return a visibility index, how AI sees you and the fixes that move the needle most. Plus the full PDF report to your inbox. Free.'],
+    mock_ai:["Un cliente le pregunta a la IA","A customer asks the AI"],
+    mock_q:["“¿Los mejores para esto cerca de mí?”","“The best ones for this near me?”"],
+    mock_c1:["Tu competencia","Your competitor"],
+    mock_c2:["Tu competencia","Your competitor"],
+    mock_you:["Tu marca — hoy no apareces","Your brand — today you're missing"],
+    mock_gauge:["VISIBILIDAD IA","AI VISIBILITY"],
     hero_cta:["Iniciar el diagnóstico","Start the diagnosis"],
     live:["en vivo","live"],
     hero_cta_note:["y el informe completo te llega al correo","and the full report arrives in your inbox"],
