@@ -1,8 +1,7 @@
 {% set en = (lang|default('es') == 'en') %}
 {% set c = {'A':'#1f9d6b','B':'#1f9d6b','C':'#d9920a','D':'#F46434','E':'#d0402a'} %}
 {% set gc = c.get(r.grade, '#0f9bc2') %}
-{% set impv = r.findings_improve or [] %}
-{% set ordered = (impv|selectattr('severity','equalto','alto')|list) + (impv|selectattr('severity','equalto','medio')|list) + (impv|rejectattr('severity','equalto','alto')|rejectattr('severity','equalto','medio')|list) %}
+{% set logo = 'https://analisis.cupperlab.com/static/img/cupperlab-logo-color.png' %}
 {% set onp = (r.categories.onpage.score if (r.categories and r.categories.onpage) else none) %}
 {% set geoS = (r.categories.geo.score if (r.categories and r.categories.geo) else none) %}
 {% set tec = (r.categories.tecnico.score if (r.categories and r.categories.tecnico) else none) %}
@@ -11,14 +10,14 @@
 {% macro zc(v) %}{{ '#1f9d6b' if v>=70 else '#d9920a' if v>=40 else '#d0402a' }}{% endmacro %}
 {% macro bar(ic, les, len, v) %}{% if v is not none %}
   <tr>
-    <td valign="middle" style="padding:9px 0;font-size:13px;color:#3d4855;line-height:1.3"><span style="font-size:15px">{{ ic }}</span>&nbsp; {{ len if en else les }}</td>
-    <td valign="middle" width="150" style="padding:9px 0 9px 12px">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#e9edf1;border-radius:6px"><tr>
-        <td style="height:9px;background:{{ zc(v)|trim }};border-radius:6px;width:{{ [v,3]|max }}%;font-size:1px;line-height:9px">&nbsp;</td>
-        <td style="height:9px;font-size:1px;line-height:9px">&nbsp;</td>
+    <td valign="middle" style="padding:11px 0;font-size:13.5px;font-weight:600;color:#283038;line-height:1.3"><span style="font-size:16px">{{ ic }}</span>&nbsp;&nbsp;{{ len if en else les }}</td>
+    <td valign="middle" width="140" style="padding:11px 0 11px 12px">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#e9edf1;border-radius:7px"><tr>
+        <td style="height:11px;background:{{ zc(v)|trim }};border-radius:7px;width:{{ [v,3]|max }}%;font-size:1px;line-height:11px">&nbsp;</td>
+        <td style="height:11px;font-size:1px;line-height:11px">&nbsp;</td>
       </tr></table>
     </td>
-    <td valign="middle" width="42" class="sora" style="padding:9px 0 9px 12px;font-size:14px;font-weight:800;color:{{ zc(v)|trim }};text-align:right">{{ v }}</td>
+    <td valign="middle" width="52" class="sora" style="padding:11px 0 11px 12px;font-size:17px;font-weight:800;color:{{ zc(v)|trim }};text-align:right">{{ v }}</td>
   </tr>
 {% endif %}{% endmacro %}
 <!doctype html>
@@ -32,7 +31,7 @@
   a{color:#0f9bc2}
   @media only screen and (max-width:480px){
     .pad{padding-left:20px!important;padding-right:20px!important}
-    .snum{font-size:56px!important}
+    .snum{font-size:58px!important}
     .stack{display:block!important;width:100%!important;text-align:left!important;padding-left:0!important;padding-right:0!important}
     .stack-r{text-align:left!important;margin-top:16px!important}
   }
@@ -41,19 +40,19 @@
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#eef3f7;padding:26px 12px"><tr><td align="center">
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:100%;background:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 16px 46px rgba(10,16,20,.10)">
 
-  <!-- HEADER BAND (azul, como el hero) -->
-  <tr><td bgcolor="#12a6d0" style="background:#12a6d0;background:linear-gradient(135deg,#2ac9ef 0%,#12a6d0 55%,#0a80a4 100%);padding:22px 34px 20px">
+  <!-- HEADER BAND (azul) con LOGO REAL en pastilla blanca -->
+  <tr><td bgcolor="#12a6d0" style="background:#12a6d0;background:linear-gradient(135deg,#2ac9ef 0%,#12a6d0 55%,#0a80a4 100%);padding:22px 34px 22px">
     <table width="100%" cellpadding="0" cellspacing="0"><tr>
-      <td class="sora" style="font-size:22px;font-weight:800;color:#ffffff;letter-spacing:-.01em">cupperlab</td>
-      <td align="right" class="mono" style="color:rgba(255,255,255,.82);font-size:10px;letter-spacing:2px">{{ 'SEO &amp; GEO DIAGNOSIS' if en else 'DIAGNÓSTICO SEO &amp; GEO' }}</td>
+      <td valign="middle"><span style="display:inline-block;background:#ffffff;border-radius:10px;padding:8px 13px"><img src="{{ logo }}" alt="Cupperlab" height="20" style="display:block;height:20px;width:auto;border:0"></span></td>
+      <td align="right" valign="middle" class="mono" style="color:rgba(255,255,255,.85);font-size:10px;letter-spacing:2px">{{ 'SEO &amp; GEO DIAGNOSIS' if en else 'DIAGNÓSTICO SEO &amp; GEO' }}</td>
     </tr></table>
-    <div class="sora" style="margin-top:14px;color:#ffffff;font-size:20px;font-weight:700;line-height:1.2;letter-spacing:-.01em">{{ 'How you show up on Google and AI' if en else 'Cómo apareces en Google y en la IA' }}</div>
-    <div style="margin-top:4px;color:rgba(255,255,255,.9);font-size:13px">{{ r.domain }}</div>
+    <div class="sora" style="margin-top:16px;color:#ffffff;font-size:21px;font-weight:800;line-height:1.2;letter-spacing:-.01em">{{ 'How you show up on Google and AI' if en else 'Cómo apareces en Google y en la IA' }}</div>
+    <div style="margin-top:4px;color:rgba(255,255,255,.92);font-size:13px">{{ r.domain }}</div>
   </td></tr>
 
-  <!-- Greeting -->
+  <!-- Saludo (humano) -->
   <tr><td class="pad" style="padding:24px 34px 6px">
-    <p style="margin:0;font-size:15px;line-height:1.6;color:#5a6675">{% if en %}Hi <b style="color:#0A1014">{{ name }}</b>, we analyzed your site live. Here's a clear summary — the full report with the action plan is attached as a PDF.{% else %}Hola <b style="color:#0A1014">{{ name }}</b>, analizamos tu web en vivo. Aquí tienes un resumen claro — el informe completo con el plan de acción va adjunto en PDF.{% endif %}</p>
+    <p style="margin:0;font-size:15.5px;line-height:1.65;color:#3d4855">{% if en %}Hi <b style="color:#0A1014">{{ name }}</b>! We went through your whole site. Here's the stuff that really matters, and in the PDF you've got the full detail plus the plan to fix it.{% else %}¡Hola <b style="color:#0A1014">{{ name }}</b>! Le dimos un repaso completo a tu web. Aquí te dejamos lo que de verdad importa, y en el PDF tienes todo el detalle con el plan para mejorarlo.{% endif %}</p>
   </td></tr>
 
   <!-- SCORE + zona -->
@@ -61,7 +60,7 @@
     <table width="100%" cellpadding="0" cellspacing="0" style="background:#f7fafc;border:1px solid #e6ebf0;border-radius:16px"><tr><td style="padding:22px 24px">
       <table width="100%" cellpadding="0" cellspacing="0"><tr>
         <td class="stack" width="150" valign="top">
-          <span class="snum sora" style="font-size:64px;font-weight:800;color:{{ gc }};line-height:.9">{{ r.score }}</span><span class="mono" style="font-size:13px;color:#9aa4b0"> /100</span>
+          <span class="snum sora" style="font-size:66px;font-weight:800;color:{{ gc }};line-height:.9">{{ r.score }}</span><span class="mono" style="font-size:13px;color:#9aa4b0"> /100</span>
           <div class="mono" style="font-size:9px;letter-spacing:1.4px;color:#9aa4b0;margin-top:4px">{{ 'DIGITAL HEALTH' if en else 'SALUD DIGITAL' }}</div>
         </td>
         <td class="stack" valign="top" style="padding-left:8px">
@@ -76,74 +75,62 @@
     </td></tr></table>
   </td></tr>
 
-  <!-- MINI-GRÁFICA: dimensiones -->
+  <!-- TU DIAGNÓSTICO EN NÚMEROS (más llamativo) -->
   {% if (onp is not none) or (geoS is not none) or (mob is not none) or (sec is not none) %}
-  <tr><td class="pad" style="padding:20px 34px 0">
-    <div class="mono" style="color:#0f9bc2;font-size:11px;letter-spacing:1.4px;margin-bottom:8px">📊 {{ 'YOUR NUMBERS' if en else 'TU DIAGNÓSTICO EN NÚMEROS' }}</div>
-    <table width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;border:1px solid #e6ebf0;border-radius:14px"><tr><td style="padding:8px 20px">
-      <table width="100%" cellpadding="0" cellspacing="0">
-        {{ bar('🔎','SEO en Google','On-page SEO (Google)', onp) }}
-        {{ bar('🤖','Presencia en la IA','Presence in AI', geoS) }}
-        {{ bar('⚡','Velocidad en móvil','Mobile speed', mob) }}
-        {{ bar('🔒','Seguridad','Security', sec) }}
-        {{ bar('🛠️','Salud técnica','Technical health', tec) }}
-      </table>
-    </td></tr></table>
-  </td></tr>
-  {% endif %}
-
-  <!-- LOS CAMBIOS QUE NECESITA TU WEB -->
-  {% if ordered %}
   <tr><td class="pad" style="padding:22px 34px 0">
-    <div class="mono" style="color:#0f9bc2;font-size:11px;letter-spacing:1.4px;margin-bottom:4px">🚀 {{ 'CHANGES YOUR SITE NEEDS' if en else 'LOS CAMBIOS QUE NECESITA TU WEB' }}</div>
-    <div style="font-size:13px;color:#7b8694;margin-bottom:12px">{{ 'To show up on Google and in AI.' if en else 'Para aparecer en Google y en la IA.' }}</div>
-    {% for f in ordered[:4] %}
-    {% set ico = '🔴' if f.severity=='alto' else '🟠' if f.severity=='medio' else '🔵' %}
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:9px;background:#f7fafc;border:1px solid #e6ebf0;border-radius:12px"><tr>
-      <td width="30" valign="top" style="padding:14px 0 14px 16px;font-size:15px">{{ ico }}</td>
-      <td style="padding:14px 16px 14px 8px">
-        <div class="sora" style="font-size:13.5px;font-weight:700;color:#12324a">{{ f.title }}</div>
-        {% if f.detail %}<div style="font-size:11.5px;color:#5a6675;margin-top:4px;line-height:1.5">{{ f.detail[:120] }}{% if f.detail|length > 120 %}…{% endif %}</div>{% endif %}
-      </td>
-    </tr></table>
-    {% endfor %}
-    <div style="font-size:11.5px;color:#9aa4b0;margin-top:6px">{% if en %}↳ The full list, step by step, is in the <b style="color:#0f9bc2">attached PDF</b>.{% else %}↳ La lista completa, paso a paso, está en el <b style="color:#0f9bc2">PDF adjunto</b>.{% endif %}</div>
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;border:1px solid #e6ebf0;border-radius:16px;overflow:hidden">
+      <tr><td bgcolor="#0b1620" style="background:#0b1620;padding:13px 22px">
+        <table width="100%" cellpadding="0" cellspacing="0"><tr>
+          <td class="sora" style="color:#ffffff;font-size:14px;font-weight:700">📊&nbsp; {{ 'Your numbers' if en else 'Tu diagnóstico en números' }}</td>
+          <td align="right" class="mono" style="color:#7fe0f5;font-size:10px;letter-spacing:1px">0–100</td>
+        </tr></table>
+      </td></tr>
+      <tr><td style="padding:6px 22px 10px">
+        <table width="100%" cellpadding="0" cellspacing="0">
+          {{ bar('🔎','SEO en Google','On-page SEO (Google)', onp) }}
+          {{ bar('🤖','Presencia en la IA','Presence in AI', geoS) }}
+          {{ bar('⚡','Velocidad en móvil','Mobile speed', mob) }}
+          {{ bar('🔒','Seguridad','Security', sec) }}
+          {{ bar('🛠️','Salud técnica','Technical health', tec) }}
+        </table>
+      </td></tr>
+    </table>
   </td></tr>
   {% endif %}
 
   <!-- INFORME PDF: descargar -->
-  <tr><td class="pad" style="padding:20px 34px 0">
+  <tr><td class="pad" style="padding:22px 34px 0">
     <table width="100%" cellpadding="0" cellspacing="0" style="background:#eaf7fb;border:1px solid #cdeef8;border-radius:14px"><tr><td style="padding:20px 22px">
-      <div class="sora" style="font-size:15px;font-weight:700;color:#0b6f8c">📄 {{ 'Your full report, in PDF' if en else 'Tu informe completo, en PDF' }}</div>
-      <div style="font-size:12.5px;color:#3f7f92;margin:4px 0 14px;line-height:1.5">{% if en %}AI analysis, real competitors, speed, weak points and the step-by-step action plan.{% else %}Análisis de IA, competencia real, velocidad, puntos débiles y el plan de acción paso a paso.{% endif %}</div>
-      {% if report_url %}<a href="{{ report_url }}" class="sora" style="display:inline-block;background:#0f9bc2;color:#ffffff;text-decoration:none;font-weight:700;font-size:14px;padding:11px 22px;border-radius:10px">{{ 'Download report →' if en else 'Descargar informe →' }}</a>
-      <span style="font-size:12px;color:#5f93a3;margin-left:10px">{{ 'also attached to this email' if en else 'también va adjunto en este correo' }}</span>{% else %}<div style="font-size:12.5px;color:#3f7f92">{{ 'Attached to this email.' if en else 'Va adjunto en este correo.' }}</div>{% endif %}
+      <div class="sora" style="font-size:15px;font-weight:700;color:#0b6f8c">📄&nbsp; {{ 'Your full report, in PDF' if en else 'Tu informe completo, en PDF' }}</div>
+      <div style="font-size:12.5px;color:#3f7f92;margin:5px 0 14px;line-height:1.5">{% if en %}The AI analysis, your real competitors, speed, weak points and the step-by-step plan.{% else %}El análisis de IA, tu competencia real, la velocidad, los puntos débiles y el plan paso a paso.{% endif %}</div>
+      {% if report_url %}<a href="{{ report_url }}" class="sora" style="display:inline-block;background:#0f9bc2;color:#ffffff;text-decoration:none;font-weight:700;font-size:14px;padding:12px 24px;border-radius:10px">{{ 'Download report →' if en else 'Descargar informe →' }}</a>
+      <span style="font-size:12px;color:#5f93a3;margin-left:10px">{{ 'also attached here' if en else 'también va adjunto aquí' }}</span>{% else %}<div style="font-size:12.5px;color:#3f7f92">{{ 'Attached to this email.' if en else 'Va adjunto en este correo.' }}</div>{% endif %}
     </td></tr></table>
   </td></tr>
 
-  <!-- CTA 30 min (claro) -->
-  <tr><td class="pad" style="padding:18px 34px 6px">
-    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f7fafc;border:1px solid #e6ebf0;border-top:3px solid #F46434;border-radius:16px"><tr><td style="padding:26px 24px;text-align:center">
-      <div class="sora" style="color:#0A1014;font-size:21px;font-weight:800;letter-spacing:-.01em">{{ 'Let\'s review it in 30 minutes' if en else 'Repasémoslo en 30 minutos' }}</div>
-      <div style="margin:8px auto 18px;color:#5a6675;font-size:13.5px;line-height:1.55;max-width:44ch">{% if en %}On a short video call we show you, on your own site, the changes that will move you most.{% else %}En una videollamada corta te enseñamos, sobre tu propia web, los cambios que más te van a mover.{% endif %}</div>
-      <a href="{{ book_url or calendly or agenda_url }}" class="sora" style="display:inline-block;background:#F46434;color:#ffffff;text-decoration:none;font-weight:700;padding:14px 34px;border-radius:12px;font-size:15px">{{ 'Book my slot →' if en else 'Reservar mi hora →' }}</a>
-      <div style="margin-top:14px;font-size:13px;color:#7b8694">{{ 'or call us at' if en else 'o llámanos al' }} <a href="tel:{{ phone|replace(' ','') }}" class="sora" style="color:#0f9bc2;text-decoration:none;font-weight:700">{{ phone }}</a></div>
+  <!-- CTA 30 min (vivo, naranja) -->
+  <tr><td class="pad" style="padding:22px 34px 6px">
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-radius:18px;overflow:hidden"><tr><td bgcolor="#F46434" style="background:#F46434;background:linear-gradient(135deg,#ff8a4f 0%,#F46434 55%,#e24d1c 100%);padding:30px 24px;text-align:center">
+      <div class="sora" style="color:#ffffff;font-size:24px;font-weight:800;letter-spacing:-.01em">{{ 'Let\'s review it in 30 minutes' if en else 'Repasémoslo en 30 minutos' }}</div>
+      <div style="margin:9px auto 20px;color:rgba(255,255,255,.94);font-size:14px;line-height:1.55;max-width:44ch">{% if en %}A short video call on your own site: we point out exactly where to start to get more customers. No strings.{% else %}Una videollamada corta sobre tu propia web: te señalamos por dónde empezar para conseguir más clientes. Sin líos.{% endif %}</div>
+      <a href="{{ book_url or calendly or agenda_url }}" class="sora" style="display:inline-block;background:#ffffff;color:#d63e12;text-decoration:none;font-weight:800;padding:15px 40px;border-radius:12px;font-size:16px">{{ 'Book my slot →' if en else 'Reservar mi hora →' }}</a>
+      <div style="margin-top:15px;font-size:13px;color:rgba(255,255,255,.9)">{{ 'or call us at' if en else 'o llámanos al' }} <a href="tel:{{ phone|replace(' ','') }}" class="sora" style="color:#ffffff;text-decoration:underline;font-weight:700">{{ phone }}</a></div>
     </td></tr></table>
   </td></tr>
 
-  <!-- Footer -->
+  <!-- Footer con LOGO REAL -->
   <tr><td class="pad" style="padding:22px 34px 30px">
-    <table width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #eef1f4"><tr><td style="padding-top:20px">
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #eef1f4"><tr><td style="padding-top:22px">
     <table width="100%" cellpadding="0" cellspacing="0"><tr>
       <td class="stack" valign="top">
-        <div class="sora" style="font-size:19px;font-weight:800;color:#0A1014">cupper<span style="color:#0f9bc2">lab</span></div>
-        <div class="sora" style="font-size:13.5px;color:#0A1014;margin-top:8px">{{ 'We improve your profitability.' if en else 'Mejoramos tu rentabilidad.' }}</div>
+        <img src="{{ logo }}" alt="Cupperlab" height="24" style="display:block;height:24px;width:auto;border:0;margin-bottom:10px">
+        <div class="sora" style="font-size:13.5px;color:#0A1014">{{ 'We improve your profitability.' if en else 'Mejoramos tu rentabilidad.' }}</div>
         <div style="font-size:12px;color:#7b8694;margin-top:5px;line-height:1.5;max-width:34ch">{{ 'We make you visible on Google and in AI.' if en else 'Te hacemos visible en Google y en la IA.' }}</div>
       </td>
       <td class="stack stack-r" valign="top" align="right">
         <div class="mono" style="font-size:10px;letter-spacing:1.3px;color:#0f9bc2;margin-bottom:9px">{{ 'FOLLOW US' if en else 'SÍGUENOS' }}</div>
-        <a href="https://www.linkedin.com/company/cupperlab/" style="display:inline-block;background:#f1f5f7;color:#0A1014;text-decoration:none;font-size:12px;font-weight:600;padding:7px 13px;border-radius:8px;margin:0 0 6px 6px">LinkedIn</a>
-        <a href="https://www.instagram.com/cupperlab.es/" style="display:inline-block;background:#f1f5f7;color:#0A1014;text-decoration:none;font-size:12px;font-weight:600;padding:7px 13px;border-radius:8px;margin:0 0 6px 6px">Instagram</a>
+        <a href="https://www.linkedin.com/company/cupperlab/" style="display:inline-block;background:#0A66C2;color:#ffffff;text-decoration:none;font-size:12px;font-weight:700;padding:8px 14px;border-radius:8px;margin:0 0 6px 6px">in&nbsp; LinkedIn</a>
+        <a href="https://www.instagram.com/cupperlab.es/" style="display:inline-block;background:#E1306C;color:#ffffff;text-decoration:none;font-size:12px;font-weight:700;padding:8px 14px;border-radius:8px;margin:0 0 6px 6px">◎&nbsp; Instagram</a>
         <div style="margin-top:10px"><a href="tel:{{ phone|replace(' ','') }}" class="sora" style="color:#0A1014;text-decoration:none;font-size:14px;font-weight:700">{{ phone }}</a></div>
         <div style="margin-top:3px"><a href="mailto:{{ email }}" style="color:#7b8694;text-decoration:none;font-size:12.5px">{{ email }}</a></div>
       </td>
