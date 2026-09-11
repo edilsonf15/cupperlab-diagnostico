@@ -346,15 +346,15 @@ _ORD = {"crit": 0, "hi": 1, "med": 2, "ok": 3}
 
 
 def _check_list(items: list) -> str:
-    """Checklist en tarjetas (2 columnas), fallos primero."""
+    """Lista limpia de comprobaciones (tabla, sin tarjetas), fallos primero."""
     items = sorted(items, key=lambda x: _ORD.get(x[2], 2))
-    out = ""
+    rows = ""
     for name, code, st, obs in items:
         col, ico = _STAT.get(st, (AMBER, "!"))
-        out += (f'<div class="ck" style="border-left:3px solid {col}"><span class="cki" style="background:{col}">{ico}</span>'
-                f'<div class="ckb"><div class="ckt">{name} <span class="ckc" style="color:{col}">{code}</span></div>'
-                f'<div class="cko">{obs}</div></div></div>')
-    return f'<div class="cklist">{out}</div>'
+        rows += (f'<tr><td class="ckd"><span class="ckdot" style="background:{col}">{ico}</span></td>'
+                 f'<td class="ckn"><b>{name}</b> <span class="ckcode" style="color:{col}">{code}</span></td>'
+                 f'<td class="cko">{obs}</td></tr>')
+    return f'<table class="cktbl"><tbody>{rows}</tbody></table>'
 
 
 def _tech_rows(r: dict) -> str:
@@ -954,6 +954,31 @@ def _gauge(score: int, label: str) -> str:
     </svg><div class="big">{label}</div>"""
 
 
+def _growth_chart(score: int) -> str:
+    """Gráfica de avance: de dónde partes (hoy) a dónde puedes llegar con el plan."""
+    tgt = _target(score)
+    y0 = round(82 - (score / 100) * 66, 1)
+    y1 = round(82 - (tgt / 100) * 66, 1)
+    ymid = round((y0 + y1) / 2, 1)
+    line = f"M8,{y0} C90,{y0-1} 160,{ymid} 312,{y1}"
+    area = f"{line} L312,88 L8,88 Z"
+    return f"""<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:12px;border:1px solid #dee3e9;border-radius:14px"><tr><td style="padding:15px 18px 11px">
+      <div class="sectic" style="margin-bottom:9px">{L('Tu potencial: de dónde partes y a dónde puedes llegar', 'Your potential: where you start and where you can reach')}</div>
+      <svg viewBox="0 0 320 92" width="100%" style="display:block">
+        <defs><linearGradient id="grw" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="{CY}" stop-opacity=".22"/><stop offset="1" stop-color="{CY}" stop-opacity="0"/></linearGradient></defs>
+        <line x1="8" y1="88" x2="312" y2="88" stroke="#eef1f4" stroke-width="1"/>
+        <path d="{area}" fill="url(#grw)"/>
+        <path d="{line}" fill="none" stroke="{CY}" stroke-width="2.6" stroke-linecap="round"/>
+        <circle cx="8" cy="{y0}" r="3.6" fill="#9aa4b0"/>
+        <circle cx="312" cy="{y1}" r="4.2" fill="{CY}"/>
+      </svg>
+      <table width="100%" cellpadding="0" cellspacing="0"><tr>
+        <td class="mono" style="font-size:9px;color:#7b8694">{L('Hoy', 'Today')} &middot; <b style="color:{INK9}">{score}</b>/100</td>
+        <td align="right" class="mono" style="font-size:9px;color:{CY6}">{L('Con Cupperlab', 'With Cupperlab')} &middot; <b>~{tgt}</b>/100</td>
+      </tr></table>
+    </td></tr></table>"""
+
+
 def build_report_html(r: dict, contact: dict, name: str = "") -> str:
     score = r.get("score", 0); grade = r.get("grade", "")
     cats = r.get("categories", {}); m = r.get("meta", {}); s = r.get("signals", {})
@@ -1099,13 +1124,15 @@ def build_report_html(r: dict, contact: dict, name: str = "") -> str:
     .actcol li .k{{position:absolute;left:0;top:6px;width:16px;height:16px;border-radius:5px;background:{CY6};color:#fff;font-family:"JetBrains Mono",monospace;font-size:8px;font-weight:700;display:flex;align-items:center;justify-content:center}}
     .actcol li b{{color:{INK9}}}
     .card{{border:1px solid #dee3e9;border-radius:14px;padding:14px 16px}}
-    .cklist{{display:grid;grid-template-columns:1fr 1fr;gap:9px 16px;margin-top:8px}}
-    .ck{{display:flex;gap:10px;align-items:flex-start;padding:11px 13px;border:1px solid #e6ebf0;border-radius:11px;background:#fff;box-shadow:0 1px 3px rgba(10,16,20,0.03);break-inside:avoid}}
-    .ck .cki{{width:16px;height:16px;border-radius:5px;color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex:none;margin-top:1px}}
-    .ck .ckb{{flex:1;min-width:0}}
-    .ck .ckt{{font-family:"Sora",sans-serif;font-weight:700;font-size:9.5px;color:{INK9}}}
-    .ck .ckc{{font-family:"JetBrains Mono",monospace;font-size:7.5px;font-weight:700;margin-left:4px}}
-    .ck .cko{{font-size:8.5px;color:#5a6675;margin-top:2px;line-height:1.4}}
+    .cktbl{{width:100%;border-collapse:collapse;margin-top:6px}}
+    .cktbl td{{border-top:1px solid #eef1f4;padding:9px 6px;vertical-align:top}}
+    .cktbl tr:first-child td{{border-top:0}}
+    .cktbl .ckd{{width:22px}}
+    .cktbl .ckdot{{display:inline-block;width:15px;height:15px;border-radius:50%;color:#fff;font-size:8.5px;font-weight:700;text-align:center;line-height:15px}}
+    .cktbl .ckn{{width:34%;font-size:9.5px;color:{INK9};line-height:1.35}}
+    .cktbl .ckn b{{font-family:"Sora",sans-serif;font-weight:700}}
+    .cktbl .ckcode{{font-family:"JetBrains Mono",monospace;font-size:7.5px;font-weight:700;margin-left:5px;white-space:nowrap}}
+    .cktbl .cko{{font-size:8.5px;color:#5a6675;line-height:1.45}}
     .hbars{{display:flex;flex-direction:column;gap:8px}}
     .hbar{{display:flex;align-items:center;gap:10px}}
     .hbar .l{{width:52%;font-size:9.5px;color:#283038}}.hbar .l b{{color:{INK9}}}
@@ -1210,6 +1237,7 @@ def build_report_html(r: dict, contact: dict, name: str = "") -> str:
     <div class="gauge">{_gauge(score, L('Salud digital', 'Digital health'))}</div>
     <div class="levels">{_levels(r)}</div>
   </div>
+  {_growth_chart(score)}
   {_estado_resumen(r)}
 </section>
 
