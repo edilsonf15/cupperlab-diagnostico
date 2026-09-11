@@ -108,13 +108,13 @@
     </td></tr></table>
   </td></tr>
 
-  <!-- CTA 30 min (vivo, naranja) -->
+  <!-- CTA 30 min (teal, boton naranja) -->
   <tr><td class="pad" style="padding:22px 34px 6px">
-    <table width="100%" cellpadding="0" cellspacing="0" style="border-radius:18px;overflow:hidden"><tr><td bgcolor="#F46434" style="background:#F46434;background:linear-gradient(135deg,#ff8a4f 0%,#F46434 55%,#e24d1c 100%);padding:30px 24px;text-align:center">
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-radius:18px;overflow:hidden"><tr><td bgcolor="#123342" style="background:#123342;background:linear-gradient(150deg,#1a4658 0%,#123342 55%,#0d2531 100%);padding:30px 24px;text-align:center">
       <div class="sora" style="color:#ffffff;font-size:24px;font-weight:800;letter-spacing:-.01em">{{ 'Let\'s review it in 30 minutes' if en else 'Repasémoslo en 30 minutos' }}</div>
-      <div style="margin:9px auto 20px;color:rgba(255,255,255,.94);font-size:14px;line-height:1.55;max-width:44ch">{% if en %}A short video call on your own site: we point out exactly where to start to get more customers. No strings.{% else %}Una videollamada corta sobre tu propia web: te señalamos por dónde empezar para conseguir más clientes. Sin líos.{% endif %}</div>
-      <a href="{{ book_url or calendly or agenda_url }}" class="sora" style="display:inline-block;background:#ffffff;color:#d63e12;text-decoration:none;font-weight:800;padding:15px 40px;border-radius:12px;font-size:16px">{{ 'Book my slot →' if en else 'Reservar mi hora →' }}</a>
-      <div style="margin-top:15px;font-size:13px;color:rgba(255,255,255,.9)">{{ 'or call us at' if en else 'o llámanos al' }} <a href="tel:{{ phone|replace(' ','') }}" class="sora" style="color:#ffffff;text-decoration:underline;font-weight:700">{{ phone }}</a></div>
+      <div style="margin:9px auto 20px;color:#aecbd6;font-size:14px;line-height:1.55;max-width:44ch">{% if en %}A short video call on your own site: we point out exactly where to start to get more customers. No strings.{% else %}Una videollamada corta sobre tu propia web: te señalamos por dónde empezar para conseguir más clientes. Sin líos.{% endif %}</div>
+      <a href="{{ book_url or calendly or agenda_url }}" class="sora" style="display:inline-block;background:#F46434;color:#ffffff;text-decoration:none;font-weight:800;padding:15px 40px;border-radius:12px;font-size:16px">{{ 'Book my slot →' if en else 'Reservar mi hora →' }}</a>
+      <div style="margin-top:15px;font-size:13px;color:#8fb3c0">{{ 'or call us at' if en else 'o llámanos al' }} <a href="tel:{{ phone|replace(' ','') }}" class="sora" style="color:#7fe0f5;text-decoration:none;font-weight:700">{{ phone }}</a></div>
     </td></tr></table>
   </td></tr>
 
