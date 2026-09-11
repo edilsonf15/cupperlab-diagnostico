@@ -1,124 +1,180 @@
 {% set en = (lang|default('es') == 'en') %}
-{% set c = {'A':'#1f9d6b','B':'#1f9d6b','C':'#dfa019','D':'#F46434','E':'#d0402a'} %}
-{% set gc = c.get(r.grade, '#58626f') %}
+{% set c = {'A':'#1f9d6b','B':'#1f9d6b','C':'#d9920a','D':'#F46434','E':'#d0402a'} %}
+{% set gc = c.get(r.grade, '#0f9bc2') %}
 {% set ai = r.geo_ai %}
 {% set answered = (ai.answered_names if ai else []) %}
-{% set sevmap = {'alto':'HIGH','medio':'MEDIUM','bajo':'LOW'} %}
+{% set sevmap = {'alto':'ALTO','medio':'MEDIO','bajo':'BAJO'} %}
+{% set sevmapen = {'alto':'HIGH','medio':'MEDIUM','bajo':'LOW'} %}
+{% set onp = (r.categories.onpage.score if (r.categories and r.categories.onpage) else none) %}
+{% set geoS = (r.categories.geo.score if (r.categories and r.categories.geo) else none) %}
+{% set tec = (r.categories.tecnico.score if (r.categories and r.categories.tecnico) else none) %}
+{% set mob = (r.psi_full.mobile.performance if (r.psi_full and r.psi_full.mobile) else none) %}
+{% set sec = (r.signals.security.score if (r.signals and r.signals.security) else none) %}
+{% macro zc(v) %}{{ '#1f9d6b' if v>=70 else '#d9920a' if v>=40 else '#d0402a' }}{% endmacro %}
+{% macro bar(les, len, v) %}{% if v is not none %}
+  <tr>
+    <td valign="middle" style="padding:9px 0;font-size:13px;color:#3d4855;line-height:1.3">{{ len if en else les }}</td>
+    <td valign="middle" width="150" style="padding:9px 0 9px 12px">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#e9edf1;border-radius:6px"><tr>
+        <td style="height:9px;background:{{ zc(v)|trim }};border-radius:6px;width:{{ [v,3]|max }}%;font-size:1px;line-height:9px">&nbsp;</td>
+        <td style="height:9px;font-size:1px;line-height:9px">&nbsp;</td>
+      </tr></table>
+    </td>
+    <td valign="middle" width="42" class="sora" style="padding:9px 0 9px 12px;font-size:14px;font-weight:800;color:{{ zc(v)|trim }};text-align:right">{{ v }}</td>
+  </tr>
+{% endif %}{% endmacro %}
 <!doctype html>
 <html lang="{{ 'en' if en else 'es' }}">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   .sora{font-family:'Sora','Helvetica Neue',Arial,sans-serif}
   .mono{font-family:'JetBrains Mono','Courier New',monospace}
   body,td,p,div,span,a{font-family:'Plus Jakarta Sans','Helvetica Neue',Arial,sans-serif}
-  a{color:#0E8FB0}
+  a{color:#0f9bc2}
   @media only screen and (max-width:480px){
     .pad{padding-left:20px!important;padding-right:20px!important}
-    .snum{font-size:52px!important}
-    .stack{display:block!important;width:100%!important;text-align:left!important;padding-left:0!important}
-    .stack-r{text-align:left!important;margin-top:14px!important}
+    .snum{font-size:56px!important}
+    .stack{display:block!important;width:100%!important;text-align:left!important;padding-left:0!important;padding-right:0!important}
+    .stack-r{text-align:left!important;margin-top:16px!important}
   }
 </style></head>
-<body style="margin:0;background:#F7F9FB;color:#3d4855">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F7F9FB;padding:26px 12px"><tr><td align="center">
-<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:100%;background:#ffffff;border-radius:18px;overflow:hidden;box-shadow:0 14px 44px rgba(10,16,20,.08)">
+<body style="margin:0;background:#eef3f7;color:#3d4855">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#eef3f7;padding:26px 12px"><tr><td align="center">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:100%;background:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 16px 46px rgba(10,16,20,.10)">
 
-  <tr><td style="height:5px;background:linear-gradient(90deg,#1CBCE4,#0f9bc2 45%,#F46434);font-size:1px;line-height:5px">&nbsp;</td></tr>
-  <tr><td class="pad" style="padding:26px 34px 4px">
-    <table width="100%"><tr>
-      <td class="sora" style="font-size:22px;font-weight:800;color:#0A1014;letter-spacing:-.01em">cupper<span style="color:#1CBCE4">lab</span></td>
-      <td align="right" class="mono" style="color:#9aa4b0;font-size:10px;letter-spacing:2px">{{ 'SEO &amp; GEO DIAGNOSIS' if en else 'DIAGNÓSTICO SEO &amp; GEO' }}</td>
+  <!-- HEADER BAND (azul, como el hero) -->
+  <tr><td bgcolor="#12a6d0" style="background:#12a6d0;background:linear-gradient(135deg,#2ac9ef 0%,#12a6d0 55%,#0a80a4 100%);padding:22px 34px 20px">
+    <table width="100%" cellpadding="0" cellspacing="0"><tr>
+      <td class="sora" style="font-size:22px;font-weight:800;color:#ffffff;letter-spacing:-.01em">cupperlab</td>
+      <td align="right" class="mono" style="color:rgba(255,255,255,.82);font-size:10px;letter-spacing:2px">{{ 'SEO &amp; GEO DIAGNOSIS' if en else 'DIAGNÓSTICO SEO &amp; GEO' }}</td>
     </tr></table>
-    <p style="margin:18px 0 0;font-size:15px;line-height:1.6;color:#5a6675">{% if en %}Hi <b style="color:#0A1014">{{ name }}</b>, we analyzed <b style="color:#0A1014">{{ r.domain }}</b> live. Here's what we found and what's costing you customers today on Google and AI.{% else %}Hola <b style="color:#0A1014">{{ name }}</b>, analizamos <b style="color:#0A1014">{{ r.domain }}</b> en vivo. Esto es lo que encontramos y lo que más te está costando clientes hoy en Google y en la IA.{% endif %}</p>
+    <div class="sora" style="margin-top:14px;color:#ffffff;font-size:20px;font-weight:700;line-height:1.2;letter-spacing:-.01em">{{ 'How you show up on Google and AI' if en else 'Cómo apareces en Google y en la IA' }}</div>
+    <div style="margin-top:4px;color:rgba(255,255,255,.9);font-size:13px">{{ r.domain }}</div>
   </td></tr>
 
-  <!-- Score -->
-  <tr><td class="pad" style="padding:18px 34px 4px">
-    <table width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;border:1px solid #e6ebf0;border-top:3px solid #1CBCE4;border-radius:14px"><tr>
-      <td class="stack" width="150" valign="middle" style="padding:20px 10px 20px 24px">
-        <span class="snum sora" style="font-size:62px;font-weight:800;color:{{ gc }};line-height:1">{{ r.score }}</span><span class="mono" style="font-size:13px;color:#9aa4b0">/100</span>
-        <div class="mono" style="font-size:9px;letter-spacing:1px;color:#9aa4b0;margin-top:2px">{{ 'DIGITAL HEALTH' if en else 'SALUD DIGITAL' }}</div>
-      </td>
-      <td class="stack" valign="middle" style="padding:20px 24px 20px 6px">
-        <span class="mono" style="display:inline-block;background:{{ gc }}1f;color:{{ gc }};font-size:11px;font-weight:bold;padding:3px 11px;border-radius:20px">{{ 'Grade' if en else 'Nota' }} {{ r.grade }}</span>
-        <div class="sora" style="margin:9px 0 0;color:#0A1014;font-size:17px;font-weight:700;line-height:1.3;letter-spacing:-.01em">
-          {% if en %}{% if r.score>=70 %}Solid base, with room to win on Google and AI.{% elif r.score>=55 %}You're on the right track, but AI isn't prioritizing you yet.{% elif r.score>=40 %}Your site works, but Google and AI leave you out.{% else %}Right now Google and AI barely see you.{% endif %}
-          {% else %}{% if r.score>=70 %}Buena base, con margen para ganar en Google y en la IA.{% elif r.score>=55 %}Vas por buen camino, pero la IA aún no te prioriza.{% elif r.score>=40 %}Tu web funciona, pero Google y la IA te dejan fuera.{% else %}Ahora mismo Google y la IA apenas te ven.{% endif %}{% endif %}</div>
-      </td>
-    </tr></table>
+  <!-- Greeting -->
+  <tr><td class="pad" style="padding:24px 34px 6px">
+    <p style="margin:0;font-size:15px;line-height:1.6;color:#5a6675">{% if en %}Hi <b style="color:#0A1014">{{ name }}</b>, we analyzed your site live. Here's a clear summary — the full report with the action plan is attached as a PDF.{% else %}Hola <b style="color:#0A1014">{{ name }}</b>, analizamos tu web en vivo. Aquí tienes un resumen claro — el informe completo con el plan de acción va adjunto en PDF.{% endif %}</p>
   </td></tr>
 
-  <!-- Cómo te ve la IA -->
+  <!-- SCORE + zona -->
   <tr><td class="pad" style="padding:16px 34px 4px">
-    <div class="mono" style="color:#0E8FB0;font-size:11px;letter-spacing:1.4px;margin-bottom:10px">◆ {{ 'HOW AI SEES YOU' if en else 'CÓMO TE VE LA IA' }}</div>
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f7fafc;border:1px solid #e6ebf0;border-radius:16px"><tr><td style="padding:22px 24px">
+      <table width="100%" cellpadding="0" cellspacing="0"><tr>
+        <td class="stack" width="150" valign="top">
+          <span class="snum sora" style="font-size:64px;font-weight:800;color:{{ gc }};line-height:.9">{{ r.score }}</span><span class="mono" style="font-size:13px;color:#9aa4b0"> /100</span>
+          <div class="mono" style="font-size:9px;letter-spacing:1.4px;color:#9aa4b0;margin-top:4px">{{ 'DIGITAL HEALTH' if en else 'SALUD DIGITAL' }}</div>
+        </td>
+        <td class="stack" valign="top" style="padding-left:8px">
+          <span class="mono" style="display:inline-block;background:{{ gc }}1f;color:{{ gc }};font-size:11px;font-weight:bold;padding:4px 12px;border-radius:20px">{{ 'Grade' if en else 'Nota' }} {{ r.grade }}</span>
+          <div class="sora" style="margin:10px 0 0;color:#0A1014;font-size:16px;font-weight:700;line-height:1.35;letter-spacing:-.01em">{% if en %}{% if r.score>=70 %}Solid base, with room to win on Google and AI.{% elif r.score>=55 %}You're on the right track, but AI isn't prioritizing you yet.{% elif r.score>=40 %}Your site works, but Google and AI leave you out.{% else %}Right now Google and AI barely see you.{% endif %}{% else %}{% if r.score>=70 %}Buena base, con margen para ganar en Google y en la IA.{% elif r.score>=55 %}Vas por buen camino, pero la IA aún no te prioriza.{% elif r.score>=40 %}Tu web funciona, pero Google y la IA te dejan fuera.{% else %}Ahora mismo Google y la IA apenas te ven.{% endif %}{% endif %}</div>
+        </td>
+      </tr></table>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;background:#e9edf1;border-radius:7px"><tr>
+        <td style="height:10px;background:{{ gc }};border-radius:7px;width:{{ [r.score,3]|max }}%;font-size:1px;line-height:10px">&nbsp;</td>
+        <td style="height:10px;font-size:1px;line-height:10px">&nbsp;</td>
+      </tr></table>
+    </td></tr></table>
+  </td></tr>
+
+  <!-- MINI-GRÁFICA: dimensiones -->
+  {% if (onp is not none) or (geoS is not none) or (mob is not none) or (sec is not none) %}
+  <tr><td class="pad" style="padding:20px 34px 0">
+    <div class="mono" style="color:#0f9bc2;font-size:11px;letter-spacing:1.4px;margin-bottom:6px">◆ {{ 'YOUR NUMBERS' if en else 'TU DIAGNÓSTICO EN NÚMEROS' }}</div>
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;border:1px solid #e6ebf0;border-radius:14px"><tr><td style="padding:8px 20px">
+      <table width="100%" cellpadding="0" cellspacing="0">
+        {{ bar('SEO en Google','On-page SEO (Google)', onp) }}
+        {{ bar('Presencia en la IA','Presence in AI', geoS) }}
+        {{ bar('Velocidad en móvil','Mobile speed', mob) }}
+        {{ bar('Seguridad','Security', sec) }}
+        {{ bar('Salud técnica','Technical health', tec) }}
+      </table>
+    </td></tr></table>
+  </td></tr>
+  {% endif %}
+
+  <!-- CÓMO TE VE LA IA -->
+  <tr><td class="pad" style="padding:20px 34px 0">
+    <div class="mono" style="color:#0f9bc2;font-size:11px;letter-spacing:1.4px;margin-bottom:10px">◆ {{ 'HOW AI SEES YOU' if en else 'CÓMO TE VE LA IA' }}</div>
     {% if ai and answered %}
     {% set recg = ai.recognition or ('strong' if ai.knows_brand else ('weak' if ai.knows_with_web else 'none')) %}
-    <table width="100%" cellpadding="0" cellspacing="0" style="background:#F7F9FB;border:1px solid #e6ebf0;border-left:3px solid #1CBCE4;border-radius:0 12px 12px 0"><tr><td style="padding:16px 18px">
-      <p style="margin:0 0 10px;font-size:14px;color:#283038;line-height:1.5"><b style="color:{{ '#1f9d6b' if recg=='strong' else '#dfa019' if recg=='weak' else '#d0402a' }}">{% if recg=='strong' %}{{ '✓ AI recognizes you.' if en else '✓ La IA te reconoce.' }}{% elif recg=='weak' %}{{ '◐ AI only recognizes you if you give it your site.' if en else '◐ La IA solo te reconoce si le das tu web.' }}{% else %}{{ '✕ AI does not recognize you.' if en else '✕ La IA no te reconoce.' }}{% endif %}</b>{% if ai.mentions %} <span style="color:#5a6675">“{{ ai.mentions[:150] }}”</span>{% endif %}</p>
-      <p style="margin:0 0 10px;font-size:14px;color:#283038;line-height:1.5"><b style="color:{{ '#1f9d6b' if ai.recommended else '#d0402a' }}">{{ '✓' if ai.recommended else '✕' }} {{ 'Does it recommend you when your service is asked for?' if en else '¿Te recomienda al pedir tu servicio?' }}</b>{% if ai.recommended %} {{ 'Yes, it includes you.' if en else 'Sí, te incluye.' }}{% elif ai.recommended == false %} {% if en %}No: it names <b style="color:#0A1014">{{ ai.competitors[:3]|map(attribute='name')|join(', ') }}</b>, not you.{% else %}No: nombra a <b style="color:#0A1014">{{ ai.competitors[:3]|map(attribute='name')|join(', ') }}</b>, no a ti.{% endif %}{% else %} {{ 'Only sometimes.' if en else 'Solo a veces.' }}{% endif %}</p>
-      {% if ai.gbp is not none %}{% set few = ai.gbp and (not ai.gbp_reviews_n or ai.gbp_reviews_n < 15) %}<p style="margin:0;font-size:14px;color:#283038;line-height:1.5"><b style="color:{{ '#1f9d6b' if (ai.gbp and not few) else '#dfa019' if few else '#d0402a' }}">{{ '✓' if (ai.gbp and not few) else '◐' if few else '✕' }} {{ 'Google Business profile:' if en else 'Ficha de Google Business:' }}</b>{% if ai.gbp and not few %} {{ 'you have it' if en else 'la tienes' }}{% if ai.gbp_reviews %} ({{ ai.gbp_reviews }}){% endif %}.{% elif few %} {% if en %}you have it, but <b style="color:#0A1014">you're missing reviews</b> (AI recommends the best-rated).{% else %}la tienes, pero <b style="color:#0A1014">te faltan reseñas</b> (la IA recomienda a los mejor valorados).{% endif %}{% else %} {% if en %}we couldn't find it; key for the map and for AI to cite you.{% else %}no la encontramos; clave para el mapa y para que la IA te cite.{% endif %}{% endif %}</p>{% endif %}
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f7fafc;border:1px solid #e6ebf0;border-radius:12px"><tr><td style="padding:6px 18px">
+      <table width="100%" cellpadding="0" cellspacing="0" style="border-bottom:1px solid #eef1f4"><tr>
+        <td width="26" valign="top" style="padding:13px 0"><span style="display:inline-block;width:20px;height:20px;border-radius:50%;text-align:center;line-height:20px;font-size:12px;font-weight:bold;color:#fff;background:{{ '#1f9d6b' if recg=='strong' else '#d9920a' if recg=='weak' else '#d0402a' }}">{{ '✓' if recg=='strong' else '!' if recg=='weak' else '✕' }}</span></td>
+        <td valign="middle" style="padding:13px 0 13px 10px;font-size:14px;color:#283038;line-height:1.5">{% if recg=='strong' %}{{ 'AI recognizes your brand.' if en else 'La IA reconoce tu marca.' }}{% elif recg=='weak' %}{{ 'AI only recognizes you if you give it your site.' if en else 'La IA solo te reconoce si le das tu web.' }}{% else %}{{ 'AI does not recognize you yet.' if en else 'La IA aún no te reconoce.' }}{% endif %}</td>
+      </tr></table>
+      <table width="100%" cellpadding="0" cellspacing="0" style="border-bottom:1px solid #eef1f4"><tr>
+        <td width="26" valign="top" style="padding:13px 0"><span style="display:inline-block;width:20px;height:20px;border-radius:50%;text-align:center;line-height:20px;font-size:12px;font-weight:bold;color:#fff;background:{{ '#1f9d6b' if ai.recommended else '#d0402a' }}">{{ '✓' if ai.recommended else '✕' }}</span></td>
+        <td valign="middle" style="padding:13px 0 13px 10px;font-size:14px;color:#283038;line-height:1.5">{% if ai.recommended %}{{ 'It recommends you when your service is asked for.' if en else 'Te recomienda cuando piden tu servicio.' }}{% elif ai.recommended == false %}{% if en %}When asked for your service it names <b style="color:#0A1014">{{ ai.competitors[:3]|map(attribute='name')|join(', ') }}</b>, not you.{% else %}Cuando piden tu servicio nombra a <b style="color:#0A1014">{{ ai.competitors[:3]|map(attribute='name')|join(', ') }}</b>, no a ti.{% endif %}{% else %}{{ 'It only mentions you sometimes.' if en else 'Solo te menciona a veces.' }}{% endif %}</td>
+      </tr></table>
+      {% if ai.gbp is not none %}{% set few = ai.gbp and (not ai.gbp_reviews_n or ai.gbp_reviews_n < 15) %}
+      <table width="100%" cellpadding="0" cellspacing="0"><tr>
+        <td width="26" valign="top" style="padding:13px 0"><span style="display:inline-block;width:20px;height:20px;border-radius:50%;text-align:center;line-height:20px;font-size:12px;font-weight:bold;color:#fff;background:{{ '#1f9d6b' if (ai.gbp and not few) else '#d9920a' if few else '#d0402a' }}">{{ '✓' if (ai.gbp and not few) else '!' if few else '✕' }}</span></td>
+        <td valign="middle" style="padding:13px 0 13px 10px;font-size:14px;color:#283038;line-height:1.5">{% if ai.gbp and not few %}{{ 'Google Business profile active' if en else 'Ficha de Google Business activa' }}{% if ai.gbp_reviews %} ({{ ai.gbp_reviews }}){% endif %}.{% elif few %}{{ 'You have a Google profile, but you are missing reviews.' if en else 'Tienes ficha de Google, pero te faltan reseñas.' }}{% else %}{{ 'We could not find your Google Business profile.' if en else 'No encontramos tu ficha de Google Business.' }}{% endif %}</td>
+      </tr></table>{% endif %}
     </td></tr></table>
     {% else %}
-    <p style="margin:0;font-size:14px;color:#283038;background:#F7F9FB;border-radius:10px;padding:14px 16px">{% if en %}Your readiness for AI search engines is <b>{{ r.categories.geo.score }}/100</b>. The detail is in the attached PDF.{% else %}Tu preparación para los buscadores con IA está en <b>{{ r.categories.geo.score }}/100</b>. El detalle va en el PDF adjunto.{% endif %}</p>
+    <p style="margin:0;font-size:14px;color:#283038;background:#f7fafc;border:1px solid #e6ebf0;border-radius:12px;padding:14px 16px">{% if en %}Your readiness for AI search engines is <b>{{ r.categories.geo.score }}/100</b>. The full detail is in the attached PDF.{% else %}Tu preparación para los buscadores con IA está en <b>{{ r.categories.geo.score }}/100</b>. El detalle completo va en el PDF adjunto.{% endif %}</p>
     {% endif %}
   </td></tr>
 
-  <!-- Lo que más te cuesta -->
+  <!-- LO QUE MÁS TE CUESTA -->
   {% set impv = r.findings_improve or [] %}
   {% set ordered = (impv|selectattr('severity','equalto','alto')|list) + (impv|selectattr('severity','equalto','medio')|list) + (impv|rejectattr('severity','equalto','alto')|rejectattr('severity','equalto','medio')|list) %}
   {% if ordered %}
-  <tr><td class="pad" style="padding:18px 34px 4px">
+  <tr><td class="pad" style="padding:20px 34px 0">
     <div class="mono" style="color:#c4551f;font-size:11px;letter-spacing:1.4px;margin-bottom:12px">◆ {{ 'WHAT IS COSTING YOU MOST' if en else 'LO QUE MÁS TE ESTÁ COSTANDO' }}</div>
-    {% for f in ordered[:5] %}
-    {% set sc = '#d0402a' if f.severity=='alto' else '#dfa019' if f.severity=='medio' else '#9aa4b0' %}
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:10px;background:#ffffff;border:1px solid #e6ebf0;border-left:3px solid {{ sc }};border-radius:0 12px 12px 0"><tr>
+    {% for f in ordered[:4] %}
+    {% set scol = '#d0402a' if f.severity=='alto' else '#d9920a' if f.severity=='medio' else '#9aa4b0' %}
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:9px;background:#ffffff;border:1px solid #e6ebf0;border-radius:12px"><tr>
+      <td width="6" style="background:{{ scol }};border-radius:12px 0 0 12px;font-size:1px">&nbsp;</td>
       <td style="padding:13px 16px">
         <div class="sora" style="font-size:13.5px;font-weight:700;color:#12324a">{{ f.title }}</div>
-        {% if f.detail %}<div style="font-size:11.5px;color:#5a6675;margin-top:4px;line-height:1.5">{{ f.detail[:130] }}{% if f.detail|length > 130 %}…{% endif %}</div>{% endif %}
+        {% if f.detail %}<div style="font-size:11.5px;color:#5a6675;margin-top:4px;line-height:1.5">{{ f.detail[:120] }}{% if f.detail|length > 120 %}…{% endif %}</div>{% endif %}
       </td>
-      <td align="right" width="60" valign="top" style="padding:13px 14px 0 0"><span class="mono" style="font-size:8.5px;font-weight:bold;color:{{ sc }};text-transform:uppercase">{{ sevmap.get(f.severity, f.severity) if en else f.severity }}</span></td>
+      <td align="right" width="56" valign="top" style="padding:13px 14px 0 0"><span class="mono" style="font-size:8.5px;font-weight:bold;color:{{ scol }}">{{ (sevmapen.get(f.severity, f.severity) if en else sevmap.get(f.severity, f.severity)) }}</span></td>
     </tr></table>
     {% endfor %}
-    <div style="font-size:11.5px;color:#9aa4b0;margin-top:4px">{% if en %}↳ The full list and the plan to fix it, in the <b style="color:#0E8FB0">attached PDF</b>.{% else %}↳ La lista completa y el plan para corregirlo, en el <b style="color:#0E8FB0">PDF adjunto</b>.{% endif %}</div>
+    <div style="font-size:11.5px;color:#9aa4b0;margin-top:6px">{% if en %}↳ The full list and how to fix it, in the <b style="color:#0f9bc2">attached PDF</b>.{% else %}↳ La lista completa y cómo corregirlo, en el <b style="color:#0f9bc2">PDF adjunto</b>.{% endif %}</div>
   </td></tr>
   {% endif %}
 
   <!-- PDF adjunto -->
-  <tr><td class="pad" style="padding:16px 34px 4px">
+  <tr><td class="pad" style="padding:18px 34px 0">
     <table width="100%" cellpadding="0" cellspacing="0" style="background:#eaf7fb;border:1px solid #cdeef8;border-radius:12px"><tr>
-      <td valign="middle" width="46" style="padding:14px 0 14px 18px;font-size:24px">📄</td>
-      <td valign="middle" style="padding:14px 18px 14px 10px">
-        <div class="sora" style="font-size:14px;font-weight:700;color:#0b6f8c">{{ 'Your full report, in PDF' if en else 'Tu informe completo, en PDF' }}</div>
-        <div style="font-size:12px;color:#3f7f92;margin-top:2px;line-height:1.45">{% if en %}Attached to this email: AI analysis, real competitors, speed, weak points and action plan.{% else %}Adjunto en este correo: análisis de IA, competencia real, velocidad, puntos débiles y plan de acción.{% endif %}</div>
+      <td valign="middle" width="52" style="padding:15px 0 15px 18px"><span style="display:inline-block;width:38px;height:38px;border-radius:10px;background:#0f9bc2;color:#fff;text-align:center;line-height:38px;font-size:18px" class="sora">PDF</span></td>
+      <td valign="middle" style="padding:15px 18px 15px 12px">
+        <div class="sora" style="font-size:14px;font-weight:700;color:#0b6f8c">{{ 'Your full report is attached' if en else 'Tu informe completo va adjunto' }}</div>
+        <div style="font-size:12px;color:#3f7f92;margin-top:2px;line-height:1.45">{% if en %}AI analysis, real competitors, speed, weak points and the step-by-step action plan.{% else %}Análisis de IA, competencia real, velocidad, puntos débiles y el plan de acción paso a paso.{% endif %}</div>
       </td>
     </tr></table>
   </td></tr>
 
-  <!-- CTA agenda 30 min -->
+  <!-- CTA 30 min -->
   <tr><td class="pad" style="padding:18px 34px 6px">
-    <table width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;border:1px solid #e6ebf0;border-top:3px solid #F46434;border-radius:14px"><tr><td style="padding:24px 24px;text-align:center">
-      <div class="mono" style="color:#c4551f;font-size:10px;letter-spacing:1.5px;margin-bottom:8px">◆ {{ 'THE NEXT STEP' if en else 'EL SIGUIENTE PASO' }}</div>
-      <div class="sora" style="color:#0A1014;font-size:20px;font-weight:800;letter-spacing:-.01em">{{ 'Book your 30-minute session' if en else 'Agenda tu sesión de 30 minutos' }}</div>
-      <div style="margin:8px auto 18px;color:#5a6675;font-size:13.5px;line-height:1.55;max-width:42ch">{% if en %}We review your site live and tell you <b style="color:#0A1014">what to move first</b>. Video call, no commitment.{% else %}Repasamos tu web en directo y te decimos <b style="color:#0A1014">qué mover primero</b>. Con videollamada, sin compromiso.{% endif %}</div>
-      <a href="{{ book_url or calendly or agenda_url }}" class="sora" style="display:inline-block;background:#F46434;color:#ffffff;text-decoration:none;font-weight:700;padding:14px 32px;border-radius:12px;font-size:15px">{{ '📅 Book my slot →' if en else '📅 Reservar mi hora →' }}</a>
-      <div style="margin-top:14px;font-size:13px;color:#7b8694">{{ 'or call us at' if en else 'o llámanos al' }} <a href="tel:{{ phone|replace(' ','') }}" class="sora" style="color:#0E8FB0;text-decoration:none;font-weight:700">{{ phone }}</a></div>
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#0b1620;border-radius:16px"><tr><td style="padding:26px 24px;text-align:center">
+      <div class="mono" style="color:#7fe0f5;font-size:10px;letter-spacing:1.6px;margin-bottom:8px">◆ {{ 'THE NEXT STEP' if en else 'EL SIGUIENTE PASO' }}</div>
+      <div class="sora" style="color:#ffffff;font-size:21px;font-weight:800;letter-spacing:-.01em">{{ 'Let\'s review it in 30 minutes' if en else 'Repasémoslo en 30 minutos' }}</div>
+      <div style="margin:8px auto 18px;color:#aeb9c6;font-size:13.5px;line-height:1.55;max-width:42ch">{% if en %}On a short video call we show you, on your own site, the changes that will move you most.{% else %}En una videollamada corta te enseñamos, sobre tu propia web, los cambios que más te van a mover.{% endif %}</div>
+      <a href="{{ book_url or calendly or agenda_url }}" class="sora" style="display:inline-block;background:#F46434;color:#ffffff;text-decoration:none;font-weight:700;padding:14px 34px;border-radius:12px;font-size:15px">{{ 'Book my slot →' if en else 'Reservar mi hora →' }}</a>
+      <div style="margin-top:14px;font-size:13px;color:#8a96a3">{{ 'or call us at' if en else 'o llámanos al' }} <a href="tel:{{ phone|replace(' ','') }}" class="sora" style="color:#7fe0f5;text-decoration:none;font-weight:700">{{ phone }}</a></div>
     </td></tr></table>
   </td></tr>
 
   <!-- Footer -->
-  <tr><td class="pad" style="padding:24px 34px 30px">
+  <tr><td class="pad" style="padding:22px 34px 30px">
     <table width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #eef1f4"><tr><td style="padding-top:20px">
     <table width="100%" cellpadding="0" cellspacing="0"><tr>
       <td class="stack" valign="top">
-        <div class="sora" style="font-size:19px;font-weight:800;color:#0A1014">cupper<span style="color:#1CBCE4">lab</span></div>
+        <div class="sora" style="font-size:19px;font-weight:800;color:#0A1014">cupper<span style="color:#0f9bc2">lab</span></div>
         <div class="sora" style="font-size:13.5px;color:#0A1014;margin-top:8px">{{ 'We improve your profitability.' if en else 'Mejoramos tu rentabilidad.' }}</div>
-        <div style="font-size:12px;color:#7b8694;margin-top:5px;line-height:1.5;max-width:34ch">{{ 'We make you visible on Google and AI.' if en else 'Te hacemos visible en Google y en la IA.' }}</div>
+        <div style="font-size:12px;color:#7b8694;margin-top:5px;line-height:1.5;max-width:34ch">{{ 'We make you visible on Google and in AI.' if en else 'Te hacemos visible en Google y en la IA.' }}</div>
       </td>
       <td class="stack stack-r" valign="top" align="right">
-        <div class="mono" style="font-size:10px;letter-spacing:1.3px;color:#0E8FB0;margin-bottom:9px">{{ 'FOLLOW US' if en else 'SÍGUENOS' }}</div>
-        <a href="https://www.linkedin.com/company/cupperlab/" style="display:inline-block;background:#F1F5F7;color:#0A1014;text-decoration:none;font-size:12px;font-weight:600;padding:7px 13px;border-radius:8px;margin:0 0 6px 6px">in&nbsp;LinkedIn</a>
-        <a href="https://www.instagram.com/cupperlab.es/" style="display:inline-block;background:#F1F5F7;color:#0A1014;text-decoration:none;font-size:12px;font-weight:600;padding:7px 13px;border-radius:8px;margin:0 0 6px 6px">◎&nbsp;Instagram</a>
+        <div class="mono" style="font-size:10px;letter-spacing:1.3px;color:#0f9bc2;margin-bottom:9px">{{ 'FOLLOW US' if en else 'SÍGUENOS' }}</div>
+        <a href="https://www.linkedin.com/company/cupperlab/" style="display:inline-block;background:#f1f5f7;color:#0A1014;text-decoration:none;font-size:12px;font-weight:600;padding:7px 13px;border-radius:8px;margin:0 0 6px 6px">LinkedIn</a>
+        <a href="https://www.instagram.com/cupperlab.es/" style="display:inline-block;background:#f1f5f7;color:#0A1014;text-decoration:none;font-size:12px;font-weight:600;padding:7px 13px;border-radius:8px;margin:0 0 6px 6px">Instagram</a>
         <div style="margin-top:10px"><a href="tel:{{ phone|replace(' ','') }}" class="sora" style="color:#0A1014;text-decoration:none;font-size:14px;font-weight:700">{{ phone }}</a></div>
         <div style="margin-top:3px"><a href="mailto:{{ email }}" style="color:#7b8694;text-decoration:none;font-size:12.5px">{{ email }}</a></div>
       </td>
