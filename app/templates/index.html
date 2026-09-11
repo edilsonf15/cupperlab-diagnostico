@@ -222,6 +222,9 @@
   .hcard.op .htag{color:#b07d0a}
   .hcard .hti{margin:8px 0 8px;font-family:var(--disp);font-weight:600;font-size:16px;letter-spacing:-.01em;color:var(--ink)}
   .hcard .hd2{margin:0;font-size:13.5px;line-height:1.6;color:var(--mut)}
+  #results .top{margin-bottom:18px}
+  #results .scorewrap{margin:14px 0 20px}
+  #results .prog{margin-bottom:2px}
   .nextcard{margin-top:40px;background:linear-gradient(150deg,#173a49,#0f2731);color:#F7F9FB;border-radius:18px;padding:clamp(24px,4vw,40px);display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,.7fr);gap:26px;align-items:center}
   .nextcard h3{font-family:var(--disp);font-weight:700;font-size:clamp(21px,2.8vw,27px);letter-spacing:-.02em;margin:10px 0 10px;color:#fff}
   .nextcard p{margin:0;font-size:15px;line-height:1.6;color:rgba(247,249,251,.72);max-width:46ch}
@@ -229,7 +232,11 @@
   .mailed{margin-top:24px;background:var(--surf2);border:1px solid var(--line);border-left:3px solid var(--cy);border-radius:12px;padding:18px 20px;font-size:14.5px;line-height:1.6;color:var(--ink2)}
   .mailed b{color:var(--ink)}
   /* footer */
-  footer{background:linear-gradient(180deg,#dbe5eb,#e2e9ee);color:var(--mut);border-top:1px solid var(--line)}
+  footer{position:relative;overflow:hidden;background:linear-gradient(180deg,#dbe5eb,#e2e9ee);color:var(--mut);border-top:1px solid var(--line)}
+  footer::before{content:"";position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#1CBCE4,#0E8FB0,#F46434,#1CBCE4);background-size:200% 100%;animation:footline 7s linear infinite}
+  @keyframes footline{to{background-position:200% 0}}
+  footer .soc{transition:background .16s,color .16s,transform .2s cubic-bezier(.2,.9,.2,1),border-color .16s}
+  footer .soc:hover{transform:translateY(-3px) scale(1.06)}
   .foot{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(240px,100%),1fr));gap:36px;padding:clamp(42px,6vw,60px) 0 24px}
   .soc{width:40px;height:40px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:var(--ink);background:#fff;border:1px solid var(--line);box-shadow:0 2px 6px rgba(10,16,20,.05);transition:background .16s,color .16s,transform .16s,border-color .16s}
   .soc:hover{background:var(--cy);color:var(--ink);border-color:var(--cy);transform:translateY(-3px)}
@@ -272,7 +279,7 @@
 
 <header>
   <div class="wrap hd">
-    <img src="/static/img/cupperlab-logo-color.png" alt="Cupperlab" style="height:25px;width:auto;flex-shrink:0">
+    <a href="/" aria-label="Inicio Cupperlab" style="flex-shrink:0;line-height:0"><img src="/static/img/cupperlab-logo-color.png" alt="Cupperlab" style="height:32px;width:auto;display:block"></a>
     <div class="hd-r">
       <div class="langsel" id="langSel">
         <button type="button" data-lang="es" title="Español" aria-label="Español"><svg viewBox="0 0 30 20"><rect width="30" height="20" fill="#c60b1e"/><rect y="5" width="30" height="10" fill="#ffc400"/></svg></button>
@@ -420,7 +427,7 @@
       <div class="top"><span class="live"><span class="b" style="animation:none"></span><span class="t" data-i18n="res_done">Diagnóstico completado</span></span><span class="dom" id="resDom"></span></div>
       <div class="scorewrap"><div class="score" id="scoreNum">0</div><div class="score-r"><div class="a">/ 100</div><div class="z" id="scoreZone"></div></div></div>
       <div class="prog"><div class="f zone" id="resProg"></div></div>
-      <p id="resTitle" style="margin:16px 0 0;font-size:15.5px;line-height:1.6;color:var(--ink2);max-width:64ch"></p>
+      <p id="resTitle" style="margin:26px 0 0;font-size:15.5px;line-height:1.6;color:var(--ink2);max-width:64ch"></p>
 
       <div style="margin-top:36px">
         <div style="display:flex;justify-content:space-between;align-items:baseline;gap:16px;flex-wrap:wrap;margin-bottom:20px">
@@ -444,7 +451,7 @@
       </div>
 
       <div id="mailed" class="mailed"></div>
-      <button id="againBtn" type="button" class="mono" data-i18n="again_btn" style="margin-top:24px;background:none;border:none;padding:0;cursor:pointer;font-size:12px;color:var(--mut2)"></button>
+      <button id="againBtn" type="button" class="btn btn-ghost" data-i18n="again_btn" style="margin-top:28px;font-size:14px;padding:12px 20px"></button>
     </div>
 
   </div>
@@ -453,7 +460,7 @@
 <footer>
   <div class="wrap foot" data-rv>
     <div style="max-width:34ch">
-      <img src="/static/img/cupperlab-logo-color.png" alt="Cupperlab" style="height:25px;width:auto;margin-bottom:16px">
+      <a href="https://cupperlab.com" target="_blank" rel="noopener" aria-label="Cupperlab" style="display:inline-block;line-height:0;margin-bottom:16px"><img src="/static/img/cupperlab-logo-color.png" alt="Cupperlab" style="height:26px;width:auto;display:block"></a>
       <p class="disp" data-i18n="footer_tag" style="font-weight:600;font-size:18px;color:var(--ink);margin:0 0 10px"></p>
       <p data-i18n="footer_method" style="font-size:13.5px;line-height:1.6;color:var(--mut);margin:0"></p>
     </div>
@@ -542,7 +549,7 @@
     hall_title:["Hallazgos de tu sitio","Findings on your site"],
     next_kick:["El siguiente paso","The next step"],
     next_h:["Repasémoslo juntos en 30 minutos","Let's review it together in 30 minutes"],
-    next_p:["Te mostramos qué mover primero para que Google y la IA te prioricen. Videollamada, sin compromiso.","We show you what to move first so Google and AI prioritize you. Video call, no commitment."],
+    next_p:["En una videollamada corta te enseñamos, sobre tu propia web, los cambios que más te van a mover para vender más. Gratis y sin compromiso.","In a short video call we show you, on your own site, the changes that will move you most to sell more. Free, no commitment."],
     next_book:["📅 Reservar 30 min →","📅 Book 30 min →"],
     next_call:["Llamar: +34 91 495 2585","Call: +34 91 495 2585"],
     again_btn:["← revisar otro sitio","← check another site"],
@@ -656,7 +663,7 @@
     termLines.innerHTML="";consPct.innerHTML='0<span style="font-size:.4em;color:var(--mut2)">%</span>';consProg.style.width="0%";consPhase.textContent=phaseName(0);consDom.textContent=dom;consFact.textContent="◆ "+P(FACTS[0][0],FACTS[0][1]);
     enqueuePhase(0);
     clearInterval(creepT);clearInterval(feedT);clearInterval(factT);
-    creepT=setInterval(function(){var ceil=Math.min(targetP+6,96);if(shown<ceil)shown=Math.min(shown+Math.max(0.25,(ceil-shown)*0.06),ceil);consProg.style.width=shown+"%";consPct.innerHTML=Math.round(shown)+'<span style="font-size:.4em;color:var(--mut2)">%</span>';},70);
+    creepT=setInterval(function(){var gap=targetP-shown;var step=0.18+(gap>0?gap*0.05:0);shown=Math.min(shown+step,99);consProg.style.width=shown+"%";consPct.innerHTML=Math.round(shown)+'<span style="font-size:.4em;color:var(--mut2)">%</span>';},70);
     feedT=setInterval(function(){var it=queue.shift();if(it)pushLine(it[0],it[1]);else pushLine("run",P("Sigue trabajando en segundo plano…","Still working in the background…"));},1200);
     factT=setInterval(function(){factIx=(factIx+1)%FACTS.length;consFact.style.opacity="0";setTimeout(function(){consFact.textContent="◆ "+P(FACTS[factIx][0],FACTS[factIx][1]);consFact.style.opacity="1";},380);},4200);
   }
