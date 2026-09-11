@@ -682,7 +682,7 @@
     if(!document.getElementById("consent").checked){err.textContent=P("Marca la casilla para que podamos analizar tu web.","Tick the box so we can analyze your site.");err.style.display="inline";return;}
     var payload={url:url,email:email,name:name,phone:phone,company:"",lang:LANG};
     submitBtn.disabled=true;submitBtn.textContent=P("Analizando…","Analyzing…");
-    startConsole(url.replace(/^https?:\/\//,"").replace(/\/$/,""));
+    startConsole(url.trim().replace(/^https?:\/\//i,"").replace(/^www\./i,"").split(/[\/?#]/)[0].toLowerCase());
     document.getElementById("motor").scrollIntoView({behavior:"smooth",block:"start"});
     (async function(){
       try{
