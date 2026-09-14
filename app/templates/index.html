@@ -633,19 +633,12 @@
     if(meta.word_count!=null){var w=meta.word_count||0,cs=Math.max(0,Math.min(100,Math.round(w/8)));out.push({ic:"content",name:P("Contenido","Content"),score:cs,desc:w<400?P("Poco contenido ("+w+" palabras) para que Google y la IA te citen con autoridad.","Thin content ("+w+" words) for Google and AI to cite you with authority."):P(w+" palabras: base de contenido suficiente para que te citen.",w+" words: enough content to be cited.")});}
     var pf=r.perf2;
     if(pf&&(pf.mobile||pf.desktop)){
-      var inf=pf.infra||{};
       function perfDesc(strat){
-        var mm=strat.metrics||{},A=strat.audits||{},bad=[];
-        if(mm.lcp&&mm.lcp.value!=null&&mm.lcp.score<50)bad.push(P("carga lenta (LCP "+mm.lcp.display+")","slow load (LCP "+mm.lcp.display+")"));
-        else if(mm.lcp&&mm.lcp.value!=null&&mm.lcp.score<80)bad.push(P("carga mejorable (LCP "+mm.lcp.display+")","load can improve (LCP "+mm.lcp.display+")"));
-        if(mm.inp&&mm.inp.value!=null&&mm.inp.score<80)bad.push(P("respuesta al tocar mejorable (INP "+mm.inp.display+")","tap response (INP "+mm.inp.display+")"));
-        if(mm.cls&&mm.cls.value!=null&&mm.cls.score<80)bad.push(P("el contenido se mueve (CLS "+mm.cls.display+")","content shifts (CLS "+mm.cls.display+")"));
-        if(mm.ttfb&&mm.ttfb.value!=null&&mm.ttfb.score<80)bad.push(P("servidor lento (TTFB "+mm.ttfb.display+")","slow server (TTFB "+mm.ttfb.display+")"));
-        var mkb=((A.minify_js||{}).savings_kb||0)+((A.minify_css||{}).savings_kb||0);if(mkb>0)bad.push(P(mkb+" KB de código sin minificar",mkb+" KB unminified code"));
-        var imgKb=((A.images_modern||{}).savings_kb||0)+((A.images_sized||{}).savings_kb||0);if(imgKb>0)bad.push(P(imgKb+" KB de más en imágenes",imgKb+" KB in images"));
-        if(!(inf.brotli||inf.gzip))bad.push(P("sin compresión (gzip/brotli)","no compression"));
-        if(!inf.cdn)bad.push(P("sin CDN","no CDN"));
-        return bad.length?P("Puntos de mejora: ","To improve: ")+bad.slice(0,3).join("; ")+".":P("Velocidad correcta, sin problemas relevantes.","Good speed, no relevant issues.");
+        var mm=strat.metrics||{},sc=(strat.score==null?0:strat.score),lcp=mm.lcp||{};
+        if(sc>=80)return P("Carga rápida y estable: buena experiencia para el visitante.","Fast and stable load: a good experience for the visitor.");
+        if(lcp.value!=null&&lcp.score<40)return P("La carga es lenta: lo principal tarda "+lcp.display+" en verse y eso frena la experiencia y las conversiones.","Load is slow: the main content takes "+lcp.display+" to appear, which hurts experience and conversions.");
+        if(lcp.value!=null&&lcp.score<80)return P("La carga se puede acelerar (lo principal aparece en "+lcp.display+") y quedan recursos por optimizar.","Load can be faster (main content appears in "+lcp.display+") and some resources still need optimizing.");
+        return P("La velocidad funciona, pero tiene margen de mejora.","Speed is fine, but there is room to improve.");
       }
       if(pf.mobile)out.push({ic:"movil",name:P("Velocidad en móvil","Mobile speed"),score:(pf.mobile.score==null?0:pf.mobile.score),desc:perfDesc(pf.mobile)});
       if(pf.desktop)out.push({ic:"speed",name:P("Velocidad en escritorio","Desktop speed"),score:(pf.desktop.score==null?0:pf.desktop.score),desc:perfDesc(pf.desktop)});
