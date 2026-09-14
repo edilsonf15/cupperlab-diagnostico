@@ -222,6 +222,24 @@
   .hcard.op .htag{color:#b07d0a}
   .hcard .hti{margin:8px 0 8px;font-family:var(--disp);font-weight:600;font-size:16px;letter-spacing:-.01em;color:var(--ink)}
   .hcard .hd2{margin:0;font-size:13.5px;line-height:1.6;color:var(--mut)}
+  /* rendimiento (perf) */
+  .perf{background:var(--surf);border:1px solid var(--line);border-radius:16px;padding:clamp(20px,3vw,28px)}
+  .perf-h{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  .perf-sc{font-family:var(--disp);font-weight:800;font-size:44px;line-height:.9;letter-spacing:-.03em}
+  .perf-h .ph-r{min-width:0}
+  .perf-h .ph-n{font-family:var(--disp);font-weight:700;font-size:16px;color:var(--ink)}
+  .perf-src{font-family:var(--mono);font-size:11px;color:var(--mut2);margin-top:3px}
+  .perf-grp{margin-top:22px}
+  .perf-grp-t{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut2);margin-bottom:2px}
+  .pm{display:grid;grid-template-columns:minmax(0,1fr) 78px 78px;gap:8px 12px;align-items:center;padding:13px 0;border-top:1px solid var(--line2)}
+  .pm-head{padding:9px 0 4px;border-top:none}
+  .pm-head .pcol{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut3);text-align:center}
+  .pmn{font-family:var(--disp);font-weight:600;font-size:14px;color:var(--ink)}
+  .pmd{font-size:12px;color:var(--mut);margin-top:2px;line-height:1.4}
+  .pchip{display:block;font-family:var(--disp);font-weight:700;font-size:12.5px;text-align:center;padding:6px 4px;border-radius:8px;white-space:nowrap}
+  .pa{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 12px;align-items:center;padding:12px 0;border-top:1px solid var(--line2)}
+  .pa .pchip{display:inline-block;padding:6px 10px}
+  @media(max-width:520px){.pm{grid-template-columns:minmax(0,1fr) 64px 64px}.perf-sc{font-size:38px}}
   #results .top{margin-bottom:18px}
   #results .scorewrap{margin:14px 0 20px}
   #results .prog{margin-bottom:2px}
@@ -429,7 +447,14 @@
       <div class="prog"><div class="f zone" id="resProg"></div></div>
       <p id="resTitle" style="margin:26px 0 0;font-size:15.5px;line-height:1.6;color:var(--ink2);max-width:64ch"></p>
 
-      <div style="margin-top:36px">
+      <!-- RENDIMIENTO (primer bloque) -->
+      <div id="perfWrap" style="margin-top:36px">
+        <div class="kick" data-i18n="perf_kick">01 · Rendimiento</div>
+        <h3 class="disp" style="font-weight:700;font-size:clamp(20px,2.6vw,26px);letter-spacing:-.02em;margin:11px 0 16px;color:var(--ink)" data-i18n="perf_h">Velocidad y experiencia de carga</h3>
+        <div id="perfBlock"></div>
+      </div>
+
+      <div style="margin-top:40px">
         <div style="display:flex;justify-content:space-between;align-items:baseline;gap:16px;flex-wrap:wrap;margin-bottom:20px">
           <div><div class="kick" data-i18n="detail_kick">Diagnóstico detallado</div><h3 class="disp" id="dimsTitle" style="font-weight:700;font-size:clamp(20px,2.6vw,26px);letter-spacing:-.02em;margin:11px 0 0;color:var(--ink)"></h3></div>
           <div class="legend"><span><span class="lg-dot" style="background:#d0402a"></span><span data-i18n="cls_critico">Crítico</span></span><span><span class="lg-dot" style="background:#d9920a"></span><span data-i18n="cls_mejorable">Mejorable</span></span><span><span class="lg-dot" style="background:#1f9d6b"></span><span data-i18n="cls_optimo">Óptimo</span></span></div>
@@ -545,6 +570,8 @@
     cons_note:["No cierres esta pestaña — tu diagnóstico está listo en menos de un minuto.","Don't close this tab — your diagnosis is ready in under a minute."],
     res_done:["Diagnóstico completado","Diagnosis complete"],
     detail_kick:["Diagnóstico detallado","Detailed diagnosis"],
+    perf_kick:["01 · Rendimiento","01 · Performance"],
+    perf_h:["Velocidad y experiencia de carga","Speed and loading experience"],
     cls_critico:["Crítico","Critical"],cls_mejorable:["Mejorable","Needs work"],cls_optimo:["Óptimo","Optimal"],
     hall_title:["Hallazgos de tu sitio","Findings on your site"],
     next_kick:["El siguiente paso","The next step"],
@@ -608,8 +635,6 @@
     }
     if(C.geo){var gf=fails(C.geo,GEO_NAMES);out.push({ic:"geo",name:P("Preparación para la IA (GEO)","AI readiness (GEO)"),score:C.geo.score,desc:gf.length?P("Te faltan señales que la IA usa para entenderte y citarte: ","Missing signals AI uses to understand and cite you: ")+gf.slice(0,4).join(", ")+".":P("Tu web tiene buenas señales para que la IA te entienda.","Your site has good signals for AI to understand you.")});}
     if(C.onpage){var of=fails(C.onpage,ONP_NAMES);out.push({ic:"seo",name:P("SEO on-page (Google)","On-page SEO (Google)"),score:C.onpage.score,desc:of.length?P("Por mejorar para Google: ","To improve for Google: ")+of.slice(0,4).join(", ")+".":P("On-page sólido: títulos, textos y estructura bien resueltos.","Solid on-page: titles, copy and structure well done.")});}
-    if(psi.mobile&&psi.mobile.performance!=null){var lm=psi.mobile.lcp||"—";out.push({ic:"movil",name:P("Velocidad en móvil","Mobile speed"),score:psi.mobile.performance,desc:P("El contenido principal tarda "+lm+" en verse (lo ideal es menos de 2,5 s). La mayoría de tus visitas llegan desde el móvil.","Main content takes "+lm+" to appear (ideal is under 2.5s). Most of your visits come from mobile.")});}
-    if(psi.desktop&&psi.desktop.performance!=null){var ld=psi.desktop.lcp||"—";out.push({ic:"speed",name:P("Velocidad en escritorio","Desktop speed"),score:psi.desktop.performance,desc:P("En escritorio el contenido principal aparece en "+ld+".","On desktop the main content appears in "+ld+".")});}
     if(sec&&sec.score!=null){var sb=[];if((sec.headers_missing||[]).length)sb.push(P("faltan "+sec.headers_missing.length+" cabeceras de seguridad","missing "+sec.headers_missing.length+" security headers"));if((sec.exposed||[]).length)sb.push(P("hay archivos sensibles expuestos","sensitive files are exposed"));if((sec.leaks||[]).length)sb.push(P("el servidor revela su versión","the server reveals its version"));out.push({ic:"shield",name:P("Seguridad y tecnología","Security & tech"),score:sec.score,desc:sb.length?cap(sb.join(", "))+".":P("Configuración de seguridad correcta.","Security configuration is correct.")});}
     if(C.tecnico){var tf=fails(C.tecnico,TEC_NAMES);out.push({ic:"tech",name:P("Salud técnica","Technical health"),score:C.tecnico.score,desc:tf.length?P("Por revisar: ","To review: ")+tf.slice(0,4).join(", ")+".":P("Base técnica correcta: HTTPS, sitemap y sin enlaces rotos.","Technically sound: HTTPS, sitemap and no broken links.")});}
     if(meta.word_count!=null){var w=meta.word_count||0,cs=Math.max(0,Math.min(100,Math.round(w/8)));out.push({ic:"content",name:P("Contenido","Content"),score:cs,desc:w<400?P("Poco contenido ("+w+" palabras) para que Google y la IA te citen con autoridad.","Thin content ("+w+" words) for Google and AI to cite you with authority."):P(w+" palabras: base de contenido suficiente para que te citen.",w+" words: enough content to be cited.")});}
@@ -626,17 +651,77 @@
       if(ai.recommended===false)crit.push({t:P("La IA recomienda a tu competencia","AI recommends your competitors"),d:P("Al pedir tu tipo de servicio, la IA nombra a otros antes que a ti"+(comp.length?": "+comp.join(", "):"")+". Pierdes a los clientes que aún no te conocen.","When asked for your type of service, the AI names others before you"+(comp.length?": "+comp.join(", "):"")+". You lose the customers who don't know you yet.")});
     }
     var mob=psi.mobile||{};
-    if(mob.performance!=null&&mob.performance<50)crit.push({t:P("La velocidad frena tus conversiones","Speed is hurting your conversions"),d:P("El contenido principal tarda "+(mob.lcp||"demasiado")+" en verse en móvil. Cada segundo de más dispara el abandono antes de que vean tu oferta.","Main content takes "+(mob.lcp||"too long")+" to appear on mobile. Every extra second drives abandonment before they even see your offer.")});
     if(sig.https===false)crit.push({t:P("Tu web no tiene conexión segura (HTTPS)","Your site has no secure connection (HTTPS)"),d:P("Los navegadores marcan tu sitio como 'no seguro' y Google lo penaliza. Es lo primero a corregir.","Browsers flag your site as 'not secure' and Google penalizes it. It's the first thing to fix.")});
     if((sec.exposed||[]).length)crit.push({t:P("Archivos sensibles expuestos","Sensitive files exposed"),d:P("Detectamos "+sec.exposed.length+" archivo(s) accesibles que deberían estar protegidos. Hay que bloquearlos cuanto antes.","We found "+sec.exposed.length+" accessible file(s) that should be protected. They must be blocked as soon as possible.")});
     if(ix&&(ix.broken_indexed||[]).length)crit.push({t:P("Páginas rotas indexadas en Google","Broken pages indexed on Google"),d:P("Google tiene indexadas "+ix.broken_indexed.length+" página(s) que ya dan error 404. Restan confianza y desperdician rastreo.","Google has "+ix.broken_indexed.length+" indexed page(s) that already return 404. They erode trust and waste crawl budget.")});
     if(meta.has_faq===false)op.push({t:P("Añadir preguntas frecuentes (FAQ)","Add a FAQ section"),d:P("Una sección de FAQ con datos estructurados hace que la IA cite respuestas directas de tu web cuando alguien pregunta por tu servicio.","An FAQ section with structured data lets AI quote direct answers from your site when someone asks about your service.")});
     if(ai.gbp===false)op.push({t:P("Crear tu ficha de Google Business","Create your Google Business profile"),d:P("No encontramos una ficha activa. Es clave para el mapa, las búsquedas locales y la IA local — y aporta reseñas que la IA puede citar.","We couldn't find an active profile. It's key for the map, local searches and local AI — and it brings reviews the AI can cite.")});
     if(!(meta.schema_raw_types&&meta.schema_raw_types.length))op.push({t:P("Añadir datos estructurados (schema)","Add structured data (schema)"),d:P("Son etiquetas invisibles que ayudan a Google y a la IA a entender qué haces y a mostrarte mejor.","Invisible tags that help Google and AI understand what you do and show you better.")});
-    if(mob.performance!=null&&mob.performance>=50&&mob.performance<80)op.push({t:P("Optimizar imágenes del sitio","Optimize your site images"),d:P("Comprimir y cargar en diferido las imágenes bajaría el tiempo de carga y mejoraría la experiencia en móvil.","Compressing and lazy-loading images would cut load time and improve the mobile experience.")});
     op.push({t:P("Una página por servicio para la IA","One page per service for AI"),d:P("Crear una página por cada servicio, con el vocabulario de tu cliente y señales de autoridad, para que la IA te mencione junto a tu competencia.","Create a page for each service, with your customer's vocabulary and authority signals, so AI mentions you alongside your competitors.")});
     var all=crit.map(function(x){x.sev="critico";return x;}).concat(op.map(function(x){x.sev="op";return x;}));
-    return all.slice(0,6);
+    return all;
+  }
+
+  /* ===== RENDIMIENTO (perf2) ===== */
+  function pfChip(m){
+    if(!m||m.value==null)return '<span class="pchip" style="color:var(--mut3);background:var(--surf2)">—</span>';
+    var sc=(m.score==null?50:m.score),c=clsColor(sc);
+    return '<span class="pchip" style="color:'+c+';background:'+c+'1e">'+esc(m.display)+'</span>';
+  }
+  function pfStat(ok,label){var c=ok?OK:WARN;return '<span class="pchip" style="color:'+c+';background:'+c+'1e">'+(ok?"✓":"⚠")+' '+esc(label)+'</span>';}
+  function pmRow(name,desc,mob,desk){return '<div class="pm"><div><div class="pmn">'+esc(name)+'</div><div class="pmd">'+esc(desc)+'</div></div>'+pfChip(mob)+pfChip(desk)+'</div>';}
+  function paRow(name,desc,ok,label){return '<div class="pa"><div><div class="pmn">'+esc(name)+'</div><div class="pmd">'+esc(desc)+'</div></div>'+pfStat(ok,label)+'</div>';}
+  function renderPerf(r){
+    var pf=r.perf2,box=document.getElementById("perfBlock"),wrap=document.getElementById("perfWrap");
+    if(!pf||(!pf.mobile&&!pf.desktop)){if(wrap)wrap.style.display="none";return;}
+    if(wrap)wrap.style.display="";
+    var M=pf.mobile||{},D=pf.desktop||{},mm=M.metrics||{},dm=D.metrics||{},A=(M.audits||D.audits||{}),inf=pf.infra||{};
+    var sc=pf.score==null?0:pf.score,c=clsColor(sc),fieldSrc=M.field_source||D.field_source;
+    var srcTxt=fieldSrc?P("Datos reales de usuarios (CrUX) + laboratorio de Google.","Real-user data (CrUX) + Google lab."):P("Medición de laboratorio de Google (Lighthouse).","Google lab measurement (Lighthouse).");
+    var h='<div class="perf"><div class="perf-h"><div class="perf-sc" style="color:'+c+'">'+sc+'<span style="font-size:.4em;color:var(--mut3);font-weight:600"> /100</span></div><div class="ph-r"><div class="ph-n">'+P("Nota de rendimiento de Google","Google performance score")+'</div><div class="perf-src">'+srcTxt+'</div></div></div>';
+    h+='<div class="perf-grp"><div class="perf-grp-t">'+P("Core Web Vitals y servidor","Core Web Vitals & server")+'</div>';
+    h+='<div class="pm pm-head"><div></div><div class="pcol">'+P("Móvil","Mobile")+'</div><div class="pcol">'+P("Escritorio","Desktop")+'</div></div>';
+    h+=pmRow("LCP · "+P("Carga","Load"),P("Cuánto tarda en verse lo principal (ideal <2,5 s).","Time until the main content shows (ideal <2.5s)."),mm.lcp,dm.lcp);
+    h+=pmRow("CLS · "+P("Estabilidad","Stability"),P("Cuánto se mueve el contenido al cargar (ideal <0,1).","How much content shifts while loading (ideal <0.1)."),mm.cls,dm.cls);
+    var inpD=(mm.inp&&mm.inp.is_proxy)?P("Rapidez al tocar o hacer clic. Estimada en laboratorio (TBT).","Tap/click responsiveness. Lab estimate (TBT)."):P("Rapidez de respuesta al tocar o hacer clic (datos reales).","Tap/click responsiveness (real data).");
+    h+=pmRow("INP · "+P("Interacción","Interaction"),inpD,mm.inp,dm.inp);
+    h+=pmRow("TTFB · "+P("Servidor","Server"),P("Cuánto tarda tu servidor en responder (ideal <0,8 s).","How fast your server responds (ideal <0.8s)."),mm.ttfb,dm.ttfb);
+    h+='</div><div class="perf-grp"><div class="perf-grp-t">'+P("Optimización técnica","Technical optimization")+'</div>';
+    var imgKb=((A.images_modern||{}).savings_kb||0)+((A.images_sized||{}).savings_kb||0);
+    h+=paRow(P("Imágenes (WebP/AVIF y tamaño)","Images (WebP/AVIF & size)"),P("Formato moderno y medida correcta para que pesen menos.","Modern format and right size so they weigh less."),imgKb<=0,imgKb>0?("−"+imgKb+" KB"):P("Óptimas","Optimal"));
+    var lz=A.lazy||{};h+=paRow(P("Carga diferida (lazy-load)","Lazy-load"),P("Cargar solo las imágenes que se ven al entrar.","Load only images visible on arrival."),!(lz.savings_kb>0),lz.savings_kb>0?("−"+lz.savings_kb+" KB"):P("Activa","Active"));
+    var mkb=((A.minify_js||{}).savings_kb||0)+((A.minify_css||{}).savings_kb||0);
+    h+=paRow(P("Minificación CSS/JS","CSS/JS minification"),P("Quitar espacios y comentarios del código para que pese menos.","Strip whitespace/comments so code weighs less."),mkb<=0,mkb>0?("−"+mkb+" KB"):P("Minificado","Minified"));
+    var tp=A.third_party||{},tpOk=!(tp.block_ms>250||tp.count>8);
+    h+=paRow(P("Scripts de terceros","Third-party scripts"),P("Menos scripts externos = menos bloqueo del navegador.","Fewer external scripts = less browser blocking."),tpOk,tp.count?(tp.count+" · "+tp.block_ms+" ms"):P("Pocos","Few"));
+    var comp=inf.brotli?"Brotli":(inf.gzip?"Gzip":null);
+    h+=paRow(P("Compresión (gzip/brotli)","Compression (gzip/brotli)"),P("Comprimir el texto (HTML/CSS/JS) al enviarlo.","Compress text (HTML/CSS/JS) on delivery."),!!comp,comp||P("Sin compresión","None"));
+    var ca=A.cache||{};h+=paRow(P("Caché del navegador","Browser cache"),P("Guardar recursos para que la 2ª visita cargue al instante.","Store assets so repeat visits load instantly."),!(ca.savings_kb>0),ca.savings_kb>0?P("Corta","Short"):P("Correcta","Good"));
+    h+=paRow("CDN",P("Servir la web desde servidores cercanos al visitante.","Serve the site from servers near the visitor."),!!inf.cdn,inf.cdn||P("Sin CDN","No CDN"));
+    h+='</div></div>';
+    box.innerHTML=h;
+  }
+  function perfFindings(r){
+    var pf=r.perf2;if(!pf)return [];
+    var M=pf.mobile||{},mm=M.metrics||{},A=(M.audits||{}),inf=pf.infra||{},out=[];
+    function sv(s){return (s!=null&&s<40)?"critico":"op";}
+    var lcp=mm.lcp||{};
+    if(lcp.value!=null&&(lcp.score==null||lcp.score<80))out.push({sev:sv(lcp.score),t:P("Acelera la carga en móvil (LCP)","Speed up mobile load (LCP)"),d:P("Ahora lo principal tarda "+lcp.display+" en verse en móvil (lo bueno es <2,5 s). Optimiza la imagen principal a WebP, precárgala y reduce el JavaScript que bloquea el render.","The main content takes "+lcp.display+" on mobile (good is <2.5s). Optimize the hero image to WebP, preload it and cut render-blocking JavaScript.")});
+    var cls=mm.cls||{};
+    if(cls.value!=null&&cls.score<80)out.push({sev:sv(cls.score),t:P("Evita que el contenido salte (CLS)","Stop content from shifting (CLS)"),d:P("El contenido se mueve mientras carga ("+cls.display+"). Reserva el espacio de imágenes y anuncios con ancho y alto fijos, y evita insertar elementos por encima.","Content moves while loading ("+cls.display+"). Reserve space for images and ads with fixed width and height, and avoid inserting elements on top.")});
+    var inp=mm.inp||{};
+    if(inp.value!=null&&inp.score<80)out.push({sev:sv(inp.score),t:P("Mejora la respuesta al tocar (INP)","Improve tap responsiveness (INP)"),d:P("La página tarda en reaccionar al tocar o hacer clic ("+inp.display+"). Divide las tareas de JavaScript largas y quita los scripts de terceros que no sean críticos.","The page is slow to react to taps or clicks ("+inp.display+"). Break up long JavaScript tasks and remove non-critical third-party scripts.")});
+    var ttfb=mm.ttfb||{};
+    if(ttfb.value!=null&&ttfb.score<80)out.push({sev:sv(ttfb.score),t:P("Reduce el tiempo de respuesta del servidor (TTFB)","Cut server response time (TTFB)"),d:P("Tu servidor tarda "+ttfb.display+" en responder. Activa la caché de servidor, mejora el hosting o pon un CDN por delante.","Your server takes "+ttfb.display+" to respond. Enable server caching, upgrade hosting or put a CDN in front.")});
+    var imgKb=((A.images_modern||{}).savings_kb||0)+((A.images_sized||{}).savings_kb||0);
+    if(imgKb>0)out.push({sev:"op",t:P("Comprime las imágenes (WebP/AVIF)","Compress images (WebP/AVIF)"),d:P("Puedes ahorrar unos "+imgKb+" KB pasando las imágenes a WebP/AVIF y sirviéndolas al tamaño correcto. Baja la carga y mejora el LCP.","You can save about "+imgKb+" KB by converting images to WebP/AVIF and serving them at the right size. Cuts load and improves LCP.")});
+    var mkb=((A.minify_js||{}).savings_kb||0)+((A.minify_css||{}).savings_kb||0);
+    if(mkb>0)out.push({sev:"op",t:P("Minifica CSS y JavaScript","Minify CSS and JavaScript"),d:P("Hay unos "+mkb+" KB de código sin minificar. Minificar quita espacios y comentarios, y acelera la descarga y el procesado.","There are about "+mkb+" KB of unminified code. Minifying removes whitespace and comments, speeding download and parsing.")});
+    var lz=A.lazy||{};if(lz.savings_kb>0)out.push({sev:"op",t:P("Activa la carga diferida de imágenes","Enable image lazy-load"),d:P("Hay imágenes fuera de pantalla que se cargan de golpe (~"+lz.savings_kb+" KB). Cárgalas en diferido (loading=lazy) para que la primera vista sea más rápida.","Off-screen images load upfront (~"+lz.savings_kb+" KB). Lazy-load them (loading=lazy) so the first view is faster.")});
+    var tp=A.third_party||{};if(tp.block_ms>250||tp.count>8)out.push({sev:"op",t:P("Reduce los scripts de terceros","Reduce third-party scripts"),d:P("Los scripts externos bloquean el navegador unos "+tp.block_ms+" ms. Quita los que no uses y carga el resto en diferido (async o defer).","External scripts block the browser about "+tp.block_ms+" ms. Remove unused ones and defer the rest (async or defer).")});
+    if(!(inf.brotli||inf.gzip))out.push({sev:"op",t:P("Activa la compresión (gzip/brotli)","Enable compression (gzip/brotli)"),d:P("Tu servidor no comprime el texto al enviarlo. Activar gzip o brotli reduce mucho el peso de HTML, CSS y JS.","Your server isn't compressing text on delivery. Enabling gzip or brotli greatly reduces HTML, CSS and JS weight.")});
+    if(!inf.cdn)out.push({sev:"op",t:P("Sirve tu web desde un CDN","Serve your site from a CDN"),d:P("No detectamos un CDN. Un CDN entrega tu web desde servidores cercanos a cada visitante: baja el TTFB y la hace más estable.","No CDN detected. A CDN delivers your site from servers near each visitor: it lowers TTFB and adds stability.")});
+    return out;
   }
 
   /* hero panel is static (sin movimiento) */
@@ -717,12 +802,14 @@
     document.getElementById("resProg").style.width=score+"%";
     var cur=0,anim=setInterval(function(){cur+=Math.max(1,Math.round(score/28));if(cur>=score){cur=score;clearInterval(anim);}sEl.textContent=cur;},22);
 
+    renderPerf(r);
+
     var dims=buildDims(r).sort(function(a,b){return a.score-b.score;});
     document.getElementById("dimsTitle").textContent=P("Las "+dims.length+" dimensiones","The "+dims.length+" dimensions");
     document.getElementById("dimsGrid").innerHTML=dims.map(function(d,i){var c=clsColor(d.score);return '<div class="dcard" style="animation-delay:'+(i*0.05)+'s"><div class="dt"><span class="di">'+icon(d.ic)+'</span><span class="dh"><span class="dn">'+esc(d.name)+'</span><span class="dc" style="color:'+c+'">'+clsLabel(d.score)+'</span></span><span class="ds" style="color:'+c+'">'+d.score+'<small>/100</small></span></div><div class="dbar"><div class="df" style="width:'+d.score+'%;background:'+c+'"></div></div><p class="dd">'+esc(d.desc)+'</p></div>';}).join("");
 
     document.getElementById("hallTitle").textContent=t("hall_title");
-    var f=buildFindings(r);
+    var f=perfFindings(r).slice(0,5).concat(buildFindings(r)).slice(0,8);
     document.getElementById("hallGrid").innerHTML=f.map(function(x){var isC=x.sev==="critico";return '<div class="hcard'+(isC?"":" op")+'"><span class="htag">'+(isC?t("tag_critico"):t("tag_oportunidad"))+'</span><p class="hti">'+esc(x.t)+'</p><p class="hd2">'+esc(x.d)+'</p></div>';}).join("");
 
     var ai=r.geo_ai||{},probs=[];

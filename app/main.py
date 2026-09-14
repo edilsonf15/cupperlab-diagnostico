@@ -34,6 +34,8 @@ from geo_ai import run_ai_geo  # noqa: E402
 from search import check_google, check_indexation  # noqa: E402
 import emailer  # noqa: E402
 import report_pdf  # noqa: E402
+import perf2  # noqa: E402
+import perf as _perf  # noqa: E402
 
 BASE = Path(__file__).resolve().parent
 DATA_DIR = Path(os.getenv("DATA_DIR", BASE.parent / "data"))
@@ -228,8 +230,10 @@ async def _run_job(job_id: str, url: str, email: str, name: str, lead: dict, lan
         final_url = data.get("final_url") or f"https://{domain}"
         _set(job_id, 26, "Analizando titulos, textos e imagenes...")
 
-        # La velocidad (PageSpeed) es lo mas lento: la lanzamos EN PARALELO desde ya
-        psi_task = asyncio.create_task(fetch_psi_full(final_url))
+        # La velocidad (PageSpeed) es lo mas lento: la lanzamos EN PARALELO desde ya.
+        # Motor nuevo perf2 (CWV + auditorias, movil+escritorio) + analitica por dispositivo.
+        perf_task = asyncio.create_task(perf2.measure(final_url))
+        analytics_task = asyncio.create_task(_perf.measure_device(final_url, mobile=True))
 
         # 2) Consulta REAL a la IA
         _set(job_id, 40, "Preguntandole a la IA por tu marca y tu servicio...")
@@ -268,14 +272,27 @@ async def _run_job(job_id: str, url: str, email: str, name: str, lead: dict, lan
 
         # 4) Recoge la velocidad (ya venia corriendo en paralelo)
         _set(job_id, 74, "Midiendo la velocidad en movil y escritorio...")
+        perf_model = None
         try:
-            data["psi_full"] = await psi_task
+            perf_model = await perf_task
         except Exception as exc:  # noqa: BLE001
-            print(f"[psi:ERROR] {exc}"); data["psi_full"] = None
+            print(f"[perf2:ERROR] {exc}"); perf_model = None
+        # Respaldo: si perf2 falla por completo, usa el motor antiguo
+        if not perf_model:
+            try:
+                data["psi_full"] = await fetch_psi_full(final_url)
+            except Exception as exc:  # noqa: BLE001
+                print(f"[psi-fallback:ERROR] {exc}"); data["psi_full"] = None
+        else:
+            data["perf2"] = perf_model
+            data["psi_full"] = perf2.to_legacy_psi(perf_model)
         # analitica real detectada con el navegador (ajusta el hallazgo)
         try:
-            if isinstance(data.get("psi_full"), dict):
-                apply_analytics(data, data["psi_full"].get("analytics"))
+            analytics = await analytics_task
+            analytics = (analytics or {}).get("analytics") if isinstance(analytics, dict) else None
+            if analytics and isinstance(data.get("psi_full"), dict):
+                data["psi_full"]["analytics"] = analytics
+            apply_analytics(data, analytics)
         except Exception as exc:  # noqa: BLE001
             print(f"[analytics:ERROR] {exc}")
 
