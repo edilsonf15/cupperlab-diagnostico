@@ -1,5 +1,5 @@
 """
-Informe premium en PDF: reutiliza el sistema de diseno de la plantilla oficial de
+Informe premium en PDF: reutiliza el sistema de diseño de la plantilla oficial de
 Cupperlab (portada con banda degradada, gauge, niveles, tablas, tarjetas de cita
 de IA, plan) y lo rellena con los datos verificados en vivo. Se renderiza con
 Chromium (pdf_render) para fidelidad total. Fuentes y logo van embebidos (data
@@ -80,25 +80,25 @@ def build_plan(r: dict) -> list[dict]:
     rb = s.get("robots_info") or {}
     an = s.get("analytics") or {}
     sec = s.get("security") or {}
-    # --- Seguridad (lo mas urgente si hay algo expuesto) ---
+    # --- Seguridad (lo más urgente si hay algo expuesto) ---
     if sec.get("exposed"):
         add(L("URGENTE (seguridad): bloquear los archivos sensibles accesibles (", "URGENT (security): block the accessible sensitive files (") +
-            ", ".join(e["path"] for e in sec["exposed"][:3]) + L("): pueden filtrar codigo o credenciales.", "): they can leak code or credentials."),
+            ", ".join(e["path"] for e in sec["exposed"][:3]) + L("): pueden filtrar código o credenciales.", "): they can leak code or credentials."),
             "Alto", "Bajo", 1)
     if sec.get("headers_missing"):
         add(L("Anadir las cabeceras de seguridad que faltan (", "Add the missing security headers (") + ", ".join(sec["headers_missing"][:3]) +
             L(") para proteger a tus visitantes de ataques comunes.", ") to protect your visitors from common attacks."), "Medio", "Bajo", 2)
     if sec.get("leaks"):
-        add(L("Ocultar la version del servidor/CMS que hoy es publica, para dificultar ataques dirigidos.",
-            "Hide the server/CMS version that is currently public, to make targeted attacks harder."),
+        add(L("Ocultar la versión del servidor/CMS que hoy es publica, para dificultar ataques dirigidos.",
+            "Hide the server/CMS versión that is currently public, to make targeted attacks harder."),
             "Bajo", "Bajo", 2)
-    # --- Base tecnica (que exista y sea rastreable) ---
+    # --- Base técnica (que exista y sea rastreable) ---
     if not s.get("https"):
-        add(L("Activar la conexion segura (HTTPS): sin candado Google penaliza y el navegador avisa de web no segura.",
+        add(L("Activar la conexión segura (HTTPS): sin candado Google penaliza y el navegador avisa de web no segura.",
             "Enable the secure connection (HTTPS): without the padlock Google penalizes you and the browser warns visitors the site is not secure."),
             "Alto", "Bajo", 1)
     if not m.get("viewport"):
-        add(L("Adaptar la web a movil (viewport): la mayoria de tus clientes te abren desde el celular.", "Make the site mobile-friendly (viewport): most of your clients open it from their phone."), "Alto", "Medio", 1)
+        add(L("Adaptar la web a móvil (viewport): la mayoria de tus clientes te abren desde el celular.", "Make the site mobile-friendly (viewport): most of your clients open it from their phone."), "Alto", "Medio", 1)
     if rb.get("blocks_all"):
         add(L("URGENTE: tu robots.txt bloquea TODO el sitio (Disallow: /). Google no puede rastrearte. Quitar ese bloqueo.",
             "URGENT: your robots.txt blocks the ENTIRE site (Disallow: /). Google cannot crawl you. Remove that block."),
@@ -107,27 +107,27 @@ def build_plan(r: dict) -> list[dict]:
         add(L("Publicar un robots.txt que guie el rastreo de Google y declare el mapa del sitio.", "Publish a robots.txt that guides Google's crawling and declares the sitemap."), "Medio", "Bajo", 1)
     if rb.get("present") and rb.get("suggest_block"):
         add(L("Afinar el robots.txt: bloquear ", "Fine-tune the robots.txt: block ") + ", ".join(rb["suggest_block"]) +
-            L(" para que Google no gaste rastreo en paginas sin valor y priorice las que venden.", " so Google does not waste its crawl budget on low-value pages and prioritizes the ones that sell."), "Medio", "Bajo", 2)
+            L(" para que Google no gaste rastreo en páginas sin valor y priorice las que venden.", " so Google does not waste its crawl budget on low-value pages and prioritizes the ones that sell."), "Medio", "Bajo", 2)
     if not s.get("sitemap"):
-        add(L("Crear el mapa del sitio (sitemap.xml) para que Google y la IA descubran todas tus paginas.", "Create the sitemap (sitemap.xml) so Google and AI can discover all your pages."), "Alto", "Bajo", 1)
+        add(L("Crear el mapa del sitio (sitemap.xml) para que Google y la IA descubran todas tus páginas.", "Create the sitemap (sitemap.xml) so Google and AI can discover all your pages."), "Alto", "Bajo", 1)
     elif not s.get("sitemap_in_robots"):
         add(L("Declarar el mapa del sitio dentro del robots.txt para que Google lo encuentre antes.", "Declare the sitemap inside the robots.txt so Google finds it sooner."), "Bajo", "Bajo", 2)
     if s.get("links_broken", 0) > 0:
-        add(f"{L('Reparar los', 'Fix the')} {s['links_broken']} {L('enlace(s) roto(s) (404) y limpiar el mapa del sitio (quitar etiquetas y paginas vacias).', 'broken link(s) (404) and clean up the sitemap (remove tags and empty pages).')}",
+        add(f"{L('Reparar los', 'Fix the')} {s['links_broken']} {L('enlace(s) roto(s) (404) y limpiar el mapa del sitio (quitar etiquetas y páginas vacias).', 'broken link(s) (404) and clean up the sitemap (remove tags and empty pages).')}",
             "Medio", "Medio", 2)
     # --- On-page (que Google entienda y muestre) ---
     if not m.get("title") or not (25 <= len(m.get("title", "")) <= 65):
-        add(L("Escribir titulos unicos por pagina (55-60 caracteres) con el servicio y la ciudad.", "Write unique titles per page (55-60 characters) including the service and the city."), "Alto", "Bajo", 1)
+        add(L("Escribir títulos unicos por página (55-60 caracteres) con el servicio y la ciudad.", "Write unique titles per page (55-60 characters) including the service and the city."), "Alto", "Bajo", 1)
     if not m.get("description"):
-        add(L("Escribir una meta descripcion por pagina: es el resumen que Google muestra y que la IA cita.", "Write a meta description per page: it is the summary Google shows and that AI quotes."), "Alto", "Bajo", 1)
+        add(L("Escribir una meta descripción por página: es el resumen que Google muestra y que la IA cita.", "Write a meta description per page: it is the summary Google shows and that AI quotes."), "Alto", "Bajo", 1)
     if m.get("h1_count", 0) != 1:
-        add(L("Marcar un titular principal (H1) claro y unico en cada pagina.", "Set one clear, unique main heading (H1) on each page."), "Medio", "Bajo", 1)
+        add(L("Marcar un titular principal (H1) claro y unico en cada página.", "Set one clear, unique main heading (H1) on each page."), "Medio", "Bajo", 1)
     if not m.get("canonical"):
-        add(L("Anadir la URL canonica para que Google no vea paginas duplicadas.", "Add the canonical URL so Google does not see duplicate pages."), "Medio", "Bajo", 2)
+        add(L("Anadir la URL canonica para que Google no vea páginas duplicadas.", "Add the canonical URL so Google does not see duplicate pages."), "Medio", "Bajo", 2)
     if not m.get("lang"):
         add(L("Declarar el idioma de la web (atributo lang) para paises e IA.", "Declare the site language (lang attribute) for countries and AI."), "Bajo", "Bajo", 2)
     if m.get("word_count", 0) < 300:
-        add(L("Ampliar el contenido de las paginas clave: texto propio que responda lo que busca el cliente.", "Expand the content of your key pages: original text that answers what the client is looking for."), "Medio", "Medio", 2)
+        add(L("Ampliar el contenido de las páginas clave: texto propio que responda lo que busca el cliente.", "Expand the content of your key pages: original text that answers what the client is looking for."), "Medio", "Medio", 2)
     if not (m.get("og_title") and m.get("og_image")):
         add(L("Poner la vista previa al compartir (Open Graph) para ganar clics al enlazarte en redes y chats.", "Set up the share preview (Open Graph) to win clicks when you are linked on social media and chats."), "Medio", "Bajo", 1)
     it = m.get("img_total", 0); ia = m.get("img_alt", 0)
@@ -143,7 +143,7 @@ def build_plan(r: dict) -> list[dict]:
             "Add structured data (schema: organization, services) so Google and AI understand your business."),
             "Alto", "Bajo", 1)
     if not m.get("has_faq"):
-        add(L("Crear una seccion de Preguntas frecuentes con FAQ schema: la IA cita respuestas directas de ahi.",
+        add(L("Crear una sección de Preguntas frecuentes con FAQ schema: la IA cita respuestas directas de ahi.",
             "Create a Frequently Asked Questions section with FAQ schema: AI quotes direct answers from there."),
             "Alto", "Bajo", 1)
     if not m.get("has_sameas"):
@@ -151,19 +151,19 @@ def build_plan(r: dict) -> list[dict]:
             "Connect your brand as an entity (Organization + profiles/sameAs) so AI knows you are a real company."),
             "Medio", "Bajo", 2)
     if not m.get("has_contact"):
-        add(L("Mostrar ficha de contacto clara (nombre, telefono, direccion) y marcarla con schema: la IA confia en negocios verificables.",
+        add(L("Mostrar ficha de contacto clara (nombre, teléfono, dirección) y marcarla con schema: la IA confía en negocios verificables.",
             "Show a clear contact block (name, phone, address) and mark it up with schema: AI trusts verifiable businesses."),
             "Medio", "Bajo", 2)
     if ai.get("gbp") is False:
-        add(L("Crear y verificar tu ficha de Google Business (hoy no la encontramos): clave para el mapa, las busquedas locales y la IA local.",
+        add(L("Crear y verificar tu ficha de Google Business (hoy no la encontramos): clave para el mapa, las búsquedas locales y la IA local.",
             "Create and verify your Google Business listing (we could not find it today): key for the map, local searches and local AI."),
             "Alto", "Bajo", 1)
     elif ai.get("gbp") is not True and m.get("has_contact"):
-        add(L("Verificar y optimizar tu ficha de Google Business (categoria, fotos, resenas): clave para mapas y para la IA local.",
+        add(L("Verificar y optimizar tu ficha de Google Business (categoría, fotos, reseñas): clave para mapas y para la IA local.",
             "Verify and optimize your Google Business listing (category, photos, reviews): key for maps and for local AI."),
             "Medio", "Bajo", 1)
     if m.get("word_count", 0) < 500:
-        add(L("Ampliar el contenido con paginas por servicio y por pregunta del cliente: la IA necesita texto propio que citar.",
+        add(L("Ampliar el contenido con páginas por servicio y por pregunta del cliente: la IA necesita texto propio que citar.",
             "Expand the content with pages per service and per client question: AI needs original text to cite."),
             "Alto", "Medio", 2)
     if not s.get("llms_txt"):
@@ -171,23 +171,23 @@ def build_plan(r: dict) -> list[dict]:
     if ai.get("available") and not ai.get("error"):
         if not ai.get("knows_brand"):
             add(L("Hacer que la IA te reconozca: ficha de empresa clara, perfiles consistentes y rastro externo "
-                "(directorios, prensa, resenas) que la IA pueda citar.", "Get AI to recognize you: a clear company profile, consistent listings and an external footprint "
+                "(directorios, prensa, reseñas) que la IA pueda citar.", "Get AI to recognize you: a clear company profile, consistent listings and an external footprint "
                 "(directories, press, reviews) that AI can cite."), "Alto", "Medio", 2)
         if ai.get("recommended") is not True:
-            add(L("Entrar en las recomendaciones de la IA: una pagina por servicio con el vocabulario del cliente "
-                "y senales de autoridad para que te mencione junto a tu competencia.", "Get into AI's recommendations: a page per service using the client's vocabulary "
+            add(L("Entrar en las recomendaciones de la IA: una página por servicio con el vocabulario del cliente "
+                "y señales de autoridad para que te mencione junto a tu competencia.", "Get into AI's recommendations: a page per service using the client's vocabulary "
                 "and authority signals so it mentions you alongside your competitors."), "Alto", "Medio", 2)
     # --- Datos y velocidad ---
     if not an.get("has_any"):
-        add(L("Instalar analitica (Google Analytics 4 + Tag Manager) para saber que paginas te traen clientes.",
+        add(L("Instalar analitica (Google Analytics 4 + Tag Manager) para saber que páginas te traen clientes.",
             "Install analytics (Google Analytics 4 + Tag Manager) to know which pages bring you clients."),
             "Medio", "Bajo", 1)
     elif an.get("duplicated"):
         add(L("Corregir la analitica duplicada: dejar una sola medicion para que tus datos sean fiables.", "Fix the duplicated analytics: keep a single measurement so your data is reliable."), "Medio", "Bajo", 1)
     if mob is not None and mob < 60:
-        add(f"{L('Acelerar el movil (hoy', 'Speed up mobile (today')} {mob}/100): {L('comprimir imagenes y aligerar la portada para bajar de 2,5 s de carga.', 'compress images and lighten the homepage to load in under 2.5s.')}",
+        add(f"{L('Acelerar el móvil (hoy', 'Speed up mobile (today')} {mob}/100): {L('comprimir imagenes y aligerar la portada para bajar de 2,5 s de carga.', 'compress images and lighten the homepage to load in under 2.5s.')}",
             "Alto", "Medio", 1)
-    add(L("Medir cada semana tu posicion en buscadores y si la IA ya te reconoce y te recomienda.", "Track your search rankings every week and whether AI now recognizes and recommends you."), "Medio", "Bajo", 2)
+    add(L("Medir cada semana tu posición en buscadores y si la IA ya te reconoce y te recomienda.", "Track your search rankings every week and whether AI now recognizes and recommends you."), "Medio", "Bajo", 2)
     return plan
 
 
@@ -211,7 +211,7 @@ def _severity_bars(r: dict) -> str:
     items = r.get("findings_improve", [])
     if not items:
         return (f'<div class="block callout g"><b>{L("Sin fallos graves.", "No serious issues.")}</b> {L("No detectamos problemas criticos "
-                "en el analisis rapido. Toca mantener y monitorizar.", "We did not detect critical problems "
+                "en el análisis rápido. Toca mantener y monitorizar.", "We did not detect critical problems "
                 "in the quick analysis. Now it is about maintaining and monitoring.")}</div>')
     order = {"alto": 0, "medio": 1, "bajo": 2}
     items = sorted(items, key=lambda f: order.get(f.get("severity", "medio"), 1))[:6]
@@ -224,7 +224,7 @@ def _severity_bars(r: dict) -> str:
                 f'<td class="c"><span class="pill {cls}">{lab}</span></td>'
                 f'<td>{f.get("detail","")}</td></tr>')
     return f"""<div class="block">
-      <div class="sectic">{L("Puntos debiles detectados · que corregir y por que", "Weak points detected · what to fix and why")}</div>
+      <div class="sectic">{L("Puntos debiles detectados · que corregir y por qué", "Weak points detected · what to fix and why")}</div>
       <table class="t"><thead><tr><th>{L("Punto debil", "Weak point")}</th><th class="c">{L("Gravedad", "Severity")}</th><th>{L("Que te cuesta hoy", "What it costs you today")}</th></tr></thead>
       <tbody>{trs}</tbody></table>
       <p style="font-size:8.5px;color:#7b8694;margin:7px 0 0;font-style:italic">{L("Ordenado por gravedad (impacto en captacion, posicionamiento y en que la IA te recomiende). Todo verificado en vivo.", "Sorted by severity (impact on lead generation, ranking and whether AI recommends you). All verified live.")}</p>
@@ -240,9 +240,46 @@ def _priority_table(r: dict) -> str:
     rows = "".join(
         f'<tr><td>{p["text"]}</td><td class="c">{imp_pill(p["impacto"])}</td></tr>'
         for p in plan)
-    return f"""<table class="t"><thead><tr><th>{L("Accion (en lenguaje de negocio)", "Action (in business terms)")}</th>
+    return f"""<table class="t"><thead><tr><th>{L("Acción (en lenguaje de negocio)", "Action (in business terms)")}</th>
       <th class="c">{L("Impacto", "Impact")}</th></tr></thead>
       <tbody>{rows}</tbody></table>"""
+
+
+_IA_KW = ["ia", "llms", "schema", "entidad", "organization", "faq", "resen", "reseñ",
+          "ficha de google", "google business", "sameas", "citar", "recomiend", "perfiles",
+          "wikidata", "wikipedia", "datos estructurados"]
+
+
+def _acción_tipo(text: str) -> str:
+    t = (text or "").lower()
+    return "IA" if any(k in t for k in _IA_KW) else "SEO"
+
+
+def _plan_unificado(r: dict) -> str:
+    """UN solo cuadro con TODO lo que hay que mejorar, del más crítico al medio,
+    etiquetando cada acción como SEO (Google) o IA (buscadores con IA)."""
+    plan = build_plan(r)
+    sev_rank = {"Alto": 0, "Medio": 1, "Bajo": 2}
+    plan = sorted(plan, key=lambda p: sev_rank.get(p.get("impacto"), 1))
+    imp_pill = {"Alto": ("crit", L("Crítico", "Critical")), "Medio": ("med", L("Medio", "Medium")), "Bajo": ("med", L("Medio", "Medium"))}
+    rows = ""
+    for i, p in enumerate(plan, 1):
+        tipo = _acción_tipo(p["text"])
+        tcls = "tia" if tipo == "IA" else "tseo"
+        tlab = L("IA", "AI") if tipo == "IA" else "SEO"
+        pc, pl = imp_pill.get(p["impacto"], ("med", p["impacto"]))
+        rows += (f'<tr><td class="c"><span class="pk">{i}</span></td>'
+                 f'<td>{p["text"]}</td>'
+                 f'<td class="c"><span class="pill {tcls}">{tlab}</span></td>'
+                 f'<td class="c"><span class="pill {pc}">{pl}</span></td></tr>')
+    return f"""<table class="t"><thead><tr><th class="c">#</th>
+      <th>{L("Acción a realizar (en lenguaje de negocio)", "Action to take (in business terms)")}</th>
+      <th class="c">{L("Area", "Area")}</th><th class="c">{L("Prioridad", "Priority")}</th></tr></thead>
+      <tbody>{rows}</tbody></table>
+      <div class="seglg" style="margin-top:9px">
+        <div class="i"><span class="sw" style="background:{CY6}"></span>{L("IA — para que los buscadores con IA (ChatGPT, Gemini, Google IA) te reconozcan y te recomienden", "AI — so AI search engines (ChatGPT, Gemini, Google AI) recognize and recommend you")}</div>
+        <div class="i"><span class="sw" style="background:{GREEN}"></span>{L("SEO — para posicionar en Google (lo clásico)", "SEO — to rank on Google (the classic side)")}</div>
+      </div>"""
 
 
 def _target(score: int) -> int:
@@ -270,8 +307,8 @@ def _priority_segbar(r: dict) -> str:
       <div class="sectic">{L("Reparto de los hallazgos por prioridad", "Breakdown of findings by priority")}</div>
       <div class="segbar">{bar}</div>
       <div class="seglg">
-        <div class="i"><span class="sw" style="background:{RED}"></span>{L("Criticos/Altos: lo que mas frena hoy tu captacion y tu visibilidad en la IA", "Critical/High: what most holds back your lead generation and AI visibility today")}</div>
-        <div class="i"><span class="sw" style="background:{AMBER}"></span>{L("Medios: mejoras de indexacion y experiencia", "Medium: indexing and experience improvements")}</div>
+        <div class="i"><span class="sw" style="background:{RED}"></span>{L("Criticos/Altos: lo que más frena hoy tu captacion y tu visibilidad en la IA", "Critical/High: what most holds back your lead generation and AI visibility today")}</div>
+        <div class="i"><span class="sw" style="background:{AMBER}"></span>{L("Medios: mejoras de indexación y experiencia", "Medium: indexing and experience improvements")}</div>
         <div class="i"><span class="sw" style="background:{CY6}"></span>{L("Menores: ajustes finos", "Minor: fine-tuning")}</div>
       </div></div>"""
 
@@ -298,25 +335,25 @@ def _que_esperamos(r: dict) -> str:
     score = r.get("score", 0); tgt = _target(score)
     ai = r.get("geo_ai") or {}
     reconoce = L("que la IA te reconozca y te recomiende al pedir tu servicio", "for AI to recognize and recommend you when someone asks for your service") \
-        if not (ai.get("knows_brand") and ai.get("recommended")) else L("consolidar tu presencia en la IA y ganar la categoria", "consolidating your presence in AI and winning the category")
+        if not (ai.get("knows_brand") and ai.get("recommended")) else L("consolidar tu presencia en la IA y ganar la categoría", "consolidating your presence in AI and winning the category")
     return f"""<div class="two" style="margin-top:2px">
       {_objetivo_box(score)}
-      <div class="card"><h3>{L("Que esperamos ver", "What we expect to see")}</h3>
-      <p style="font-size:9.5px;color:#3d4855;line-height:1.55">{L("Primero: la web con textos propios por pagina, un titular claro y el movil mas rapido; tu marca ganando su propia busqueda. Despues:", "First: the site with original text per page, a clear headline and a faster mobile experience; your brand winning its own search. Then:")} {reconoce} {L("y primeras posiciones en busquedas de tu categoria. Pasar de", "and top positions in searches for your category. Moving from")} <b style="color:{INK9}">{score}</b> {L("a", "to")} <b style="color:{GREEN}">~{tgt}</b> {L("de salud SEO/GEO es trabajo de textos, senales y contenido: rapido de mover y medible desde el primer dia.", "in SEO/GEO health is a matter of text, signals and content: fast to move and measurable from day one.")}</p></div>
+      <div class="card"><h3>{L("Qué esperamos ver", "What we expect to see")}</h3>
+      <p style="font-size:9.5px;color:#3d4855;line-height:1.55">{L("Primero: la web con textos propios por página, un titular claro y el móvil más rápido; tu marca ganando su propia búsqueda. Después:", "First: the site with original text per page, a clear headline and a faster mobile experience; your brand winning its own search. Then:")} {reconoce} {L("y primeras posiciones en búsquedas de tu categoría. Pasar de", "and top positions in searches for your category. Moving from")} <b style="color:{INK9}">{score}</b> {L("a", "to")} <b style="color:{GREEN}">~{tgt}</b> {L("de salud SEO/GEO es trabajo de textos, señales y contenido: rápido de mover y medible desde el primer día.", "in SEO/GEO health is a matter of text, signals and content: fast to move and measurable from day one.")}</p></div>
     </div>"""
 
 
 def _porque_como(r: dict) -> str:
-    """Por que importa cada carencia (el 'como se corrige' va en el Plan de accion)."""
+    """Por qué importa cada carencia (el 'como se corrige' va en el Plan de acción)."""
     m = r.get("meta", {}); s = r.get("signals", {})
     an = s.get("analytics") or {}
     por = []
     if not m.get("title") or not (25 <= len(m.get("title", "")) <= 65):
-        por.append(("no", L("Con el <b>titulo</b> mal dimensionado, Google recorta o ignora como te presenta en los resultados.", "With a poorly sized <b>title</b>, Google trims or ignores how it presents you in the results.")))
+        por.append(("no", L("Con el <b>título</b> mal dimensionado, Google recorta o ignora como te presenta en los resultados.", "With a poorly sized <b>title</b>, Google trims or ignores how it presents you in the results.")))
     if not m.get("description"):
-        por.append(("no", L("Sin <b>meta descripcion</b>, Google inventa el resumen y la IA no tiene una frase clara con que citarte.", "Without a <b>meta description</b>, Google makes up the summary and AI has no clear sentence to quote you with.")))
+        por.append(("no", L("Sin <b>meta descripción</b>, Google inventa el resumen y la IA no tiene una frase clara con que citarte.", "Without a <b>meta description</b>, Google makes up the summary and AI has no clear sentence to quote you with.")))
     if m.get("h1_count", 0) != 1:
-        por.append(("mid", L("El <b>H1</b> le dice a Google de que va la pagina; si falta o hay varios, se diluye el mensaje.", "The <b>H1</b> tells Google what the page is about; if it is missing or there are several, the message gets diluted.")))
+        por.append(("mid", L("El <b>H1</b> le dice a Google de que va la página; si falta o hay varios, se diluye el mensaje.", "The <b>H1</b> tells Google what the page is about; if it is missing or there are several, the message gets diluted.")))
     if not m.get("schema_types"):
         por.append(("no", L("Sin <b>datos estructurados</b>, la IA tiene cero etiquetas con que entender tu negocio y a quien sirves.", "Without <b>structured data</b>, AI has zero labels to understand your business and who you serve.")))
     if not m.get("has_sameas"):
@@ -326,7 +363,7 @@ def _porque_como(r: dict) -> str:
     if not s.get("llms_txt"):
         por.append(("mid", L("Sin <b>guia para IA (llms.txt)</b>, los buscadores con IA no saben que priorizar de tu sitio.", "Without an <b>AI guide (llms.txt)</b>, AI search engines do not know what to prioritize from your site.")))
     if not an.get("has_any"):
-        por.append(("mid", L("Sin <b>analitica</b> no sabes que paginas convierten, asi que no puedes mejorar con datos.", "Without <b>analytics</b> you do not know which pages convert, so you cannot improve with data.")))
+        por.append(("mid", L("Sin <b>analitica</b> no sabes que páginas convierten, así que no puedes mejorar con datos.", "Without <b>analytics</b> you do not know which pages convert, so you cannot improve with data.")))
     por = por[:5] or [("ok", L("La base on-page esta bien; quedan ajustes finos que refuerzan lo que ya funciona.", "The on-page basics are fine; only fine-tuning remains to reinforce what already works."))]
 
     def lis(items):
@@ -337,7 +374,7 @@ def _porque_como(r: dict) -> str:
             out += f'<li><span class="i" style="background:{col}">{ico}</span>{txt}</li>'
         return out
     return f"""<div class="block card">
-      <div class="sectic" style="margin-bottom:8px">{L("Por que importa cada carencia (como se corrige, en el plan de accion)", "Why each gap matters (how to fix it is in the action plan)")}</div>
+      <div class="sectic" style="margin-bottom:8px">{L("Por qué importa cada carencia (como se corrige, en el plan de acción)", "Why each gap matters (how to fix it is in the action plan)")}</div>
       <ul class="chk">{lis(por)}</ul></div>"""
 
 
@@ -369,8 +406,8 @@ def _tech_rows(r: dict) -> str:
         robots_st = "ok" if rb.get("has_sitemap") else "med"
         robots_code, robots_obs = "OK", extra
     rows = [
-        (L("Conexion segura (HTTPS)", "Secure connection (HTTPS)"), "OK" if s["https"] else L("Falla", "Fails"), "ok" if s["https"] else "crit",
-         L("Certificado valido", "Valid certificate") if s["https"] else L("Sin candado de seguridad", "No security padlock")),
+        (L("Conexión segura (HTTPS)", "Secure connection (HTTPS)"), "OK" if s["https"] else L("Falla", "Fails"), "ok" if s["https"] else "crit",
+         L("Certificado válido", "Valid certificate") if s["https"] else L("Sin candado de seguridad", "No security padlock")),
         (L("Respuesta del servidor", "Server response"), f'{s["home_status"]}', "ok" if s["home_status"] < 300 else "hi",
          f'{L("Responde en", "Responds in")} {s["home_time"]}s'),
         ("robots.txt", robots_code, robots_st, robots_obs),
@@ -380,15 +417,15 @@ def _tech_rows(r: dict) -> str:
          L("Presente", "Present") if s["llms_txt"] else L("No existe: sin guia para los buscadores con IA", "Does not exist: no guide for AI search engines")),
         (L("Enlaces rotos (404)", "Broken links (404)"), f'{s["links_broken"]}/{s["links_checked"]}',
          "ok" if s["links_broken"] == 0 else ("crit" if s["broken_ratio"] > 0.2 else "med"),
-         L("Sin enlaces rotos en la muestra", "No broken links in the sample") if s["links_broken"] == 0 else L("Paginas que ya no existen", "Pages that no longer exist")),
-        (L("Preparada para movil", "Mobile-ready"), "OK" if m["viewport"] else L("Falta", "Missing"), "ok" if m["viewport"] else "med",
-         L("Etiqueta viewport presente", "Viewport tag present") if m["viewport"] else L("Sin viewport movil", "No mobile viewport")),
+         L("Sin enlaces rotos en la muestra", "No broken links in the sample") if s["links_broken"] == 0 else L("Páginas que ya no existen", "Pages that no longer exist")),
+        (L("Preparada para móvil", "Mobile-ready"), "OK" if m["viewport"] else L("Falta", "Missing"), "ok" if m["viewport"] else "med",
+         L("Etiqueta viewport presente", "Viewport tag present") if m["viewport"] else L("Sin viewport móvil", "No mobile viewport")),
     ]
     return _check_list(rows)
 
 
 def _robots_block(r: dict) -> str:
-    """Recuadro con el analisis del robots.txt: que bloquea y que conviene bloquear."""
+    """Recuadro con el análisis del robots.txt: que bloquea y que conviene bloquear."""
     rb = (r.get("signals") or {}).get("robots_info") or {}
     if not rb.get("present"):
         return (f'<div class="block callout o"><b>robots.txt.</b> {L("No encontramos robots.txt. Conviene publicarlo "
@@ -403,35 +440,114 @@ def _robots_block(r: dict) -> str:
         tone = "r"
         parts.append('<span style="color:' + RED + '"><b>' + L("Bloqueas a los bots de IA", "You block the AI bots") + '</b> (' +
                      ", ".join(rb["ai_blocked"][:5]) + '): ' + L("la IA no puede leerte ni citarte. Permitir su rastreo.", "AI cannot read or cite you. Allow their crawling.") + '</span>')
+    if rb.get("blocks_render") and not rb.get("blocks_all"):
+        tone = "r"
+        parts.append('<span style="color:' + RED + '"><b>' + L("Bloqueas CSS/JS que Google necesita para ver tu web", "You block CSS/JS Google needs to render your site") + '</b> (' +
+                     ", ".join(rb["blocks_render"][:3]) + '): ' + L("sin esos recursos Google ve la página rota y te baja posiciones. Permitelos.", "without those resources Google sees the page broken and lowers your rankings. Allow them.") + '</span>')
+    if rb.get("blocks_content") and not rb.get("blocks_all"):
+        if tone != "r":
+            tone = "o"
+        parts.append(L("Bloqueas secciones de contenido (<b>", "You block content sections (<b>") + ", ".join(rb["blocks_content"][:3]) +
+                     L("</b>): si ahi hay páginas que quieres posicionar, no aparecerán en Google. Bloquea solo lo que no debe indexarse (admin, carrito, búsquedas).",
+                       "</b>): if those hold pages you want to rank, they will not show on Google. Block only what should not be indexed (admin, cart, search)."))
     if rb.get("good_blocks"):
         parts.append(L("Ya bloqueas bien ", "You already block well ") + ", ".join(rb["good_blocks"]) +
-                     L(" (evita que Google gaste rastreo en paginas sin valor).", " (it keeps Google from spending its crawl budget on low-value pages)."))
+                     L(" (evita que Google gaste rastreo en páginas sin valor).", " (it keeps Google from spending its crawl budget on low-value pages)."))
     elif rb.get("disallow_sample"):
         parts.append(L("Hoy bloquea: <b>", "Currently blocks: <b>") + ", ".join(rb["disallow_sample"][:5]) + "</b>.")
     if rb.get("suggest_block"):
-        parts.append(L("Conviene bloquear tambien ", "It is worth also blocking ") + ", ".join(rb["suggest_block"]) + ".")
+        parts.append(L("Conviene bloquear también ", "It is worth also blocking ") + ", ".join(rb["suggest_block"]) + ".")
     if not rb.get("has_sitemap"):
         parts.append(L("No declara el <b>sitemap</b> dentro del robots: anadirlo ayuda a que Google lo descubra antes.", "It does not declare the <b>sitemap</b> inside robots: adding it helps Google discover it sooner."))
     if not parts:
         parts.append(L("Bien configurado: guia el rastreo y declara el sitemap.", "Well configured: it guides crawling and declares the sitemap."))
-    return f'<div class="block callout {tone}"><b>{L("Analisis del robots.txt.", "robots.txt analysis.")}</b> ' + " ".join(parts) + "</div>"
+    return f'<div class="block callout {tone}"><b>{L("Análisis del robots.txt.", "robots.txt analysis.")}</b> ' + " ".join(parts) + "</div>"
+
+
+def _short_url(u: str) -> str:
+    u = str(u or "")
+    u = re.sub(r"^https?://", "", u)
+    i = u.find("/")
+    path = u[i:] if i >= 0 else "/"
+    return path if len(path) <= 42 else path[:39] + "..."
+
+
+def _onpage_multi(r: dict) -> str:
+    """On-page sobre TODAS las páginas rastreadas, con URLs de ejemplo que fallan cada punto."""
+    op = r.get("onpage") or {}
+    iss = op.get("issues") or {}
+    if not iss:
+        return ""
+    pages = op.get("pages_crawled") or (op.get("totals") or {}).get("pages") or (r.get("signals") or {}).get("pages_found") or 0
+
+    def ex(key, n=3):
+        e = (iss.get(key) or {}).get("examples") or []
+        us = []
+        for it in e[:n]:
+            u = it.get("url") if isinstance(it, dict) else it
+            s = _short_url(u)
+            if s:
+                us.append(s)
+        return (L(" · p. ej. ", " · e.g. ") + ", ".join(us)) if us else ""
+
+    def cnt(key):
+        return (iss.get(key) or {}).get("count", 0)
+
+    rows = []
+    img = iss.get("img_no_alt") or {}
+    ti = img.get("total_imgs", 0); miss = img.get("total", 0); ta = max(ti - miss, 0)
+    cov = round(100 * ta / ti) if ti else 100
+    if ti and miss:
+        rows.append((L("Texto ALT en imágenes", "ALT text on images"), f"{cov}%", "ok" if cov >= 70 else ("med" if cov >= 30 else "hi"),
+                     f"{ta}/{ti} {L('imágenes con ALT en todo el sitio', 'images with ALT across the site')}" + ex("img_no_alt")))
+    if cnt("og_missing"):
+        rows.append((L("Vista previa al compartir (Open Graph)", "Share preview (Open Graph)"), f'{cnt("og_missing")}', "hi",
+                     f'{cnt("og_missing")} {L("páginas sin Open Graph", "pages without Open Graph")}' + ex("og_missing")))
+    if cnt("title_missing") or cnt("title_bad_len"):
+        n = cnt("title_missing") + cnt("title_bad_len")
+        rows.append((L("Títulos de página", "Page titles"), f'{n}', "med",
+                     f'{n} {L("páginas con título ausente o mal dimensionado", "pages with missing or poorly sized title")}' + (ex("title_missing") or ex("title_bad_len"))))
+    if cnt("desc_missing"):
+        rows.append((L("Meta descripciones", "Meta descriptions"), f'{cnt("desc_missing")}', "hi",
+                     f'{cnt("desc_missing")} {L("páginas sin meta descripción", "pages without meta description")}' + ex("desc_missing")))
+    if cnt("h1_missing") or cnt("h1_multiple"):
+        n = cnt("h1_missing") + cnt("h1_multiple")
+        rows.append((L("Titular principal (H1)", "Main heading (H1)"), f'{n}', "med",
+                     f'{cnt("h1_missing")} {L("sin H1", "without H1")}, {cnt("h1_multiple")} {L("con varios", "with several")}' + (ex("h1_missing") or ex("h1_multiple"))))
+    if cnt("thin"):
+        rows.append((L("Contenido escaso (páginas pobres)", "Thin content (poor pages)"), f'{cnt("thin")}', "med",
+                     f'{cnt("thin")} {L("páginas con muy poco texto propio", "pages with very little original text")}' + ex("thin")))
+    if cnt("canonical_missing"):
+        rows.append((L("URL canonica", "Canonical URL"), f'{cnt("canonical_missing")}', "med",
+                     f'{cnt("canonical_missing")} {L("páginas sin canonical", "pages without canonical")}' + ex("canonical_missing")))
+    if cnt("orphans"):
+        rows.append((L("Páginas huerfanas", "Orphan pages"), f'{cnt("orphans")}', "med",
+                     f'{cnt("orphans")} {L("páginas sin enlaces internos que apunten a ellas", "pages with no internal links pointing to them")}' + ex("orphans")))
+    if cnt("no_schema"):
+        rows.append((L("Datos estructurados (schema)", "Structured data (schema)"), f'{cnt("no_schema")}', "hi",
+                     f'{cnt("no_schema")} {L("páginas sin schema", "pages without schema")}' + ex("no_schema")))
+    if not rows:
+        return ""
+    intro = (f'<p class="sub" style="margin-bottom:10px">{L("Rastreamos", "We crawled")} <b>{pages}</b> '
+             f'{L("páginas de tu sitio, una a una. Estos son los puntos a corregir con ejemplos reales de páginas que los fallan:", "pages of your site, one by one. These are the points to fix, with real examples of pages that fail them:")}</p>')
+    return intro + _check_list(rows)
 
 
 def _onpage_rows(r: dict) -> str:
     m = r["meta"]
     tl = len(m["title"]); dl = len(m["description"])
     rows = [
-        (L("Titulo de la pagina", "Page title"), "OK" if 25 <= tl <= 65 else (L("Largo", "Long") if tl > 65 else (L("Corto", "Short") if tl else L("Falta", "Missing"))),
+        (L("Título de la página", "Page title"), "OK" if 25 <= tl <= 65 else (L("Largo", "Long") if tl > 65 else (L("Corto", "Short") if tl else L("Falta", "Missing"))),
          "ok" if 25 <= tl <= 65 else ("med" if tl else "crit"), f'{tl} {L("caracteres", "characters")}'),
         (L("Titular principal (H1)", "Main heading (H1)"), "OK" if m["h1_count"] == 1 else (L("Varios", "Several") if m["h1_count"] > 1 else L("Falta", "Missing")),
          "ok" if m["h1_count"] == 1 else ("med" if m["h1_count"] > 1 else "crit"), f'{m["h1_count"]} {L("en la home", "on the home page")}'),
-        (L("Meta descripcion", "Meta description"), "OK" if 70 <= dl <= 165 else (L("Corta", "Short") if dl else L("Falta", "Missing")),
+        (L("Meta descripción", "Meta description"), "OK" if 70 <= dl <= 165 else (L("Corta", "Short") if dl else L("Falta", "Missing")),
          "ok" if 70 <= dl <= 165 else ("med" if dl else "crit"), f'{dl} {L("caracteres", "characters")}'),
         (L("URL canonica", "Canonical URL"), "OK" if m["canonical"] else L("Falta", "Missing"), "ok" if m["canonical"] else "med",
          L("Presente", "Present") if m["canonical"] else L("Sin canonical", "No canonical")),
         (L("Vista previa (Open Graph)", "Share preview (Open Graph)"), "OK" if (m["og_title"] and m["og_image"]) else L("Incompleta", "Incomplete"),
          "ok" if (m["og_title"] and m["og_image"]) else "hi",
-         L("Titulo e imagen", "Title and image") if (m["og_title"] and m["og_image"]) else L("Se comparte sin tarjeta", "Shared without a card")),
+         L("Título e imagen", "Title and image") if (m["og_title"] and m["og_image"]) else L("Se comparte sin tarjeta", "Shared without a card")),
         (L("Datos estructurados (schema)", "Structured data (schema)"), "OK" if m["schema_types"] else L("Pobre", "Poor"), "ok" if m["schema_types"] else "hi",
          (", ".join(m["schema_raw_types"][:4]) if m["schema_types"] else L("Sin datos estructurados", "No structured data"))),
         (L("Idioma declarado", "Declared language"), "OK" if m["lang"] else L("Falta", "Missing"), "ok" if m["lang"] else "med",
@@ -453,14 +569,14 @@ def _sitemap_comp_block(r: dict) -> str:
     comp = (r.get("signals") or {}).get("sitemap_comp")
     if not comp or not comp.get("total"):
         return ""
-    labels = [("paginas", L("Paginas reales", "Real pages")), ("entradas", L("Noticias / blog", "News / blog")),
-              ("etiquetas", L("Etiquetas / categorias", "Tags / categories")), ("fichas", L("Fichas / descargas", "Listings / downloads")),
+    labels = [("páginas", L("Páginas reales", "Real pages")), ("entradas", L("Noticias / blog", "News / blog")),
+              ("etiquetas", L("Etiquetas / categorías", "Tags / categories")), ("fichas", L("Fichas / descargas", "Listings / downloads")),
               ("otras", L("Otras (feeds, adjuntos)", "Other (feeds, attachments)"))]
     trs = ""
     for k, lab in labels:
         n = comp.get(k, 0)
         if n:
-            verdict = "ok" if k in ("paginas", "entradas") else "med"
+            verdict = "ok" if k in ("páginas", "entradas") else "med"
             trs += f'<tr><td>{lab}</td><td class="c"><b>{n}</b></td><td class="c">{_pill(verdict, L("util", "useful") if verdict=="ok" else L("revisar", "review"))}</td></tr>'
     return f"""
       <div class="sectic" style="margin-top:12px">{L("Composicion del mapa del sitio", "Sitemap composition")} · {comp['total']} URLs</div>
@@ -474,7 +590,7 @@ def _levels(r: dict) -> str:
     ai = r.get("geo_ai") or {}
     lv = [
         (L("Fundamentos tecnicos (HTTPS, respuesta, robots)", "Technical fundamentals (HTTPS, response, robots)"), tec.get("score", 0)),
-        (L("On-page (titulos, descripciones, H1)", "On-page (titles, descriptions, H1)"), onp.get("score", 0)),
+        (L("On-page (títulos, descripciones, H1)", "On-page (titles, descriptions, H1)"), onp.get("score", 0)),
         (L("Preparacion para la IA (GEO / LLMO)", "AI readiness (GEO / LLMO)"), geo.get("score", 0)),
         (L("Enlaces y rastreo (404, sitemap)", "Links and crawling (404, sitemap)"), round((100 * (1 - s["broken_ratio"]) + (100 if s["sitemap"] else 0)) / 2)),
         (L("Datos estructurados (schema)", "Structured data (schema)"), _chk_pct(geo, "schema")),
@@ -511,7 +627,7 @@ def _clean_gap(t: str) -> str:
 
 def _geo_tactics(r: dict) -> list[str]:
     """Todo lo que hay que inyectarle a la IA para que te lea y te recomiende,
-    guiado por las senales reales del sitio."""
+    guiado por las señales reales del sitio."""
     m = r.get("meta", {}); s = r.get("signals", {}); ai = r.get("geo_ai") or {}
     rb = s.get("robots_info") or {}
     st = [x.lower() for x in (m.get("schema_types") or [])]
@@ -527,38 +643,38 @@ def _geo_tactics(r: dict) -> list[str]:
                     "La IA reconoce a quien aparece citado por otros.", "<b>Earn AI recognition with an external presence</b>: get MENTIONED by sources "
                     "that AI reads (industry directories, local press, comparisons, media), not just your own site. "
                     "AI recognizes those who are cited by others."))
-        tips.append(L("<b>Marca coherente en todas partes</b>: el MISMO nombre, direccion y telefono (NAP) en tu web, "
+        tips.append(L("<b>Marca coherente en todas partes</b>: el MISMO nombre, dirección y teléfono (NAP) en tu web, "
                     "Google, redes y directorios. Las contradicciones hacen que la IA dude de quien eres.", "<b>Consistent brand everywhere</b>: the SAME name, address and phone (NAP) on your site, "
                     "Google, social media and directories. Inconsistencies make AI doubt who you are."))
     if ai.get("knows_brand") is False:
-        tips.append(L("<b>Definir tu marca como entidad</b>: pagina 'Quienes somos' clara, sameAs a tus perfiles "
+        tips.append(L("<b>Definir tu marca como entidad</b>: página 'Quienes somos' clara, sameAs a tus perfiles "
                     "oficiales y, si aplica, ficha en Wikidata/Wikipedia, para que la IA sepa quien eres sin darle tu web.", "<b>Define your brand as an entity</b>: a clear 'About us' page, sameAs to your official "
                     "profiles and, if applicable, a Wikidata/Wikipedia entry, so AI knows who you are without being given your site."))
     if not any(x in st for x in ("organization", "localbusiness", "professionalservice")) or not m.get("has_sameas"):
-        tips.append(L("Marcar tu <b>ficha de empresa (Organization/LocalBusiness + sameAs)</b>: nombre, direccion, telefono, zona y perfiles oficiales.", "Mark up your <b>company profile (Organization/LocalBusiness + sameAs)</b>: name, address, phone, area and official profiles."))
+        tips.append(L("Marcar tu <b>ficha de empresa (Organization/LocalBusiness + sameAs)</b>: nombre, dirección, teléfono, zona y perfiles oficiales.", "Mark up your <b>company profile (Organization/LocalBusiness + sameAs)</b>: name, address, phone, area and official profiles."))
     if "faqpage" not in st and not m.get("has_faq"):
         tips.append(L("Anadir <b>Preguntas frecuentes con datos estructurados (FAQ schema)</b>: la IA cita respuestas directas de ahi.", "Add <b>Frequently Asked Questions with structured data (FAQ schema)</b>: AI quotes direct answers from there."))
     if not st or not (set(st) & {"faqpage", "organization", "localbusiness", "product", "article", "service"}):
         tips.append(L("Poner <b>datos estructurados utiles (schema)</b> de tus servicios/productos para que la IA entienda tu oferta.", "Add <b>useful structured data (schema)</b> for your services/products so AI understands your offering."))
     if m.get("word_count", 0) < 500:
-        tips.append(L("Crear <b>una pagina por servicio</b> con contenido propio que responda las preguntas reales del cliente (la IA necesita texto que citar).", "Create <b>a page per service</b> with original content that answers the client's real questions (AI needs text to cite)."))
+        tips.append(L("Crear <b>una página por servicio</b> con contenido propio que responda las preguntas reales del cliente (la IA necesita texto que citar).", "Create <b>a page per service</b> with original content that answers the client's real questions (AI needs text to cite)."))
     if not (m.get("h1_count") == 1 and m.get("h2_count", 0) >= 3):
         tips.append(L("Ordenar la <b>estructura de titulares</b> (un H1 claro y varios H2 por tema) para que la IA extraiga tus respuestas.", "Organize your <b>heading structure</b> (one clear H1 and several H2 by topic) so AI can extract your answers."))
     if not m.get("has_contact"):
-        tips.append(L("Mostrar una <b>ficha de contacto clara</b> (nombre, telefono, direccion): la IA prioriza negocios verificables.", "Show a <b>clear contact block</b> (name, phone, address): AI prioritizes verifiable businesses."))
+        tips.append(L("Mostrar una <b>ficha de contacto clara</b> (nombre, teléfono, dirección): la IA prioriza negocios verificables.", "Show a <b>clear contact block</b> (name, phone, address): AI prioritizes verifiable businesses."))
     dlen = len(m.get("description") or "")
     if not (70 <= dlen <= 165):
-        tips.append(L("Escribir un <b>resumen citable (meta descripcion)</b> de 70-160 caracteres por pagina: es lo que la IA usa para citarte.", "Write a <b>quotable summary (meta description)</b> of 70-160 characters per page: it is what AI uses to cite you."))
+        tips.append(L("Escribir un <b>resumen citable (meta descripción)</b> de 70-160 caracteres por página: es lo que la IA usa para citarte.", "Write a <b>quotable summary (meta description)</b> of 70-160 characters per page: it is what AI uses to cite you."))
     if not s.get("llms_txt"):
         tips.append(L("Publicar <b>llms.txt</b> como guia para los buscadores con IA.", "Publish <b>llms.txt</b> as a guide for AI search engines."))
-    # Reseñas: senal clave para que la IA recomiende. Adaptado a tu ficha real.
+    # Reseñas: señal clave para que la IA recomiende. Adaptado a tu ficha real.
     gbp = ai.get("gbp"); gn = ai.get("gbp_reviews_n")
     if gbp is False:
-        tips.append(L("Crear tu <b>ficha de Google Business y conseguir reseñas</b>: la IA recomienda a negocios con opiniones reales y buena valoracion.", "Create your <b>Google Business listing and gather reviews</b>: AI recommends businesses with real opinions and a good rating."))
+        tips.append(L("Crear tu <b>ficha de Google Business y conseguir reseñas</b>: la IA recomienda a negocios con opiniones reales y buena valoración.", "Create your <b>Google Business listing and gather reviews</b>: AI recommends businesses with real opinions and a good rating."))
     elif gbp and (gn is None or (isinstance(gn, int) and gn < 15)):
-        tips.append(L("<b>Conseguir mas reseñas en tu ficha de Google</b>: tienes ficha pero pocas valoraciones, y la IA prioriza a los negocios mejor valorados. Pide reseñas a tus clientes de forma sistematica.", "<b>Gather more reviews on your Google listing</b>: you have a listing but few ratings, and AI prioritizes the best-rated businesses. Ask your clients for reviews systematically."))
+        tips.append(L("<b>Conseguir más reseñas en tu ficha de Google</b>: tienes ficha pero pocas valoraciones, y la IA prioriza a los negocios mejor valorados. Pide reseñas a tus clientes de forma sistemática.", "<b>Gather more reviews on your Google listing</b>: you have a listing but few ratings, and AI prioritizes the best-rated businesses. Ask your clients for reviews systematically."))
     else:
-        tips.append(L("<b>Sumar reseñas y casos de exito verificables</b> (Google, directorios, prensa): la IA cita fuentes con reputacion.", "<b>Add verifiable reviews and success stories</b> (Google, directories, press): AI cites reputable sources."))
+        tips.append(L("<b>Sumar reseñas y casos de exito verificables</b> (Google, directorios, prensa): la IA cita fuentes con reputación.", "<b>Add verifiable reviews and success stories</b> (Google, directories, press): AI cites reputable sources."))
     return tips[:8]
 
 
@@ -582,9 +698,9 @@ def _ai_section(r: dict) -> str:
     if not (ai.get("available") and not ai.get("error") and answered):
         geo = r["categories"].get("geo", {})
         return f"""
-        <div class="eyebrow"><span class="bar"></span>04 · {L("Como te ve la inteligencia artificial", "How artificial intelligence sees you")}</div>
+        <div class="eyebrow"><span class="bar"></span>04 · {L("Cómo te ve la inteligencia artificial", "How artificial intelligence sees you")}</div>
         <h2 class="sec">{L("Como te ve la IA", "How AI sees you")}</h2>
-        <p class="sub">{L("Medimos las senales que la IA usa para entenderte y citarte, y le preguntamos por ti en vivo.", "We measure the signals AI uses to understand and cite you, and we ask it about you live.")}</p>
+        <p class="sub">{L("Medimos las señales que la IA usa para entenderte y citarte, y le preguntamos por ti en vivo.", "We measure the signals AI uses to understand and cite you, and we ask it about you live.")}</p>
         <div class="block scorewrap"><div class="gauge">{_gauge(geo.get('score',0), L('Preparacion IA', 'AI readiness'))}</div>
         <div class="levels">{_levels(r)}</div></div>"""
 
@@ -596,18 +712,18 @@ def _ai_section(r: dict) -> str:
     mentions = (ai.get("mentions") or ai.get("web_description") or ai.get("brand_description") or "").strip()
     comps = _comp_names(ai) or L("otras firmas de tu sector", "other firms in your industry")
 
-    # Tarjeta 1: lo que la IA MENCIONA de ti (verde/ambar/rojo segun reconocimiento)
+    # Tarjeta 1: lo que la IA MENCIONA de ti (verde/ambar/rojo según reconocimiento)
     rec_tag = {"strong": L("TE RECONOCE", "RECOGNIZES YOU"), "weak": L("SOLO CON TU WEB", "ONLY WITH YOUR SITE"), "none": L("NO TE RECONOCE", "DOES NOT RECOGNIZE YOU")}[recg]
     rec_v = {"strong": "yes", "weak": "", "none": "no"}[recg]
     if recg == "strong":
         m_line = f'{L("Esto es lo que la IA sabe de ti:", "This is what AI knows about you:")} "{_esc(mentions[:220])}"'
         m_src = L("La IA te reconoce por su cuenta: vas por delante de la mayoria.", "AI recognizes you on its own: you are ahead of most.")
     elif recg == "weak":
-        m_line = (f'{L("Solo cuando le das tu web, la IA te describe asi:", "Only when you give it your site does AI describe you like this:")} "{_esc(mentions[:200])}". '
-                  f'{L("Por su cuenta, no te reconoce.", "On its own, it does not recognize you.")}')
-        m_src = L("Solo te reconoce si le pasas tu dominio; el objetivo es que te conozca sin darselo.", "It only recognizes you if you give it your domain; the goal is for it to know you without being told.")
+        m_line = (f'{L("Hicimos dos pruebas. <b>1) Sin pistas</b>, preguntando solo por tu nombre: la IA <b>no sabe quien eres</b> (no te tiene en su memoria). <b>2) Dandole tu dirección web</b>: entonces si te lee y te describe así:", "We ran two tests. <b>1) With no hints</b>, asking only by your name: AI <b>does not know who you are</b> (you are not in its memory). <b>2) Giving it your website address</b>: then it does read you and describes you like this:")} "{_esc(mentions[:190])}". '
+                  f'{L("Traducción: la IA <b>solo</b> te conoce si ya tiene el enlace de tu web delante; cuando un cliente pregunta sin conocerte, no apareces.", "In short: AI <b>only</b> knows you if it already has your website link in front of it; when a customer asks without knowing you, you do not show up.")}')
+        m_src = L("Objetivo: que la IA te reconozca por tu nombre, sin tener que darle tu web.", "Goal: for AI to recognize you by name, without being handed your site.")
     else:
-        m_line = L("Ni dandole tu web la IA encuentra informacion fiable de tu marca.", "Even when given your site, AI finds no reliable information about your brand.")
+        m_line = L("Ni dandole tu web la IA encuentra información fiable de tu marca.", "Even when given your site, AI finds no reliable information about your brand.")
         m_src = L("La IA no te encuentra: hoy no existes para quien pregunta a la IA antes de comprar.", "AI cannot find you: today you do not exist for those who ask AI before buying.")
     card1 = f"""
     <div class="aiq">
@@ -628,7 +744,7 @@ def _ai_section(r: dict) -> str:
     <div class="aiq">
       <div class="q"><div class="ico">IA</div><div>
         <div class="ask">{L("Tu ficha de Google Business / Maps", "Your Google Business / Maps listing")}</div>
-        <div class="qt">{L("Encontramos tu ficha activa", "We found your active listing")}{(' (' + gbp_rev + ')') if gbp_rev else ''}. {L("Buenas reseñas: son una de las fuentes que la IA cita para recomendarte. Mantenlas y sigue pidiendo mas.", "Good reviews: they are one of the sources AI cites to recommend you. Keep them up and keep asking for more.")}</div></div></div>
+        <div class="qt">{L("Encontramos tu ficha activa", "We found your active listing")}{(' (' + gbp_rev + ')') if gbp_rev else ''}. {L("Buenas reseñas: son una de las fuentes que la IA cita para recomendarte. Mantenlas y sigue pidiendo más.", "Good reviews: they are one of the sources AI cites to recommend you. Keep them up and keep asking for more.")}</div></div></div>
       <div class="src"><span>{L("Buscada por nombre en", "Searched by name in")} {_esc(zona)} {L("y por tu dominio", "and by your domain")}</span><span class="v yes">{L("TIENES FICHA", "YOU HAVE A LISTING")}</span></div>
     </div>"""
         elif gbp and few_reviews:
@@ -636,7 +752,7 @@ def _ai_section(r: dict) -> str:
     <div class="aiq">
       <div class="q"><div class="ico">IA</div><div>
         <div class="ask">{L("Tu ficha de Google Business / Maps", "Your Google Business / Maps listing")}</div>
-        <div class="qt">{L("Tienes ficha", "You have a listing")}{(' (' + gbp_rev + ')') if gbp_rev else ''}, {L("pero <b>te faltan reseñas y valoraciones</b>. Las opiniones buenas son una de las señales que la IA usa para recomendarte: sin ellas, apareces por detras de la competencia mejor valorada. Hay que pedir reseñas a tus clientes de forma sistematica.", "but <b>you are short on reviews and ratings</b>. Good opinions are one of the signals AI uses to recommend you: without them, you appear behind better-rated competitors. You need to ask your clients for reviews systematically.")}</div></div></div>
+        <div class="qt">{L("Tienes ficha", "You have a listing")}{(' (' + gbp_rev + ')') if gbp_rev else ''}, {L("pero <b>te faltan reseñas y valoraciones</b>. Las opiniones buenas son una de las señales que la IA usa para recomendarte: sin ellas, apareces por detras de la competencia mejor valorada. Hay que pedir reseñas a tus clientes de forma sistemática.", "but <b>you are short on reviews and ratings</b>. Good opinions are one of the signals AI uses to recommend you: without them, you appear behind better-rated competitors. You need to ask your clients for reviews systematically.")}</div></div></div>
       <div class="src"><span>{L("Buscada por nombre en", "Searched by name in")} {_esc(zona)} {L("y por tu dominio", "and by your domain")}</span><span class="v">{L("FALTAN RESEÑAS", "REVIEWS MISSING")}</span></div>
     </div>"""
         else:
@@ -644,7 +760,7 @@ def _ai_section(r: dict) -> str:
     <div class="aiq">
       <div class="q"><div class="ico">IA</div><div>
         <div class="ask">{L("Tu ficha de Google Business / Maps", "Your Google Business / Maps listing")}</div>
-        <div class="qt">{L("No encontramos una ficha activa. Es clave para el mapa, las busquedas locales y para que la IA te cite con resenas reales.", "We could not find an active listing. It is key for the map, local searches and for AI to cite you with real reviews.")}</div></div></div>
+        <div class="qt">{L("No encontramos una ficha activa. Es clave para el mapa, las búsquedas locales y para que la IA te cite con reseñas reales.", "We could not find an active listing. It is key for the map, local searches and for AI to cite you with real reviews.")}</div></div></div>
       <div class="src"><span>{L("Buscada por nombre en", "Searched by name in")} {_esc(zona)} {L("y por tu dominio", "and by your domain")}</span><span class="v no">{L("SIN FICHA", "NO LISTING")}</span></div>
     </div>"""
     card2 = f"""
@@ -652,11 +768,11 @@ def _ai_section(r: dict) -> str:
       <div class="q"><div class="ico">IA</div><div>
         <div class="ask">{L('Le preguntamos a la IA: "¿Que empresas recomiendas para este servicio?"', 'We asked AI: "Which companies do you recommend for this service?"')}</div>
         <div class="qt">{L("Menciono a:", "It mentioned:")} {comps}.</div></div></div>
-      <div class="src"><span>{L("Consulta a la IA en vivo · sobre tu categoria (sin nombrarte)", "Live AI query · about your category (without naming you)")}</span>
+      <div class="src"><span>{L("Consulta a la IA en vivo · sobre tu categoría (sin nombrarte)", "Live AI query · about your category (without naming you)")}</span>
         <span class="v {'yes' if reco else 'no'}">{L('TE RECOMIENDA', 'RECOMMENDS YOU') if reco else (L('NO TE RECOMIENDA', 'DOES NOT RECOMMEND YOU') if reco is False else L('SIN DETERMINAR', 'UNDETERMINED'))}</span></div>
     </div>"""
 
-    # Las 3 busquedas reales de un cliente (el corazon de la prueba GEO), como tarjetas
+    # Las 3 búsquedas reales de un cliente (el corazon de la prueba GEO), como tarjetas
     questions = ai.get("questions") or []
     q_cards = ""
     for q in questions[:3]:
@@ -669,15 +785,15 @@ def _ai_section(r: dict) -> str:
       <div class="q"><div class="ico">{L('IA','AI')}</div><div>
         <div class="ask">{L('Un cliente busca:', 'A customer searches:')} "{_esc(q.get('q',''))}"</div>
         <div class="qt">{L('La IA recomienda a:', 'AI recommends:')} {_esc(named)}.</div></div></div>
-      <div class="src"><span>{L('Busqueda de categoria', 'Category search')}{(' · ' + _esc(country)) if country else ''}</span>
+      <div class="src"><span>{L('Búsqueda de categoría', 'Category search')}{(' · ' + _esc(country)) if country else ''}</span>
         <span class="v {vc}">{vt}</span></div>
     </div>"""
-    q_block = (f'<div class="sectic" style="margin-top:12px">{L("Las 3 busquedas reales de un cliente", "The 3 real customer searches")}'
+    q_block = (f'<div class="sectic" style="margin-top:12px">{L("Las 3 búsquedas reales de un cliente", "The 3 real customer searches")}'
                f'{(L(" en ", " in ") + _esc(country)) if country else ""} · {L("¿sales tu?", "do you show up?")}</div>{q_cards}') if q_cards else ""
 
-    # Veredicto segun reconocimiento + recomendacion (verde/ambar/rojo)
+    # Veredicto según reconocimiento + recomendacion (verde/ambar/rojo)
     if recg == "strong" and reco:
-        topnote = L("<b>Buena senal:</b> la IA te reconoce y te incluye cuando piden tu servicio. Toca mantener la ventaja.",
+        topnote = L("<b>Buena señal:</b> la IA te reconoce y te incluye cuando piden tu servicio. Toca mantener la ventaja.",
                     "<b>Good signal:</b> AI recognizes you and includes you when people ask for your service. Now it's about keeping the edge.")
         vcol = "g"
         verdict = L("La IA te reconoce y te recomienda: vas por delante de la mayoria en tu zona.",
@@ -690,26 +806,30 @@ def _ai_section(r: dict) -> str:
         vcol = "r"
         verdict = f'{L("La IA no sabe quien eres y recomienda a", "AI does not know who you are and recommends")} {comps}: {L("hoy no apareces cuando preguntan por tu servicio.", "today you do not show up when people ask for your service.")}'
     else:
-        topnote = L("<b>Te reconoce por encima.</b> La IA te describe cuando le pasan tu web, pero cuando alguien "
-                    "busca tu servicio sin conocerte, nombra antes a la competencia: ahi es donde pierdes clientes.",
-                    "<b>It half-recognizes you.</b> AI describes you when given your site, but when someone "
-                    "searches for your service without knowing you, it names competitors first: that's where you lose customers.")
+        topnote = L("<b>La IA te lee, pero no te tiene de memoria.</b> Si le pasas tu web, te describe bien; pero cuando "
+                    "un cliente pregunta por tu servicio sin conocerte, la IA no te menciona y nombra a la competencia. "
+                    "Ahi es donde hoy se te escapan clientes.",
+                    "<b>AI can read you, but does not remember you.</b> If you give it your site, it describes you well; but "
+                    "when a customer asks for your service without knowing you, AI does not mention you and names competitors "
+                    "instead. That is where you lose customers today.")
         vcol = "o"
         verdict = f'{L("La IA te reconoce a medias y cuando piden tu servicio nombra a", "AI half-recognizes you and when people ask for your service it names")} {comps}: {L("trabajemos para que te cite a ti primero.", "let us work so it cites you first.")}'
 
     cards = card1 + gbp_card + card2
     return f"""
-    <div class="eyebrow"><span class="bar"></span>04 · {L('Como te ve la inteligencia artificial', 'How artificial intelligence sees you')}</div>
-    <h2 class="sec">{L('Como te ve la IA cuando preguntan por ti', 'How AI sees you when people ask about you')}</h2>
-    <p class="sub">{L('Le preguntamos a la IA, en vivo: por tu marca, por tu servicio y con busquedas reales de cliente en', 'We asked AI, live: about your brand, your service and with real customer searches in')} {_esc(zona or L('tu zona','your area'))}. {L('Cada vez mas gente busca asi antes de decidir.', 'More and more people search this way before deciding.')}</p>
+    <div class="keep">
+    <div class="eyebrow"><span class="bar"></span>04 · {L('Cómo te ve la inteligencia artificial', 'How artificial intelligence sees you')}</div>
+    <h2 class="sec">{L('Cómo te ve la IA cuando preguntan por ti', 'How AI sees you when people ask about you')}</h2>
+    <p class="sub">{L('Le preguntamos a la IA, en vivo: por tu marca, por tu servicio y con búsquedas reales de cliente en', 'We asked AI, live: about your brand, your service and with real customer searches in')} {_esc(zona or L('tu zona','your area'))}. {L('Cada vez más gente busca así antes de decidir.', 'More and more people search this way before deciding.')}</p>
     <div class="block callout {vcol}">{topnote}</div>
+    </div>
     {cards}{q_block}
     <div class="block callout {vcol}"><b>{L('Veredicto IA.', 'AI verdict.')}</b> {verdict}</div>"""
 
 
 def _crawl_structure_block(r: dict) -> str:
     """Estructura del sitio medida por NUESTRO rastreo (fiable, no depende de
-    buscadores): cuantas paginas tiene y cuantas revisamos una a una."""
+    buscadores): cuantas páginas tiene y cuantas revisamos una a una."""
     s = r.get("signals") or {}
     pf = s.get("pages_found", 0)
     checked = s.get("links_checked", 0)
@@ -717,11 +837,11 @@ def _crawl_structure_block(r: dict) -> str:
     if not pf and not checked:
         return ""
     sm = s.get("sitemap_total", 0)
-    fuente = (f'{L("segun tu mapa del sitio", "according to your sitemap")} ({sm} URLs)' if sm else L("por los enlaces internos de tu web", "from your site's internal links"))
+    fuente = (f'{L("según tu mapa del sitio", "according to your sitemap")} ({sm} URLs)' if sm else L("por los enlaces internos de tu web", "from your site's internal links"))
     rota = (f' {L("De ellas,", "Of those,")} <b>{broken}</b> {L("daban error 404.", "returned a 404 error.")}' if broken else L(" No encontramos enlaces rotos en la muestra.", " We found no broken links in the sample."))
-    return (f'<div class="block callout o"><b>{L("Estructura de tu sitio (rastreo pagina por pagina).", "Your site structure (page-by-page crawl).")}</b> '
-            f'{L("Tu web tiene del orden de", "Your site has around")} <b>{pf}</b> {L("paginas", "pages")} {fuente}. {L("Revisamos", "We checked")} {checked} {L("una a una.", "one by one.")}{rota} '
-            f'{L("El numero exacto que Google tiene indexado se confirma con Search Console (lo activamos al empezar).", "The exact number Google has indexed is confirmed with Search Console (we enable it at the start).")}</div>')
+    return (f'<div class="block callout o"><b>{L("Estructura de tu sitio (rastreo página por página).", "Your site structure (page-by-page crawl).")}</b> '
+            f'{L("Tu web tiene del orden de", "Your site has around")} <b>{pf}</b> {L("páginas", "pages")} {fuente}. {L("Revisamos", "We checked")} {checked} {L("una a una.", "one by one.")}{rota} '
+            f'{L("El número exacto que Google tiene indexado se confirma con Search Console (lo activamos al empezar).", "The exact number Google has indexed is confirmed with Search Console (we enable it at the start).")}</div>')
 
 
 def _index_block(r: dict) -> str:
@@ -732,38 +852,38 @@ def _index_block(r: dict) -> str:
     tot = ix.get("sitemap_total", 0)
     prov = ix.get("provider", L("el buscador", "the search engine"))
     if not ix.get("indexed"):
-        return ('<div class="block callout r"><b>' + L("Indexacion.", "Indexing.") + '</b> ' + L("No encontramos tu sitio indexado en la muestra de", "We didn't find your site indexed in the sample from")
+        return ('<div class="block callout r"><b>' + L("Indexación.", "Indexing.") + '</b> ' + L("No encontramos tu sitio indexado en la muestra de", "We didn't find your site indexed in the sample from")
                 + ' ' + _esc(prov) + '. ' + L("Hay que revisar que Google pueda rastrearte e indexarte.", "We need to check that Google can crawl and index you.") + '</div>')
     est = ix.get("indexed_estimate")
     concl = ix.get("conclusion") or ""
     extra = f' {L("Tu mapa del sitio lista", "Your sitemap lists")} {tot} URLs.' if tot else ""
-    est_txt = f' {L("El buscador indexa del orden de", "The search engine indexes around")} <b>{est}</b> {L("paginas.", "pages.")}' if isinstance(est, int) else ""
+    est_txt = f' {L("El buscador indexa del orden de", "The search engine indexes around")} <b>{est}</b> {L("páginas.", "pages.")}' if isinstance(est, int) else ""
     bi = ix.get("broken_indexed") or []
-    base = ('<div class="block callout o"><b>' + L("Indexacion (comprobada con navegador propio via site:).", "Indexing (checked with our own browser via site:).") + '</b> '
-            + f'{L("Rastreamos", "We crawled")} {_esc(prov)} {L("pagina por pagina.", "page by page.")}{est_txt}{extra}'
-            + (f' {_esc(concl)}' if concl else ' ' + L("El numero exacto se confirma con Search Console.", "The exact number is confirmed with Search Console."))
+    base = ('<div class="block callout o"><b>' + L("Indexación (comprobada con navegador propio via site:).", "Indexing (checked with our own browser via site:).") + '</b> '
+            + f'{L("Rastreamos", "We crawled")} {_esc(prov)} {L("página por página.", "page by page.")}{est_txt}{extra}'
+            + (f' {_esc(concl)}' if concl else ' ' + L("El número exacto se confirma con Search Console.", "The exact number is confirmed with Search Console."))
             + '</div>')
     if bi:
         trs = "".join(f'<tr><td class="u">{_esc(b["url"])}</td><td class="c">{b["status"]}</td></tr>' for b in bi[:6])
-        base += ('<div class="block callout r"><b>' + L("Paginas indexadas que dan error (404).", "Indexed pages returning an error (404).") + '</b> ' + L("Google las tiene "
+        base += ('<div class="block callout r"><b>' + L("Páginas indexadas que dan error (404).", "Indexed pages returning an error (404).") + '</b> ' + L("Google las tiene "
                  "indexadas pero ya no existen: hay que redirigirlas o recuperarlas.", "Google has them "
                  "indexed but they no longer exist: they must be redirected or restored.") + '</div>'
-                 f'<table class="t"><thead><tr><th>{L("Pagina indexada", "Indexed page")}</th><th class="c">{L("Estado", "Status")}</th></tr></thead><tbody>{trs}</tbody></table>')
+                 f'<table class="t"><thead><tr><th>{L("Página indexada", "Indexed page")}</th><th class="c">{L("Estado", "Status")}</th></tr></thead><tbody>{trs}</tbody></table>')
     return base
 
 
 _SEC_EXPLAIN = [
-    ("hsts", ("Obliga al navegador a usar siempre HTTPS: evita que intercepten la conexion.",
+    ("hsts", ("Obliga al navegador a usar siempre HTTPS: evita que intercepten la conexión.",
               "Forces the browser to always use HTTPS: prevents the connection from being intercepted.")),
     ("content-security", ("Controla que scripts y recursos puede cargar tu web: frena inyecciones y robo de datos.",
                           "Controls which scripts and resources your site can load: stops injections and data theft.")),
-    ("x-frame", ("Impide que tu web se incruste en otra para enganar al usuario (clickjacking).",
+    ("x-frame", ("Impide que tu web se incruste en otra para engañar al usuario (clickjacking).",
                  "Prevents your site from being embedded in another to trick the user (clickjacking).")),
     ("x-content-type", ("Evita que el navegador interprete archivos como algo que no son (sniffing).",
                         "Stops the browser from interpreting files as something they are not (sniffing).")),
-    ("referrer", ("Controla que informacion se envia al salir de tu web (privacidad del usuario).",
+    ("referrer", ("Controla que información se envia al salir de tu web (privacidad del usuario).",
                   "Controls what information is sent when leaving your site (user privacy).")),
-    ("permissions", ("Limita el acceso a camara, microfono o ubicacion: reduce la superficie de ataque.",
+    ("permissions", ("Limita el acceso a cámara, micrófono o ubicación: reduce la superficie de ataque.",
                      "Limits access to camera, microphone or location: reduces the attack surface.")),
 ]
 
@@ -781,7 +901,7 @@ def _security_section(r: dict) -> str:
     if not sec:
         return ""
     score = sec.get("score", 0)
-    # Cada cabecera EXPLICADA (que hace y por que importa)
+    # Cada cabecera EXPLICADA (que hace y por qué importa)
     rows = [(n, "OK", "ok", _sec_explain(n)) for n in sec.get("headers_present", [])]
     rows += [(n, L("Falta", "Missing"), "hi", _sec_explain(n)) for n in sec.get("headers_missing", [])]
     checks = _check_list(rows) if rows else ""
@@ -803,14 +923,145 @@ def _security_section(r: dict) -> str:
     tech_html = ('<div class="block callout o">' + " ".join(bits) + "</div>") if bits else ""
 
     return f"""
+    <div class="keep">
     <div class="eyebrow" style="margin-top:16px"><span class="bar"></span>{L('Seguridad y tecnologia', 'Security and technology')}</div>
-    <h2 class="sec">{L('Que tan segura y protegida esta tu web', 'How safe and protected your site is')}</h2>
-    <p class="sub">{L('Revisamos cabeceras de seguridad, fugas de version del servidor y archivos sensibles accesibles.', 'We check security headers, server version leaks and accessible sensitive files.')}
+    <h2 class="sec">{L('Qué tan segura y protegida está tu web', 'How safe and protected your site is')}</h2>
+    <p class="sub">{L('Revisamos cabeceras de seguridad, fugas de versión del servidor y archivos sensibles accesibles.', 'We check security headers, server versión leaks and accessible sensitive files.')}
     {L('Una web insegura pierde confianza de clientes y de Google. Nota de seguridad:', 'An insecure site loses the trust of customers and of Google. Security score:')} <b style="color:{_color(score)}">{score}/100</b>.</p>
     {exposed_html}
     <div class="sectic" style="margin-top:8px">{L('Cabeceras de seguridad', 'Security headers')}</div>
+    </div>
     {checks}
     {tech_html}"""
+
+
+def _local_section(r: dict) -> str:
+    """Presencia local y reputación: ficha de Google, reseñas, NAP, mapa. Es lo que
+    te hace salir en el mapa y en 'cerca de mi', y de lo que más mira la IA local."""
+    ai = r.get("geo_ai") or {}; m = r.get("meta") or {}
+    gbp = ai.get("gbp"); gn = ai.get("gbp_reviews_n"); grev = ai.get("gbp_reviews") or ""
+    has_phone = m.get("has_phone"); has_addr = m.get("has_address")
+    has_map = m.get("has_map"); has_hours = m.get("has_hours")
+    # Si no hay ninguna señal local medida, no forzamos la sección
+    if gbp is None and not any(x is not None for x in (has_phone, has_addr, has_map, has_hours)):
+        return ""
+    rows = []
+    if gbp is True and (gn is None or (isinstance(gn, int) and gn >= 15)):
+        rows.append((L("Ficha de Google Business", "Google Business listing"), "OK", "ok",
+                     L("Activa", "Active") + (f" ({_esc(grev)})" if grev else "")))
+    elif gbp is True:
+        rows.append((L("Ficha de Google Business", "Google Business listing"), "OK", "ok", L("Activa", "Active")))
+        rows.append((L("Reseñas y valoraciones", "Reviews and ratings"), L("Pocas", "Few"), "hi",
+                     (f"{_esc(grev)} · " if grev else "") + L("faltan reseñas: la IA y los clientes priorizan negocios mejor valorados", "reviews missing: AI and customers prioritize better-rated businesses")))
+    elif gbp is False:
+        rows.append((L("Ficha de Google Business", "Google Business listing"), L("Falta", "Missing"), "crit",
+                     L("Sin ficha no sales en el mapa ni en búsquedas locales", "Without a listing you do not show on the map or in local searches")))
+    if has_phone is not None or has_addr is not None:
+        nap_ok = bool(has_phone and has_addr)
+        rows.append((L("Datos de contacto (NAP)", "Contact info (NAP)"), "OK" if nap_ok else L("Incompleto", "Incomplete"),
+                     "ok" if nap_ok else "med",
+                     L("Nombre, dirección y teléfono visibles", "Name, address and phone visible") if nap_ok else L("Falta teléfono o dirección clara", "Missing phone or clear address")))
+    if has_map is not None:
+        rows.append((L("Mapa de ubicación", "Location map"), "OK" if has_map else L("Falta", "Missing"), "ok" if has_map else "med",
+                     L("Google Maps incrustado", "Google Maps embedded") if has_map else L("Sin mapa en contacto: ayuda a llegar y refuerza lo local", "No map on contact: it helps people arrive and reinforces local signal")))
+    if has_hours is not None:
+        rows.append((L("Horario de atención", "Opening hours"), "OK" if has_hours else L("Falta", "Missing"), "ok" if has_hours else "med",
+                     L("Horario publicado", "Hours published") if has_hours else L("Sin horario visible", "No visible hours")))
+    if not rows:
+        return ""
+    return f"""
+    <div class="keep">
+    <div class="eyebrow" style="margin-top:16px"><span class="bar"></span>{L('Presencia local y reputación', 'Local presence and reputation')}</div>
+    <h2 class="sec">{L('Cómo te encuentran cerca de ti (y por qué las reseñas mandan)', 'How people find you nearby (and why reviews rule)')}</h2>
+    <p class="sub">{L('Tu presencia local es lo que te hace salir en el mapa y en las búsquedas "cerca de mi", y de lo que más miran los clientes y la IA para elegir. En rojo lo que falta, en verde lo que ya tienes.', 'Your local presence is what puts you on the map and in "near me" searches, and one of the top things customers and AI look at to choose. In red what is missing, in green what you already have.')}</p>
+    {_check_list(rows)}
+    </div>"""
+
+
+def _content_section(r: dict) -> str:
+    """Contenido y relevancia (E-E-A-T): palabras clave, autor, 'sobre nosotros',
+    frescura y duplicados. Es lo que hace que Google y la IA te tomen como referencia."""
+    c = r.get("content_ai") or {}; ai = r.get("geo_ai") or {}
+    oc = (r.get("onpage") or {}).get("content") or {}
+    kws = c.get("keywords") or ai.get("keywords") or []
+    has_author = oc.get("author") if oc else c.get("has_author")
+    has_about = oc.get("about_page") if oc else c.get("has_about")
+    # frescura: bien si buena parte de las páginas con fecha son recientes
+    freshness = None
+    if oc:
+        dated = oc.get("dated_pages") or 0; fresh = oc.get("fresh_pages") or 0
+        if dated:
+            freshness = "fresh" if fresh >= max(1, round(dated * 0.4)) else "stale"
+    elif c.get("freshness") is not None:
+        freshness = c.get("freshness")
+    dups = ((oc.get("duplicates") or {}).get("count", 0) > 0) if oc else bool(c.get("duplicates"))
+    if not kws and has_author is None and has_about is None and freshness is None:
+        return ""
+    rows = []
+    if has_about is not None:
+        rows.append((L("Página 'Sobre nosotros'", "'About us' page"), "OK" if has_about else L("Falta", "Missing"), "ok" if has_about else "hi",
+                     L("Genera confianza (E-E-A-T) para Google, la IA y el cliente", "Builds trust (E-E-A-T) for Google, AI and the customer")))
+    if has_author is not None:
+        rows.append((L("Autor en los contenidos", "Author on content"), "OK" if has_author else L("Falta", "Missing"), "ok" if has_author else "med",
+                     L("Firmar da autoridad (E-E-A-T)", "Signing content gives authority (E-E-A-T)") if not has_author else L("Contenidos firmados", "Signed content")))
+    if freshness is not None:
+        fr_ok = str(freshness).lower() in ("fresh", "ok", "buena", "reciente") or freshness is True
+        rows.append((L("Frescura del contenido", "Content freshness"), "OK" if fr_ok else L("Antiguo", "Stale"), "ok" if fr_ok else "med",
+                     L("Contenido actualizado y con fecha", "Up-to-date, dated content") if fr_ok else L("Actualiza y fecha tus artículos clave", "Update and date your key articles")))
+    if dups:
+        rows.append((L("Contenido duplicado", "Duplicate content"), L("Revisar", "Review"), "med",
+                     L("Páginas casi identicas reparten tu fuerza en Google", "Near-identical pages split your strength in Google")))
+    kw_block = ""
+    if kws:
+        chips = "".join(f'<span class="kw">{_esc(k)}</span>' for k in kws[:6])
+        kw_block = (f'<div class="sectic" style="margin-top:10px">{L("Palabras clave objetivo (según la IA)", "Target keywords (per AI)")}</div>'
+                    f'<div class="kwrow">{chips}</div>'
+                    f'<p class="note" style="margin-top:6px">{L("Refuerza una página por tema para dominarlas. El volumen exacto se confirma con una herramienta de keywords.", "Reinforce one page per topic to own them. Exact volume is confirmed with a keyword tool.")}</p>')
+    checks = _check_list(rows) if rows else ""
+    return f"""
+    <div class="keep">
+    <div class="eyebrow" style="margin-top:16px"><span class="bar"></span>{L('Contenido y relevancia', 'Content and relevance')}</div>
+    <h2 class="sec">{L('Si tu contenido es la referencia, Google y la IA te citan', 'If your content is the reference, Google and AI cite you')}</h2>
+    <p class="sub">{L('Analizamos si tu contenido apunta a lo que buscan tus clientes y si transmite confianza (autor, "sobre nosotros", frescura). Es lo que separa "una web más" de "la referencia del sector".', 'We analyze whether your content targets what your customers search and whether it conveys trust (author, "about", freshness). It is what separates "just another site" from "the sector reference".')}</p>
+    {checks}{kw_block}
+    </div>"""
+
+
+def _cwv_strip(psi: dict) -> str:
+    """Tira llamativa de Core Web Vitals (LCP/CLS/INP) móvil vs escritorio, con
+    valores grandes y legibles y un semaforo claro. Es lo que Google usa para rankear."""
+    order = [("lcp", "LCP", L("Carga del contenido", "Content load"), "&lt;2,5 s"),
+             ("cls", "CLS", L("Estabilidad visual", "Visual stability"), "&lt;0,1"),
+             ("inp", "INP", L("Respuesta al tocar", "Tap response"), "&lt;200 ms")]
+    st_col = {"ok": GREEN, "warn": AMBER, "bad": RED}
+    st_lab = {"ok": L("Bien", "Good"), "warn": L("Justo", "Fair"), "bad": L("Malo", "Poor")}
+
+    def dev_card(dev_lab, dev_col, d):
+        cwv = (d or {}).get("cwv") or {}
+        perf = d.get("performance") if d else None
+        cells = ""
+        for k, code, name, ideal in order:
+            mv = cwv.get(k) or {}
+            val = mv.get("v", "—"); stt = mv.get("state", "na")
+            c = st_col.get(stt, "#c9d1da"); lab = st_lab.get(stt, "—")
+            cells += (f'<td class="cwvc"><div class="cwvk">{code}</div>'
+                      f'<div class="cwvv" style="color:{c}">{val}</div>'
+                      f'<div class="cwvs" style="background:{c}">{lab}</div>'
+                      f'<div class="cwvn">{name}<br><span>{L("ideal","ideal")} {ideal}</span></div></td>')
+        pc = _color(perf if perf is not None else 0)
+        return (f'<div class="cwvcard"><div class="cwvhd"><span class="cwvdev" style="background:{dev_col}">{dev_lab}</span>'
+                f'<span class="cwvsc" style="color:{pc}">{perf if perf is not None else "—"}<i>/100</i></span></div>'
+                f'<table class="cwvt"><tr>{cells}</tr></table></div>')
+
+    m = psi.get("mobile"); d = psi.get("desktop")
+    if not ((m and m.get("cwv")) or (d and d.get("cwv"))):
+        return ""
+    cards = ""
+    if m and m.get("cwv"):
+        cards += dev_card(L("MOVIL", "MOBILE"), RED if (m.get("performance") or 0) < 60 else GREEN, m)
+    if d and d.get("cwv"):
+        cards += dev_card(L("ESCRITORIO", "DESKTOP"), GREEN if (d.get("performance") or 0) >= 80 else AMBER, d)
+    return f'<div class="block two" style="margin:2px 0 12px">{cards}</div>'
 
 
 def _speed_section(r: dict) -> str:
@@ -826,7 +1077,7 @@ def _speed_section(r: dict) -> str:
 
     def _metric_bar(k, val):
         n = _num(val)
-        # (bueno, malo) por metrica; en segundos salvo TBT (ms) y SI
+        # (bueno, malo) por métrica; en segundos salvo TBT (ms) y SI
         limits = {"fcp": (1.8, 3.0), "lcp": (2.5, 4.0), "tbt": (200, 600), "si": (3.4, 5.8)}
         good, bad = limits.get(k, (2.5, 4.0))
         if n is None:
@@ -845,7 +1096,7 @@ def _speed_section(r: dict) -> str:
         col = _color(perf if perf is not None else 0)
         rows = ""
         for lab, k in [(L("Primer contenido (FCP)", "First content (FCP)"), "fcp"), (L("Contenido principal (LCP)", "Main content (LCP)"), "lcp"),
-                       (L("Bloqueo por codigo (TBT)", "Code blocking (TBT)"), "tbt"), (L("Indice de velocidad", "Speed index"), "si")]:
+                       (L("Bloqueo por código (TBT)", "Code blocking (TBT)"), "tbt"), (L("Indice de velocidad", "Speed index"), "si")]:
             val = d.get(k) or "-"
             bcol, w = _metric_bar(k, val)
             rows += (f'<div class="hbar" style="margin:5px 0"><div class="l" style="width:44%;font-size:8.5px">{lab}</div>'
@@ -856,13 +1107,37 @@ def _speed_section(r: dict) -> str:
           <div class="hbars" style="margin-top:6px">{rows}</div></div>"""
 
     m = psi.get("mobile"); d = psi.get("desktop")
+    mob_p = (m or {}).get("performance")
+    speed_lead = (L("La velocidad es de los pocos factores que Google confirma como criterio de posicionamiento, y es "
+                    "la primera impresión de tu cliente. La medimos con los Core Web Vitals (las métricas oficiales de "
+                    "Google), en móvil y escritorio por separado: el móvil suele ir con peor conexión y un procesador "
+                    "más lento, y además Google indexa primero la versión móvil.",
+                    "Speed is one of the few factors Google confirms as a ranking criterion, and it is your customer's "
+                    "first impression. We measure it with Core Web Vitals (Google's official metrics), on mobile and "
+                    "desktop separately: mobile usually has a worse connection and slower CPU, and Google indexes the "
+                    "mobile versión first."))
 
+    # Lectura de negocio dinamica según la nota móvil
+    if mob_p is not None and mob_p < 60:
+        insight = L("La buena noticia: tu servidor responde rápido y la página no salta mientras carga. El problema esta "
+                    "concentrado en el móvil, donde la primera vista tarda demasiado en pintarse. Es de los arreglos más "
+                    "rentables: se resuelve optimizando la imagen principal y aligerando el código, sin rehacer la web.",
+                    "Good news: your server responds fast and the page does not shift while loading. The problem is "
+                    "concentrated on mobile, where the first view takes too long to paint. It is one of the most profitable "
+                    "fixes: solved by optimizing the main image and lightening the code, without rebuilding the site.")
+    else:
+        insight = L("Tu web carga rápido y de forma estable en ambos dispositivos: una buena experiencia que juega a tu "
+                    "favor en Google y con el visitante. Toca mantenerlo al anadir contenido y campanas.",
+                    "Your site loads fast and stably on both devices: a good experience that works in your favor with "
+                    "Google and the visitor. Keep it up as you add content and campaigns.")
     return f"""
-    <div style="break-inside:avoid">
-      <div class="eyebrow" style="margin-top:16px"><span class="bar"></span>{L('Rendimiento · movil frente a escritorio', 'Performance · mobile vs desktop')}</div>
-      <h2 class="sec">{L('Velocidad de tu web', 'Your site speed')}</h2>
-      <div class="block two" style="margin-top:8px">{card(L('Movil', 'Mobile'), m, True)}{card(L('Escritorio', 'Desktop'), d, False)}</div>
-    </div>"""
+    <div class="keep">
+    <div class="eyebrow" style="margin-top:16px"><span class="bar"></span>{L('Rendimiento · Core Web Vitals', 'Performance · Core Web Vitals')}</div>
+    <h2 class="sec">{L('La velocidad de tu web, con la vara de Google', 'Your site speed, the Google way')}</h2>
+    <p class="sub">{speed_lead}</p>
+    {_cwv_strip(psi)}
+    </div>
+    <div class="block callout o">{insight}</div>"""
 
 
 def _google_section(r: dict) -> str:
@@ -884,11 +1159,13 @@ def _google_section(r: dict) -> str:
     pais = ai.get("country") or ""
     pais_txt = f'{L(" en ", " in ")}{pais}' if pais else ""
     return f"""
+    <div class="keep">
     <div class="eyebrow" style="margin-top:16px"><span class="bar"></span>{L('Como te ve Google', 'How Google sees you')}</div>
-    <h2 class="sec">{L('En que posicion apareces, busqueda a busqueda', 'Where you rank, search by search')}</h2>
-    <p class="sub">{L('Busquedas reales de un cliente de tu sector', 'Real searches a customer in your sector would run')}{pais_txt} {L('(el mercado donde opera tu web). En tu propia marca', '(the market your site operates in). On your own brand')} {brand_verdict}.</p>
-    <table class="t"><thead><tr><th>{L('Lo que busca un cliente (categoria)', 'What a customer searches (category)')}</th><th class="c">{L('¿Apareces?', 'Do you appear?')}</th><th>{L('Quien sale en tu lugar', 'Who shows up instead')}</th></tr></thead>
-    <tbody>{cat_rows}</tbody></table>"""
+    <h2 class="sec">{L('En qué posición apareces, búsqueda a búsqueda', 'Where you rank, search by search')}</h2>
+    <p class="sub">{L('Búsquedas reales de un cliente de tu sector', 'Real searches a customer in your sector would run')}{pais_txt} {L('(el mercado donde opera tu web). En tu propia marca', '(the market your site operates in). On your own brand')} {brand_verdict}.</p>
+    <table class="t"><thead><tr><th>{L('Lo que busca un cliente (categoría)', 'What a customer searches (category)')}</th><th class="c">{L('¿Apareces?', 'Do you appear?')}</th><th>{L('Quien sale en tu lugar', 'Who shows up instead')}</th></tr></thead>
+    <tbody>{cat_rows}</tbody></table>
+    </div>"""
 
 
 def _competitors_block(r: dict) -> str:
@@ -913,7 +1190,7 @@ def _estado_resumen(r: dict) -> str:
     """Resumen ejecutivo especifico de ESTE sitio: punto fuerte, punto debil y las
     carencias concretas detectadas (para que ningun informe se lea igual a otro)."""
     cats = r.get("categories", {}); s = r.get("signals", {}); m = r.get("meta", {})
-    named = {L("la salud tecnica", "technical health"): cats.get("tecnico", {}).get("score", 0),
+    named = {L("la salud técnica", "technical health"): cats.get("tecnico", {}).get("score", 0),
              L("el SEO on-page", "on-page SEO"): cats.get("onpage", {}).get("score", 0),
              L("la preparacion para la IA (GEO)", "AI readiness (GEO)"): cats.get("geo", {}).get("score", 0)}
     best = max(named, key=named.get); worst = min(named, key=named.get)
@@ -925,22 +1202,68 @@ def _estado_resumen(r: dict) -> str:
     if not m.get("schema_types"):
         weak.append(L("le faltan los datos estructurados (schema)", "missing structured data (schema)"))
     if not m.get("description"):
-        weak.append(L("no tiene meta descripcion", "no meta description"))
+        weak.append(L("no tiene meta descripción", "no meta description"))
     if m.get("h1_count", 0) != 1:
         weak.append(f'{L("el H1 no esta bien definido", "the H1 is not well defined")} ({m.get("h1_count",0)})')
     if s.get("links_broken", 0) > 0:
         weak.append(f'{s["links_broken"]} {L("enlace(s) roto(s)", "broken link(s)")}')
     mob = (r.get("psi_full") or {}).get("mobile") or {}
     if mob.get("performance") is not None and mob["performance"] < 60:
-        weak.append(f'{L("el movil es lento", "mobile is slow")} ({mob["performance"]}/100)')
+        weak.append(f'{L("el móvil es lento", "mobile is slow")} ({mob["performance"]}/100)')
     an = s.get("analytics") or {}
     if not an.get("has_any"):
         weak.append(L("no detectamos analitica", "no analytics detected"))
     weak_txt = ("; ".join(weak[:4]) + ".") if weak else L("no encontramos fallos graves; toca pulir y consolidar.", "we found no serious issues; it's about polishing and consolidating.")
     return (f'<div class="block callout {"g" if named[worst] >= 60 else "o"}">'
-            f'<b>{L("En concreto para", "Specifically for")} {r.get("domain", L("tu web","your site"))}:</b> {L("tu punto mas fuerte es", "your strongest point is")} <b>{best}</b> '
-            f'({named[best]}/100) {L("y donde mas pierdes es", "and where you lose most is")} <b>{worst}</b> ({named[worst]}/100). '
+            f'<b>{L("En concreto para", "Specifically for")} {r.get("domain", L("tu web","your site"))}:</b> {L("tu punto más fuerte es", "your strongest point is")} <b>{best}</b> '
+            f'({named[best]}/100) {L("y donde más pierdes es", "and where you lose most is")} <b>{worst}</b> ({named[worst]}/100). '
             f'{L("Lo que hay que corregir:", "What needs fixing:")} {weak_txt}</div>')
+
+
+def _fortalezas_block(r: dict) -> str:
+    """Dos columnas: lo que YA tienes a favor + victorias rápidas. Positivo y util,
+    para no dejar hueco en blanco tras el resumen (sin proyecciones ni marca propia)."""
+    s = r.get("signals") or {}; m = r.get("meta") or {}; ai = r.get("geo_ai") or {}
+    cats = r.get("categories") or {}
+    forts, wins = [], []
+    if s.get("https"):
+        forts.append(L("Conexión segura (HTTPS) bien configurada.", "Secure connection (HTTPS) well configured."))
+    if s.get("sitemap"):
+        forts.append(L("Tienes mapa del sitio y Google te indexa.", "You have a sitemap and Google indexes you."))
+    if s.get("links_broken", 0) == 0:
+        forts.append(L("Sin enlaces rotos (404) en la muestra revisada.", "No broken links (404) in the sample checked."))
+    if (cats.get("onpage") or {}).get("score", 0) >= 70:
+        forts.append(L("El SEO on-page base esta resuelto (títulos, H1, descripciones).", "On-page SEO basics are covered (titles, H1, descriptions)."))
+    if m.get("schema_types"):
+        forts.append(L("Ya usas datos estructurados (schema) en tu web.", "You already use structured data (schema) on your site."))
+    psi = r.get("psi_full") or {}
+    if ((psi.get("desktop") or {}).get("performance") or 0) >= 80:
+        forts.append(L("La velocidad en escritorio es rápida y estable.", "Desktop speed is fast and stable."))
+    # Victorias rápidas (bajo esfuerzo, alto retorno) según lo que falte
+    if not s.get("llms_txt"):
+        wins.append(L("Publicar el llms.txt (guia para los buscadores con IA).", "Publish llms.txt (a guide for AI search engines)."))
+    it = m.get("img_total", 0); ia = m.get("img_alt", 0)
+    if it and ia / it < 0.7:
+        wins.append(L("Anadir texto ALT a las imagenes que faltan.", "Add ALT text to the images that are missing it."))
+    if not (m.get("og_title") and m.get("og_image")):
+        wins.append(L("Completar la vista previa al compartir (Open Graph).", "Complete the share preview (Open Graph)."))
+    rb = s.get("robots_info") or {}
+    if not rb.get("has_sitemap"):
+        wins.append(L("Declarar el sitemap dentro del robots.txt.", "Declare the sitemap inside robots.txt."))
+    if ai.get("gbp") and (ai.get("gbp_reviews_n") is None or (isinstance(ai.get("gbp_reviews_n"), int) and ai["gbp_reviews_n"] < 15)):
+        wins.append(L("Pedir reseñas en tu ficha de Google de forma sistemática.", "Ask for reviews on your Google listing systematically."))
+    if not m.get("has_faq"):
+        wins.append(L("Anadir una sección de preguntas frecuentes (FAQ).", "Add a Frequently Asked Questions (FAQ) section."))
+    if not forts and not wins:
+        return ""
+    forts = forts[:4] or [L("Base digital operativa.", "Operational digital base.")]
+    wins = wins[:4] or [L("Mantener y monitorizar.", "Maintain and monitor.")]
+    fl = "".join(f'<li><span class="i" style="background:{GREEN}">&#10003;</span>{t}</li>' for t in forts)
+    wl = "".join(f'<li><span class="i" style="background:{CY6}">+</span>{t}</li>' for t in wins)
+    return f"""<div class="block two" style="margin-top:11px">
+      <div class="mini"><h4><span class="d" style="background:{GREEN}"></span>{L('Lo que ya tienes a favor', 'What you already have going for you')}</h4><ul class="chk">{fl}</ul></div>
+      <div class="mini"><h4><span class="d" style="background:{CY6}"></span>{L('Victorias rápidas (poco esfuerzo, mucho retorno)', 'Quick wins (low effort, high return)')}</h4><ul class="chk">{wl}</ul></div>
+    </div>"""
 
 
 def _gauge(score: int, label: str) -> str:
@@ -988,14 +1311,14 @@ def build_report_html(r: dict, contact: dict, name: str = "") -> str:
     dom = r.get("domain", "")
     client = name if (name and "@" not in name and name.lower() != dom) else dom.split(".")[0].capitalize()
 
-    # Titular a dos tonos segun nota — VARIADO por web (no siempre el mismo)
+    # Titular a dos tonos según nota — VARIADO por web (no siempre el mismo)
     _h1_pool = {
         "hi": [L('Buena base, <span class="o">con margen para ganar en Google y en la IA</span>', 'Solid base, <span class="o">with room to win on Google and AI</span>'),
                L('Tienes lo tecnico resuelto, <span class="o">pero la IA aun no te nombra</span>', 'Your tech is sorted, <span class="o">but AI still does not name you</span>'),
                L('Vas bien en Google, <span class="o">el reto ahora es que la IA te recomiende</span>', 'You do well on Google, <span class="o">the challenge now is getting AI to recommend you</span>')],
         "mid": [L('Vas por buen camino, <span class="o">pero la IA todavia no te prioriza</span>', 'You are on the right track, <span class="o">but AI does not prioritize you yet</span>'),
-                L('Tu web cumple, <span class="o">aunque pierdes visibilidad donde mas se decide</span>', 'Your site does the job, <span class="o">but you lose visibility where it matters most</span>'),
-                L('Base aceptable, <span class="o">con puntos claros que te estan frenando</span>', 'Acceptable base, <span class="o">with clear points holding you back</span>')],
+                L('Tu web cumple, <span class="o">aunque pierdes visibilidad donde más se decide</span>', 'Your site does the job, <span class="o">but you lose visibility where it matters most</span>'),
+                L('Base aceptable, <span class="o">con puntos claros que te están frenando</span>', 'Acceptable base, <span class="o">with clear points holding you back</span>')],
         "low": [L('Tu web funciona, <span class="o">pero Google y la IA te dejan fuera</span>', 'Your site works, <span class="o">but Google and AI leave you out</span>'),
                 L('Tienes carencias que te cuestan clientes <span class="o">en Google y en la IA</span>', 'You have gaps costing you customers <span class="o">on Google and AI</span>'),
                 L('Hay trabajo por hacer <span class="o">para que Google y la IA te muestren</span>', 'There is work to do <span class="o">so Google and AI show you</span>')],
@@ -1026,13 +1349,13 @@ def build_report_html(r: dict, contact: dict, name: str = "") -> str:
     if ai.get("available") and not ai.get("error"):
         band_b = L("Marca ", "Brand ") + (L("reconocida","recognized") if ai.get("knows_brand") else L("invisible","invisible")) + L(" para la IA.", " to AI.")
         band_p = (L("Le preguntamos directamente a la IA: ", "We asked AI directly: ") +
-                  (L("te reconoce","it recognizes you") if ai.get("knows_brand") else L("no tiene informacion fiable de ti","it has no reliable information about you")) + L(" y ", " and ") +
+                  (L("te reconoce","it recognizes you") if ai.get("knows_brand") else L("no tiene información fiable de ti","it has no reliable information about you")) + L(" y ", " and ") +
                   (L("te recomienda en tu sector.","recommends you in your sector.") if ai.get("recommended") else L("recomienda a otras empresas de tu sector, no a la tuya.","recommends other companies in your sector, not yours.")) +
-                  L(" En paralelo revisamos tu web tecnica y on-page, pagina a pagina.", " In parallel we reviewed your site's technical and on-page health, page by page."))
+                  L(" En paralelo revisamos tu web técnica y on-page, página a página.", " In parallel we reviewed your site's technical and on-page health, page by page."))
     else:
-        band_b = L("Tu visibilidad no se decide solo en Google: ahora tambien en la IA.", "Your visibility isn't decided only on Google anymore: now also in AI.")
-        band_p = L("Revisamos en vivo tu salud tecnica, tu on-page y tu preparacion para los buscadores con IA. "
-                   "Lo que sigue es el detalle, comprobado sin accesos, y el plan para mejorar donde mas pesa.",
+        band_b = L("Tu visibilidad no se decide solo en Google: ahora también en la IA.", "Your visibility isn't decided only on Google anymore: now also in AI.")
+        band_p = L("Revisamos en vivo tu salud técnica, tu on-page y tu preparacion para los buscadores con IA. "
+                   "Lo que sigue es el detalle, comprobado sin accesos, y el plan para mejorar donde más pesa.",
                    "We reviewed live your technical health, your on-page and your readiness for AI search engines. "
                    "What follows is the detail, checked without access, and the plan to improve where it matters most.")
 
@@ -1080,6 +1403,7 @@ def build_report_html(r: dict, contact: dict, name: str = "") -> str:
     h2.sec{{font-family:"Sora",sans-serif;font-weight:800;font-size:27px;letter-spacing:-.02em;color:{INK9};line-height:1.1;margin:0 0 5px;break-after:avoid}}
     .sub{{font-size:11.5px;color:#7b8694;margin-bottom:15px;break-after:avoid}}
     .eyebrow+h2.sec,h2.sec+.sub{{break-before:avoid}}
+    .keep{{break-inside:avoid}}
     p{{margin:0 0 9px}}
     .block{{margin-bottom:11px;break-inside:avoid}}
     .two{{display:grid;grid-template-columns:1fr 1fr;gap:14px}}
@@ -1106,6 +1430,7 @@ def build_report_html(r: dict, contact: dict, name: str = "") -> str:
     table.t tr{{break-inside:avoid}}
     .pill{{font-family:"JetBrains Mono",monospace;font-size:7px;font-weight:700;padding:2px 7px;border-radius:9px;white-space:nowrap;display:inline-block}}
     .pill.crit{{background:{RED}22;color:{RED}}}.pill.hi{{background:#fde6d8;color:{OR7}}}.pill.med{{background:#fbf1dc;color:#a9790a}}.pill.ok{{background:#e3f5ec;color:#177a52}}.pill.low{{background:#eef1f4;color:#5a6675}}
+    .pill.tia{{background:rgba(28,188,228,.14);color:{CY6}}}.pill.tseo{{background:#e3f5ec;color:#177a52}}
     .yes{{color:#177a52;font-weight:700}}.no{{color:{RED};font-weight:700}}
     table.t td.u{{font-family:"JetBrains Mono",monospace;font-size:8.5px;color:#283038;word-break:break-all}}
     .mini h4{{display:flex;align-items:center}}
@@ -1139,6 +1464,19 @@ def build_report_html(r: dict, contact: dict, name: str = "") -> str:
     .hbar .tk{{flex:1;height:14px;background:#eef1f4;border-radius:4px;overflow:hidden}}
     .hbar .fl{{height:100%;border-radius:4px}}
     .hbar .st{{font-family:"JetBrains Mono",monospace;font-size:8px;font-weight:700;white-space:nowrap;width:52px;text-align:right}}
+    .cwvcard{{border:1px solid #dee3e9;border-radius:14px;padding:13px 14px 15px;background:#fff}}
+    .cwvhd{{display:flex;align-items:center;gap:9px;margin-bottom:11px}}
+    .cwvdev{{font-family:"JetBrains Mono",monospace;font-size:8px;font-weight:700;letter-spacing:.12em;color:#fff;padding:5px 9px;border-radius:7px}}
+    .cwvsc{{margin-left:auto;font-family:"Sora",sans-serif;font-weight:800;font-size:23px;line-height:1}}
+    .cwvsc i{{font-style:normal;font-size:9px;color:#7b8694;font-weight:600}}
+    .cwvt{{width:100%;border-collapse:separate;border-spacing:7px 0;table-layout:fixed}}
+    .cwvc{{background:#f6f9fb;border:1px solid #eef1f4;border-radius:11px;padding:9px 8px 10px;text-align:center;vertical-align:top}}
+    .cwvk{{font-family:"JetBrains Mono",monospace;font-size:8px;font-weight:700;letter-spacing:.08em;color:#7b8694}}
+    .cwvv{{font-family:"Sora",sans-serif;font-weight:800;font-size:19px;line-height:1.1;margin:4px 0 6px}}
+    .cwvs{{display:inline-block;font-family:"JetBrains Mono",monospace;font-size:7px;font-weight:700;letter-spacing:.06em;color:#fff;padding:2px 8px;border-radius:8px}}
+    .cwvn{{font-size:7.6px;color:#5a6675;line-height:1.3;margin-top:7px}}.cwvn span{{color:#9aa4b0}}
+    .kwrow{{display:flex;flex-wrap:wrap;gap:7px;margin-top:4px}}
+    .kw{{font-family:"JetBrains Mono",monospace;font-size:8.5px;font-weight:500;color:{CY6};background:rgba(28,188,228,.10);border:1px solid rgba(28,188,228,.28);border-radius:20px;padding:4px 11px}}
     .objbox{{border:1px solid #dee3e9;border-radius:14px;padding:15px 18px;background:#f6f9fb;text-align:center;margin-top:10px}}
     .objbox .r{{font-family:"Sora",sans-serif;font-weight:800;font-size:30px;color:{INK9};display:flex;align-items:center;justify-content:center;gap:14px}}
     .objbox .r .a{{color:{AMBER}}}.objbox .r .b{{color:{GREEN}}}.objbox .r .ar{{color:{CY};font-size:20px}}
@@ -1168,8 +1506,8 @@ def build_report_html(r: dict, contact: dict, name: str = "") -> str:
     plan_rows = "".join(f'<li><span class="k">{i+1}</span><b>{p["text"]}</b></li>'
                         for i, p in enumerate(plan[:5]))
     stats3 = f"""
-      <div class="s"><div class="n {'g' if cats.get('tecnico',{}).get('score',0)>=70 else 'o'}">{cats.get('tecnico',{}).get('score',0)}/100</div><div class="l">{L("salud tecnica: HTTPS, velocidad, robots, sitemap, 404", "technical health: HTTPS, speed, robots, sitemap, 404")}</div></div>
-      <div class="s"><div class="n {'g' if cats.get('onpage',{}).get('score',0)>=70 else 'o'}">{cats.get('onpage',{}).get('score',0)}/100</div><div class="l">{L("SEO on-page: titulos, descripciones, H1, schema", "on-page SEO: titles, descriptions, H1, schema")}</div></div>
+      <div class="s"><div class="n {'g' if cats.get('tecnico',{}).get('score',0)>=70 else 'o'}">{cats.get('tecnico',{}).get('score',0)}/100</div><div class="l">{L("salud técnica: HTTPS, velocidad, robots, sitemap, 404", "technical health: HTTPS, speed, robots, sitemap, 404")}</div></div>
+      <div class="s"><div class="n {'g' if cats.get('onpage',{}).get('score',0)>=70 else 'o'}">{cats.get('onpage',{}).get('score',0)}/100</div><div class="l">{L("SEO on-page: títulos, descripciones, H1, schema", "on-page SEO: titles, descriptions, H1, schema")}</div></div>
       <div class="s"><div class="n {'c' if cats.get('geo',{}).get('score',0)>=55 else 'o'}">{cats.get('geo',{}).get('score',0)}/100</div><div class="l">{L("preparacion para la IA (GEO / LLMO)", "AI readiness (GEO / LLMO)")}</div></div>"""
 
     # Lede especifico con datos reales
@@ -1184,45 +1522,45 @@ def build_report_html(r: dict, contact: dict, name: str = "") -> str:
             ai_bit = L(" Le preguntamos a la <b>IA</b>: te reconoce y te recomienda en tu sector.", " We asked <b>AI</b>: it recognizes you and recommends you in your sector.")
     psi = r.get("psi_full") or {}
     mob = (psi.get("mobile") or {})
-    speed_bit = f' {L("Medimos la velocidad real en movil y escritorio (movil", "We measured real speed on mobile and desktop (mobile")} {mob.get("performance")}/100).' if mob.get("performance") is not None else ""
+    speed_bit = f' {L("Medimos la velocidad real en móvil y escritorio (móvil", "We measured real speed on mobile and desktop (mobile")} {mob.get("performance")}/100).' if mob.get("performance") is not None else ""
     n404 = s.get("links_broken", 0)
     tec_bit = (f' {L("Rastreamos", "We crawled")} {s.get("links_checked",0)} {L("direcciones una a una", "addresses one by one")}'
                + (f' {L("y encontramos", "and found")} {n404} {L("enlace(s) roto(s).", "broken link(s).")}' if n404 else L(" sin enlaces rotos.", " with no broken links.")))
-    lede = (f'{L("Diagnostico con <b>datos reales comprobados en vivo</b>: revisamos tu web por dentro, pagina a pagina.", "Diagnosis with <b>real data checked live</b>: we reviewed your site from the inside, page by page.")}{tec_bit}{ai_bit}{speed_bit} '
-            f'{L("Aqui tienes lo que encontramos y el plan para que Google y la IA te encuentren y te recomienden.", "Here is what we found and the plan for Google and AI to find and recommend you.")}')
+    lede = (f'{L("Diagnostico con <b>datos reales comprobados en vivo</b>: revisamos tu web por dentro, página a página.", "Diagnosis with <b>real data checked live</b>: we reviewed your site from the inside, page by page.")}{tec_bit}{ai_bit}{speed_bit} '
+            f'{L("Aquí tienes lo que encontramos y el plan para que Google y la IA te encuentren y te recomienden.", "Here is what we found and the plan for Google and AI to find and recommend you.")}')
 
-    # Analisis dinamico para "Como esta tu web hoy" (en vez de explicar la formula)
-    _areas = [(L("la base tecnica", "the technical base"), cats.get("tecnico", {}).get("score", 0)),
+    # Análisis dinamico para "Cómo está tu web hoy" (en vez de explicar la formula)
+    _areas = [(L("la base técnica", "the technical base"), cats.get("tecnico", {}).get("score", 0)),
               (L("el SEO on-page", "on-page SEO"), cats.get("onpage", {}).get("score", 0)),
               (L("la preparacion para la IA (GEO)", "AI readiness (GEO)"), cats.get("geo", {}).get("score", 0))]
     _best = max(_areas, key=lambda a: a[1]); _worst = min(_areas, key=lambda a: a[1])
     _ai_estado = ""
     if ai.get("available") and not ai.get("error"):
         if not ai.get("knows_brand"):
-            _ai_estado = L(" Y lo que mas pesa: al preguntarle a la IA, no sabe quien eres.", " And what matters most: when asked, AI doesn't know who you are.")
+            _ai_estado = L(" Y lo que más pesa: al preguntarle a la IA, no sabe quien eres.", " And what matters most: when asked, AI doesn't know who you are.")
         elif ai.get("recommended") is False:
             _ai_estado = L(" Y aunque la IA te reconoce, cuando piden tu servicio recomienda a otros.", " And although AI recognizes you, when people ask for your service it recommends others.")
-    _idx = L(" Ademas tu web se esta bloqueando a si misma (noindex).", " On top of that, your site is blocking itself (noindex).") if m.get("robots_noindex") else ""
+    _idx = L(" Además tu web se esta bloqueando a si misma (noindex).", " On top of that, your site is blocking itself (noindex).") if m.get("robots_noindex") else ""
     _sev = L("solida","solid") if score >= 80 else L("aceptable pero mejorable","acceptable but improvable") if score >= 60 else L("con carencias importantes","with significant gaps") if score >= 45 else L("muy debil","very weak")
-    estado_analisis = (L(f'Tu web saca <b>{score}/100</b> en salud digital: una base <b>{_sev}</b>.', f'Your site scores <b>{score}/100</b> in digital health: a <b>{_sev}</b> base.')
-                       + f'{L(" Tu punto mas fuerte es", " Your strongest point is")} <b>{_best[0]}</b> ({_best[1]}/100) {L("y donde mas visibilidad pierdes es", "and where you lose the most visibility is")} '
+    estado_análisis = (L(f'Tu web saca <b>{score}/100</b> en salud digital: una base <b>{_sev}</b>.', f'Your site scores <b>{score}/100</b> in digital health: a <b>{_sev}</b> base.')
+                       + f'{L(" Tu punto más fuerte es", " Your strongest point is")} <b>{_best[0]}</b> ({_best[1]}/100) {L("y donde más visibilidad pierdes es", "and where you lose the most visibility is")} '
                        f'<b>{_worst[0]}</b> ({_worst[1]}/100).{_ai_estado}{_idx} '
-                       f'{L("La nota combina pruebas tecnicas en vivo, velocidad real, on-page, seguridad y una consulta real a la IA.", "The score combines live technical tests, real speed, on-page, security and a real query to AI.")}')
+                       f'{L("La nota combina pruebas técnicas en vivo, velocidad real, on-page, seguridad y una consulta real a la IA.", "The score combines live technical tests, real speed, on-page, security and a real query to AI.")}')
 
     return f"""<!doctype html><html lang="{L('es','en')}"><head><meta charset="utf-8"><style>{css}</style></head><body>
 
 <section class="cover">
   <div class="accent"></div>
   <div class="brand"><img src="{_logo_uri()}" alt="Cupperlab"><span class="cl">{L('Diagnostico SEO &amp; GEO', 'SEO &amp; GEO Diagnosis')}<b>{today}</b></span></div>
-  <div class="ey">{L('Como te ven Google y la IA hoy', 'How Google and AI see you today')}</div>
+  <div class="ey">{L('Cómo te ven Google y la IA hoy', 'How Google and AI see you today')}</div>
   <h1>{h1}<span class="dom">{dom}</span></h1>
   <p class="lede">{lede}</p>
   <div class="facts">{facts}</div>
   <div class="band"><b>{band_b}</b><p>{band_p}</p></div>
   <div class="msec">{L('Que hemos analizado · en vivo', 'What we analyzed · live')}</div>
   <div class="method4">
-    <div class="m"><div class="no">01</div><b>{L('Pruebas tecnicas', 'Technical tests')}</b><p>{L('HTTPS, robots, sitemap, velocidad y enlaces rotos (404), uno a uno.', 'HTTPS, robots, sitemap, speed and broken links (404), one by one.')}</p></div>
-    <div class="m"><div class="no">02</div><b>On-page</b><p>{L('Titulos, descripciones, H1, canonical y vista previa al compartir.', 'Titles, descriptions, H1, canonical and share preview.')}</p></div>
+    <div class="m"><div class="no">01</div><b>{L('Pruebas técnicas', 'Technical tests')}</b><p>{L('HTTPS, robots, sitemap, velocidad y enlaces rotos (404), uno a uno.', 'HTTPS, robots, sitemap, speed and broken links (404), one by one.')}</p></div>
+    <div class="m"><div class="no">02</div><b>On-page</b><p>{L('Títulos, descripciones, H1, canonical y vista previa al compartir.', 'Titles, descriptions, H1, canonical and share preview.')}</p></div>
     <div class="m"><div class="no">03</div><b>{L('Preparacion IA (GEO)', 'AI readiness (GEO)')}</b><p>{L('Datos estructurados, llms.txt, marca como entidad y estructura.', 'Structured data, llms.txt, brand as entity and structure.')}</p></div>
     <div class="m"><div class="no">04</div><b>{L('Consulta a la IA', 'AI query')}</b><p>{L('Le preguntamos a la IA si te conoce y si te recomienda.', 'We ask AI whether it knows you and whether it recommends you.')}</p></div>
   </div>
@@ -1230,21 +1568,25 @@ def build_report_html(r: dict, contact: dict, name: str = "") -> str:
 </section>
 
 <section class="pg">
+  <div class="keep">
   <div class="eyebrow"><span class="bar"></span>01 · {L('Estado general', 'Overall status')}</div>
-  <h2 class="sec">{L('Como esta tu web hoy', 'How your site stands today')}</h2>
-  <p class="sub">{estado_analisis}</p>
+  <h2 class="sec">{L('Cómo está tu web hoy', 'How your site stands today')}</h2>
+  <p class="sub">{estado_análisis}</p>
   <div class="block scorewrap">
     <div class="gauge">{_gauge(score, L('Salud digital', 'Digital health'))}</div>
     <div class="levels">{_levels(r)}</div>
   </div>
-  {_growth_chart(score)}
+  </div>
   {_estado_resumen(r)}
+  {_fortalezas_block(r)}
 </section>
 
 <section class="pg">
-  <div class="eyebrow"><span class="bar"></span>02 · {L('Salud tecnica de tu web', 'Your site technical health')}</div>
-  <h2 class="sec">{L('Que falla (y que funciona) por dentro', 'What fails (and what works) under the hood')}</h2>
+  <div class="keep">
+  <div class="eyebrow"><span class="bar"></span>02 · {L('Salud técnica de tu web', 'Your site technical health')}</div>
+  <h2 class="sec">{L('Qué falla (y qué funciona) por dentro', 'What fails (and what works) under the hood')}</h2>
   <p class="sub">{L('Lo tecnico que Google mira para decidir si te muestra: seguridad, respuesta del servidor, robots, mapa del sitio y enlaces rotos. En rojo lo que falla, en verde lo que ya funciona.', 'The technical signals Google looks at to decide whether to show you: security, server response, robots, sitemap and broken links. In red what fails, in green what already works.')}</p>
+  </div>
   {_tech_rows(r)}
   {_robots_block(r)}
   {_crawl_structure_block(r)}
@@ -1253,32 +1595,43 @@ def build_report_html(r: dict, contact: dict, name: str = "") -> str:
 </section>
 
 <section class="pg">
+  <div class="keep">
   <div class="eyebrow"><span class="bar"></span>03 · {L('SEO on-page', 'On-page SEO')}</div>
-  <h2 class="sec">{L('Que le falta a tus paginas para posicionar', 'What your pages are missing to rank')}</h2>
-  <p class="sub">{L('Primero lo que falla y hay que corregir; despues lo que ya esta bien. Son las senales que deciden si Google te muestra y si la IA te cita.', 'First what fails and needs fixing; then what is already fine. These are the signals that decide whether Google shows you and whether AI cites you.')}</p>
-  {_onpage_rows(r)}
+  <h2 class="sec">{L('Qué le falta a tus páginas para posicionar', 'What your pages are missing to rank')}</h2>
+  <p class="sub">{L('Analizamos TODAS las páginas de tu sitio, no solo la portada. Estas son las señales que deciden si Google te muestra y si la IA te cita, con ejemplos reales de páginas a corregir.', 'We analyze ALL pages of your site, not just the homepage. These are the signals that decide whether Google shows you and whether AI cites you, with real examples of pages to fix.')}</p>
+  </div>
+  {_onpage_multi(r) or _onpage_rows(r)}
   {_porque_como(r)}
 </section>
 
 <section class="pg">
   {_ai_section(r)}
+</section>
+
+<section class="pg">
   {_speed_section(r)}
   {_security_section(r)}
 </section>
+
+{(f'''<section class="pg">
+  {_local_section(r)}
+  {_content_section(r)}
+</section>''') if (_local_section(r) or _content_section(r)) else ''}
 
 {(f'''<section class="pg">
   {_google_section(r)}
 </section>''') if _google_section(r) else ''}
 
 <section class="pg">
-  <div class="eyebrow"><span class="bar"></span>06 · {L('Plan de accion', 'Action plan')}</div>
-  <h2 class="sec">{L('Todo lo que hay que mejorar, por orden de impacto', 'Everything to improve, in order of impact')}</h2>
-  <p class="sub">{L('La lista completa de lo que corregir para posicionar en Google y en la IA: base tecnica y robots primero (que puedan leerte), luego on-page y contenido, y por ultimo las senales para que la IA te reconozca y te recomiende.', 'The full list of what to fix to rank on Google and AI: technical base and robots first (so they can read you), then on-page and content, and finally the signals that get AI to recognize and recommend you.')}</p>
-  {_priority_table(r)}
-  {_geo_plan_block(r)}
+  <div class="keep">
+  <div class="eyebrow"><span class="bar"></span>06 · {L('Plan de acción', 'Action plan')}</div>
+  <h2 class="sec">{L('Todo lo que hay que mejorar, del más crítico al medio', 'Everything to improve, from most critical to softest')}</h2>
+  <p class="sub">{L('Una sola lista con todo lo que hay que hacer, ordenada por prioridad. Cada acción lleva su etiqueta: SEO (para Google) o IA (para los buscadores con inteligencia artificial).', 'One single list with everything to do, ordered by priority. Each action is tagged: SEO (for Google) or AI (for AI search engines).')}</p>
+  </div>
+  {_plan_unificado(r)}
   {_que_esperamos(r)}
   <div class="closeband">
-    <div class="l"><b>{L('¿Damos el siguiente paso?', 'Shall we take the next step?')}</b><p>{L('Ponemos en marcha este plan contigo: base tecnica, on-page, contenido y las senales que hacen que la IA te recomiende. Primera revision sin costo.', 'We put this plan into motion with you: technical base, on-page, content and the signals that get AI to recommend you. First review at no cost.')}</p></div>
+    <div class="l"><b>{L('¿Damos el siguiente paso?', 'Shall we take the next step?')}</b><p>{L('Ponemos en marcha este plan contigo: base técnica, on-page, contenido y las señales que hacen que la IA te recomiende. Primera revisión sin costo.', 'We put this plan into motion with you: technical base, on-page, content and the signals that get AI to recommend you. First review at no cost.')}</p></div>
     <div class="r">{L('Tel', 'Tel')} <b>{contact.get('phone','')}</b><br>{contact.get('email','')}<br>{L('Mejoramos tu rentabilidad.', 'We improve your profitability.')}</div>
   </div>
 </section>

@@ -327,16 +327,30 @@ def to_legacy_psi(model: dict | None) -> dict | None:
     if not model:
         return None
 
+    def _state(sc):
+        if sc is None:
+            return "na"
+        return "ok" if sc >= 90 else ("warn" if sc >= 50 else "bad")
+
     def leg(strat: dict | None) -> dict | None:
         if not strat:
             return None
         m = strat.get("metrics") or {}
         def disp(k):
             return (m.get(k) or {}).get("display") or "—"
+        def st(k):
+            return _state((m.get(k) or {}).get("score"))
+        # Core Web Vitals para el PDF: LCP/CLS/INP con valor y semaforo
+        cwv = {
+            "lcp": {"v": disp("lcp"), "state": st("lcp")},
+            "cls": {"v": disp("cls"), "state": st("cls")},
+            "inp": {"v": disp("inp"), "state": st("inp"),
+                    "proxy": bool((m.get("inp") or {}).get("is_proxy"))},
+        }
         return {"performance": strat.get("score"),
                 "lcp": disp("lcp"), "cls": disp("cls"),
                 "tbt": disp("inp"), "si": disp("ttfb"),
-                "source": "psi"}
+                "cwv": cwv, "source": "psi"}
 
     return {"mobile": leg(model.get("mobile")),
             "desktop": leg(model.get("desktop"))}

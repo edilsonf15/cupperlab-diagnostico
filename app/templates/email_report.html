@@ -7,81 +7,137 @@
 {% set tec = (r.categories.tecnico.score if (r.categories and r.categories.tecnico) else none) %}
 {% set mob = (r.psi_full.mobile.performance if (r.psi_full and r.psi_full.mobile) else none) %}
 {% set sec = (r.signals.security.score if (r.signals and r.signals.security) else none) %}
+{% set aiok = (r.geo_ai and r.geo_ai.available and not r.geo_ai.error) %}
+{% set knows = (r.geo_ai.knows_brand if r.geo_ai else none) %}
+{% set reco = (r.geo_ai.recommended if r.geo_ai else none) %}
+{% set comps = (r.geo_ai.competitors if (r.geo_ai and r.geo_ai.competitors) else []) %}
+{% set compnames = (comps|map(attribute='name')|select|list) if comps else [] %}
+{% set zona = (r.geo_ai.zona or r.geo_ai.country) if r.geo_ai else '' %}
 {% macro zc(v) %}{{ '#1f9d6b' if v>=70 else '#d9920a' if v>=40 else '#d0402a' }}{% endmacro %}
 {% macro bar(ic, les, len, v) %}{% if v is not none %}
   <tr>
-    <td valign="middle" style="padding:11px 0;font-size:13.5px;font-weight:600;color:#283038;line-height:1.3"><span style="font-size:16px">{{ ic }}</span>&nbsp;&nbsp;{{ len if en else les }}</td>
-    <td valign="middle" width="140" style="padding:11px 0 11px 12px">
+    <td valign="middle" style="padding:10px 0;font-size:13.5px;font-weight:600;color:#283038;line-height:1.3"><span style="font-size:16px">{{ ic }}</span>&nbsp;&nbsp;{{ len if en else les }}</td>
+    <td valign="middle" width="150" style="padding:10px 0 10px 12px">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#e9edf1;border-radius:7px"><tr>
         <td style="height:11px;background:{{ zc(v)|trim }};border-radius:7px;width:{{ [v,3]|max }}%;font-size:1px;line-height:11px">&nbsp;</td>
         <td style="height:11px;font-size:1px;line-height:11px">&nbsp;</td>
       </tr></table>
     </td>
-    <td valign="middle" width="52" class="sora" style="padding:11px 0 11px 12px;font-size:17px;font-weight:800;color:{{ zc(v)|trim }};text-align:right">{{ v }}</td>
+    <td valign="middle" width="50" class="sora" style="padding:10px 0 10px 12px;font-size:17px;font-weight:800;color:{{ zc(v)|trim }};text-align:right">{{ v }}</td>
   </tr>
 {% endif %}{% endmacro %}
 <!doctype html>
 <html lang="{{ 'en' if en else 'es' }}">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light">
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   .sora{font-family:'Sora','Helvetica Neue',Arial,sans-serif}
   .mono{font-family:'JetBrains Mono','Courier New',monospace}
   body,td,p,div,span,a{font-family:'Plus Jakarta Sans','Helvetica Neue',Arial,sans-serif}
   a{color:#0f9bc2}
+  /* --- movimientos (donde el cliente lo soporta; base estatica en el resto) --- */
+  .hero{background:linear-gradient(120deg,#2ad0f2 0%,#13a8d2 40%,#0a7ea2 70%,#12657f 100%);background-size:220% 220%;animation:drift 9s ease-in-out infinite}
+  @keyframes drift{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+  .pulse{animation:pulse 2.4s ease-out infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(244,100,52,.50)}70%{box-shadow:0 0 0 14px rgba(244,100,52,0)}100%{box-shadow:0 0 0 0 rgba(244,100,52,0)}}
+  .floaty{animation:floaty 3.2s ease-in-out infinite}
+  @keyframes floaty{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+  .grow{animation:grow 1.4s cubic-bezier(.2,.8,.2,1) both}
+  @keyframes grow{from{transform:scaleX(.15);transform-origin:left}to{transform:scaleX(1)}}
+  @media (prefers-reduced-motion: reduce){.hero,.pulse,.floaty,.grow{animation:none!important}}
   @media only screen and (max-width:480px){
     .pad{padding-left:20px!important;padding-right:20px!important}
-    .snum{font-size:58px!important}
+    .snum{font-size:60px!important}
     .stack{display:block!important;width:100%!important;text-align:left!important;padding-left:0!important;padding-right:0!important}
     .stack-r{text-align:left!important;margin-top:16px!important}
+    .col2{display:block!important;width:100%!important}
+    .col2b{display:block!important;width:100%!important;margin-top:12px!important}
   }
 </style></head>
-<body style="margin:0;background:#eef3f7;color:#3d4855">
-<!-- Preheader (texto de vista previa en la bandeja) -->
-<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;opacity:0;font-size:1px;line-height:1px;color:#eef3f7">{% if en %}Your SEO &amp; GEO diagnosis for {{ r.domain }} — Grade {{ r.grade }}, {{ r.score }}/100. The full report and plan are inside.{% else %}Tu diagnóstico SEO y GEO de {{ r.domain }} — Nota {{ r.grade }}, {{ r.score }}/100. Dentro tienes el informe completo y el plan.{% endif %}&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;</div>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#eef3f7;padding:26px 12px"><tr><td align="center">
-<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:100%;background:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 16px 46px rgba(10,16,20,.10)">
+<body style="margin:0;background:#eaf0f5;color:#3d4855">
+<!-- Preheader -->
+<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;opacity:0;font-size:1px;line-height:1px;color:#eaf0f5">{% if en %}Your SEO & GEO diagnosis for {{ r.domain }} — Grade {{ r.grade }}, {{ r.score }}/100. See what the AI says about you and the plan inside.{% else %}Tu diagnóstico SEO y GEO de {{ r.domain }} — Nota {{ r.grade }}, {{ r.score }}/100. Mira lo que la IA dice de ti y el plan, dentro.{% endif %}&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;</div>
 
-  <!-- HEADER BAND (azul) — hero de marca -->
-  <tr><td bgcolor="#12a6d0" style="background:#12a6d0;background:linear-gradient(135deg,#2ad0f2 0%,#13a8d2 52%,#0a7ea2 100%);padding:26px 34px 30px">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#eaf0f5;padding:26px 12px"><tr><td align="center">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:100%;background:#ffffff;border-radius:22px;overflow:hidden;box-shadow:0 18px 50px rgba(10,16,20,.12)">
+
+  <!-- HERO con movimiento -->
+  <tr><td class="hero" bgcolor="#12a6d0" style="padding:28px 34px 32px">
     <table width="100%" cellpadding="0" cellspacing="0"><tr>
-      <td valign="middle"><span style="display:inline-block;background:#ffffff;border-radius:11px;padding:9px 14px"><img src="{{ logo }}" alt="Cupperlab" height="22" style="display:block;height:22px;width:auto;border:0"></span></td>
-      <td align="right" valign="middle" class="mono" style="color:rgba(255,255,255,.82);font-size:10px;letter-spacing:2.5px">{{ 'SEO &amp; GEO DIAGNOSIS' if en else 'DIAGNÓSTICO SEO &amp; GEO' }}</td>
+      <td valign="middle"><span style="display:inline-block;background:#ffffff;border-radius:12px;padding:10px 15px"><img src="{{ logo }}" alt="Cupperlab" height="22" style="display:block;height:22px;width:auto;border:0"></span></td>
+      <td align="right" valign="middle" class="mono" style="color:rgba(255,255,255,.85);font-size:10px;letter-spacing:2.5px">{{ 'SEO & GEO DIAGNOSIS' if en else 'DIAGNÓSTICO SEO & GEO' }}</td>
     </tr></table>
-    <div class="sora" style="margin-top:22px;color:#ffffff;font-size:23px;font-weight:800;line-height:1.22;letter-spacing:-.015em;max-width:20ch">{{ 'How you show up on Google and AI' if en else 'Cómo apareces en Google y en la IA' }}</div>
-    <table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:15px"><tr><td style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.30);border-radius:9px;padding:9px 15px">
-      <span style="font-size:14px;vertical-align:middle;line-height:1">🌐</span>&nbsp;&nbsp;<span class="sora" style="color:#ffffff;font-size:15px;font-weight:700;letter-spacing:.005em;vertical-align:middle">{{ r.domain }}</span>
+    <div class="sora" style="margin-top:24px;color:#ffffff;font-size:25px;font-weight:800;line-height:1.2;letter-spacing:-.015em;max-width:19ch">{{ 'How Google and AI see you today' if en else 'Cómo te ven hoy Google y la IA' }}</div>
+    <table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:16px"><tr><td style="background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.34);border-radius:10px;padding:10px 16px">
+      <span style="font-size:15px;vertical-align:middle;line-height:1">🌐</span>&nbsp;&nbsp;<span class="sora" style="color:#ffffff;font-size:15px;font-weight:700;vertical-align:middle">{{ r.domain }}</span>
     </td></tr></table>
   </td></tr>
 
-  <!-- Saludo (humano) -->
-  <tr><td class="pad" style="padding:24px 34px 6px">
-    <p style="margin:0;font-size:15.5px;line-height:1.65;color:#3d4855">{% if en %}Hi <b style="color:#0A1014">{{ name }}</b>! We went through your whole site. Here's the stuff that really matters, and in the PDF you've got the full detail plus the plan to fix it.{% else %}¡Hola <b style="color:#0A1014">{{ name }}</b>! Le dimos un repaso completo a tu web. Aquí te dejamos lo que de verdad importa, y en el PDF tienes todo el detalle con el plan para mejorarlo.{% endif %}</p>
+  <!-- Saludo -->
+  <tr><td class="pad" style="padding:26px 34px 4px">
+    <p style="margin:0;font-size:15.5px;line-height:1.65;color:#3d4855">{% if en %}Hi <b style="color:#0A1014">{{ name }}</b>! We went through <b style="color:#0A1014">{{ r.domain }}</b> from top to bottom — with and without www, on mobile and desktop — and we even asked the AI about your sector. Here's what really matters.{% else %}¡Hola <b style="color:#0A1014">{{ name }}</b>! Revisamos <b style="color:#0A1014">{{ r.domain }}</b> de pies a cabeza — con y sin www, en móvil y escritorio — y hasta le preguntamos a la IA por tu sector. Esto es lo que de verdad importa.{% endif %}</p>
   </td></tr>
 
-  <!-- SCORE + zona -->
-  <tr><td class="pad" style="padding:16px 34px 4px">
-    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f7fafc;border:1px solid #e6ebf0;border-radius:16px"><tr><td style="padding:22px 24px">
+  <!-- SCORE HERO (tarjeta oscura, wow) -->
+  <tr><td class="pad" style="padding:18px 34px 4px">
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-radius:18px;overflow:hidden"><tr><td bgcolor="#0b1620" style="background:#0b1620;background:linear-gradient(145deg,#132635 0%,#0b1620 60%);padding:24px 26px">
       <table width="100%" cellpadding="0" cellspacing="0"><tr>
-        <td class="stack" width="150" valign="top">
-          <span class="snum sora" style="font-size:66px;font-weight:800;color:{{ gc }};line-height:.9">{{ r.score }}</span><span class="mono" style="font-size:13px;color:#9aa4b0"> /100</span>
-          <div class="mono" style="font-size:9px;letter-spacing:1.4px;color:#9aa4b0;margin-top:4px">{{ 'DIGITAL HEALTH' if en else 'SALUD DIGITAL' }}</div>
+        <td class="stack" width="164" valign="middle">
+          <span class="snum sora" style="font-size:70px;font-weight:800;color:{{ gc }};line-height:.86">{{ r.score }}</span><span class="mono" style="font-size:13px;color:#61707e"> /100</span>
+          <div class="mono" style="font-size:9px;letter-spacing:1.6px;color:#61707e;margin-top:5px">{{ 'DIGITAL HEALTH' if en else 'SALUD DIGITAL' }}</div>
         </td>
-        <td class="stack" valign="top" style="padding-left:8px">
-          <span class="mono" style="display:inline-block;background:{{ gc }}1f;color:{{ gc }};font-size:11px;font-weight:bold;padding:4px 12px;border-radius:20px">{{ 'Grade' if en else 'Nota' }} {{ r.grade }}</span>
-          <div class="sora" style="margin:10px 0 0;color:#0A1014;font-size:16px;font-weight:700;line-height:1.35;letter-spacing:-.01em">{% if en %}{% if r.score>=70 %}Solid base, with room to win on Google and AI.{% elif r.score>=55 %}You're on the right track, but AI isn't prioritizing you yet.{% elif r.score>=40 %}Your site works, but Google and AI leave you out.{% else %}Right now Google and AI barely see you.{% endif %}{% else %}{% if r.score>=70 %}Buena base, con margen para ganar en Google y en la IA.{% elif r.score>=55 %}Vas por buen camino, pero la IA aún no te prioriza.{% elif r.score>=40 %}Tu web funciona, pero Google y la IA te dejan fuera.{% else %}Ahora mismo Google y la IA apenas te ven.{% endif %}{% endif %}</div>
+        <td class="stack" valign="middle" style="padding-left:10px">
+          <span class="mono" style="display:inline-block;background:{{ gc }}2e;color:{{ gc }};font-size:11px;font-weight:bold;padding:5px 13px;border-radius:20px">{{ 'Grade' if en else 'Nota' }} {{ r.grade }}</span>
+          <div class="sora" style="margin:11px 0 0;color:#ffffff;font-size:16px;font-weight:700;line-height:1.4;letter-spacing:-.01em">{% if en %}{% if r.score>=70 %}Solid base, with room to win on Google and AI.{% elif r.score>=55 %}You're on the right track, but AI isn't prioritizing you yet.{% elif r.score>=40 %}Your site works, but Google and AI leave you out.{% else %}Right now Google and AI barely see you.{% endif %}{% else %}{% if r.score>=70 %}Buena base, con margen para ganar en Google y en la IA.{% elif r.score>=55 %}Vas por buen camino, pero la IA aún no te prioriza.{% elif r.score>=40 %}Tu web funciona, pero Google y la IA te dejan fuera.{% else %}Ahora mismo Google y la IA apenas te ven.{% endif %}{% endif %}</div>
         </td>
       </tr></table>
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;background:#e9edf1;border-radius:7px"><tr>
-        <td style="height:10px;background:{{ gc }};border-radius:7px;width:{{ [r.score,3]|max }}%;font-size:1px;line-height:10px">&nbsp;</td>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:18px;background:#22303d;border-radius:7px"><tr>
+        <td class="grow" style="height:10px;background:{{ gc }};border-radius:7px;width:{{ [r.score,3]|max }}%;font-size:1px;line-height:10px">&nbsp;</td>
         <td style="height:10px;font-size:1px;line-height:10px">&nbsp;</td>
       </tr></table>
     </td></tr></table>
   </td></tr>
 
-  <!-- TU DIAGNÓSTICO EN NÚMEROS (más llamativo) -->
+  <!-- DOS MUNDOS: Google vs IA -->
+  <tr><td class="pad" style="padding:20px 34px 0">
+    <table width="100%" cellpadding="0" cellspacing="0"><tr>
+      <td class="col2" width="50%" valign="top" style="padding-right:7px">
+        <table width="100%" cellpadding="0" cellspacing="0" style="background:#f2fbfe;border:1px solid #cdeef8;border-radius:14px"><tr><td style="padding:16px 17px">
+          <div style="font-size:22px;line-height:1" class="floaty">🔎</div>
+          <div class="sora" style="font-size:13.5px;font-weight:800;color:#0b6f8c;margin-top:8px">{{ 'Google (SEO)' if en else 'Google (SEO)' }}</div>
+          <div style="font-size:12px;color:#3f7f92;line-height:1.5;margin-top:4px">{% if onp is not none %}{% if onp>=70 %}{{ 'Well positioned to be shown.' if en else 'Bien preparada para que te muestre.' }}{% elif onp>=45 %}{{ 'Some fixable gaps hold you back.' if en else 'Con detalles corregibles que te frenan.' }}{% else %}{{ 'Key on-page signals are missing.' if en else 'Faltan señales clave on-page.' }}{% endif %}{% else %}{{ 'Analyzed page by page.' if en else 'Analizado página por página.' }}{% endif %}</div>
+        </td></tr></table>
+      </td>
+      <td class="col2b" width="50%" valign="top" style="padding-left:7px">
+        <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f2fe;border:1px solid #ddd7f6;border-radius:14px"><tr><td style="padding:16px 17px">
+          <div style="font-size:22px;line-height:1" class="floaty">🤖</div>
+          <div class="sora" style="font-size:13.5px;font-weight:800;color:#5b46c9;margin-top:8px">{{ 'AI (GEO)' if en else 'IA (GEO)' }}</div>
+          <div style="font-size:12px;color:#6a5fa0;line-height:1.5;margin-top:4px">{% if aiok %}{% if reco %}{{ 'AI recommends you for your service.' if en else 'La IA te recomienda para tu servicio.' }}{% elif knows %}{{ 'It knows you, but recommends rivals.' if en else 'Te conoce, pero recomienda a otros.' }}{% else %}{{ 'AI does not know you yet.' if en else 'La IA aún no sabe quién eres.' }}{% endif %}{% else %}{{ 'We measured your AI readiness.' if en else 'Medimos tu preparación para la IA.' }}{% endif %}</div>
+        </td></tr></table>
+      </td>
+    </tr></table>
+  </td></tr>
+
+  <!-- LO QUE LA IA DICE DE TI (la estrella) -->
+  {% if aiok %}
+  <tr><td class="pad" style="padding:18px 34px 0">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#0e1626;border-radius:16px;overflow:hidden"><tr><td style="padding:20px 22px">
+      <table width="100%" cellpadding="0" cellspacing="0"><tr>
+        <td width="42" valign="top"><span style="display:inline-block;width:34px;height:34px;background:#6c5ce7;border-radius:9px;color:#fff;font-size:11px;font-weight:800;text-align:center;line-height:34px" class="mono">IA</span></td>
+        <td valign="top" style="padding-left:12px">
+          <div class="sora" style="color:#fff;font-size:13.5px;font-weight:700">{% if en %}We asked the AI for your service{% else %}Le preguntamos a la IA por tu servicio{% endif %}{% if zona %} <span style="color:#8a93a3;font-weight:500">· {{ zona }}</span>{% endif %}</div>
+          <div style="color:#c7ccd6;font-size:13px;line-height:1.6;margin-top:6px">{% if reco %}{{ 'Good news: when someone asks for your service, the AI includes you. You are ahead of most.' if en else 'Buena noticia: cuando alguien pide tu servicio, la IA te incluye. Vas por delante de la mayoría.' }}{% elif compnames %}{% if en %}Without naming you, the AI recommended <b style="color:#fff">{{ compnames[:2]|join(', ') }}</b> before you. Those are the customers you're missing.{% else %}Sin nombrarte, la IA recomendó a <b style="color:#fff">{{ compnames[:2]|join(', ') }}</b> antes que a ti. Esos son los clientes que se te escapan.{% endif %}{% else %}{{ 'When someone asks for your service without naming you, you do not show up yet.' if en else 'Cuando alguien pide tu servicio sin nombrarte, todavía no apareces.' }}{% endif %}</div>
+          <div class="mono" style="display:inline-block;margin-top:11px;font-size:10px;font-weight:700;letter-spacing:.5px;padding:5px 11px;border-radius:20px;{% if reco %}background:#12492f;color:#57e39b{% else %}background:#4a1d1d;color:#ff8c7a{% endif %}">{% if reco %}{{ 'RECOMMENDS YOU' if en else 'TE RECOMIENDA' }}{% else %}{{ "DOESN'T RECOMMEND YOU" if en else 'NO TE RECOMIENDA' }}{% endif %}</div>
+        </td>
+      </tr></table>
+    </td></tr></table>
+  </td></tr>
+  {% endif %}
+
+  <!-- TU DIAGNÓSTICO EN NÚMEROS -->
   {% if (onp is not none) or (geoS is not none) or (mob is not none) or (sec is not none) %}
-  <tr><td class="pad" style="padding:22px 34px 0">
+  <tr><td class="pad" style="padding:20px 34px 0">
     <table width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;border:1px solid #e6ebf0;border-radius:16px;overflow:hidden">
       <tr><td bgcolor="#0b1620" style="background:#0b1620;padding:13px 22px">
         <table width="100%" cellpadding="0" cellspacing="0"><tr>
@@ -89,7 +145,7 @@
           <td align="right" class="mono" style="color:#7fe0f5;font-size:10px;letter-spacing:1px">0–100</td>
         </tr></table>
       </td></tr>
-      <tr><td style="padding:6px 22px 10px">
+      <tr><td style="padding:6px 22px 12px">
         <table width="100%" cellpadding="0" cellspacing="0">
           {{ bar('🔎','SEO en Google','On-page SEO (Google)', onp) }}
           {{ bar('🤖','Presencia en la IA','Presence in AI', geoS) }}
@@ -102,33 +158,33 @@
   </td></tr>
   {% endif %}
 
-  <!-- INFORME PDF: descargar -->
-  <tr><td class="pad" style="padding:22px 34px 0">
+  <!-- INFORME PDF -->
+  <tr><td class="pad" style="padding:20px 34px 0">
     <table width="100%" cellpadding="0" cellspacing="0" style="background:#eaf7fb;border:1px solid #cdeef8;border-radius:14px"><tr><td style="padding:20px 22px">
       <div class="sora" style="font-size:15px;font-weight:700;color:#0b6f8c">📄&nbsp; {{ 'Your full report, in PDF' if en else 'Tu informe completo, en PDF' }}</div>
-      <div style="font-size:12.5px;color:#3f7f92;margin:5px 0 14px;line-height:1.5">{% if en %}The AI analysis, your real competitors, speed, weak points and the step-by-step plan.{% else %}El análisis de IA, tu competencia real, la velocidad, los puntos débiles y el plan paso a paso.{% endif %}</div>
+      <div style="font-size:12.5px;color:#3f7f92;margin:5px 0 14px;line-height:1.5">{% if en %}The AI analysis, your real competitors, Core Web Vitals, weak points with examples, and the step-by-step plan.{% else %}El análisis de IA, tu competencia real, los Core Web Vitals, los puntos débiles con ejemplos y el plan paso a paso.{% endif %}</div>
       {% if report_url %}<a href="{{ report_url }}" class="sora" style="display:inline-block;background:#0f9bc2;color:#ffffff;text-decoration:none;font-weight:700;font-size:14px;padding:12px 24px;border-radius:10px">{{ 'Download report →' if en else 'Descargar informe →' }}</a>
       <span style="font-size:12px;color:#5f93a3;margin-left:10px">{{ 'also attached here' if en else 'también va adjunto aquí' }}</span>{% else %}<div style="font-size:12.5px;color:#3f7f92">{{ 'Attached to this email.' if en else 'Va adjunto en este correo.' }}</div>{% endif %}
     </td></tr></table>
   </td></tr>
 
-  <!-- CTA 30 min (teal, boton naranja) -->
-  <tr><td class="pad" style="padding:22px 34px 6px">
-    <table width="100%" cellpadding="0" cellspacing="0" style="border-radius:18px;overflow:hidden"><tr><td bgcolor="#123342" style="background:#123342;background:linear-gradient(150deg,#1a4658 0%,#123342 55%,#0d2531 100%);padding:30px 24px;text-align:center">
+  <!-- CTA 30 min con botón que late -->
+  <tr><td class="pad" style="padding:20px 34px 6px">
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-radius:18px;overflow:hidden"><tr><td bgcolor="#123342" style="background:#123342;background:linear-gradient(150deg,#1a4658 0%,#123342 55%,#0d2531 100%);padding:32px 24px;text-align:center">
       <div class="sora" style="color:#ffffff;font-size:24px;font-weight:800;letter-spacing:-.01em">{{ 'Let\'s review it in 30 minutes' if en else 'Repasémoslo en 30 minutos' }}</div>
-      <div style="margin:9px auto 20px;color:#aecbd6;font-size:14px;line-height:1.55;max-width:44ch">{% if en %}A short video call on your own site: we point out exactly where to start to get more customers. No strings.{% else %}Una videollamada corta sobre tu propia web: te señalamos por dónde empezar para conseguir más clientes. Sin líos.{% endif %}</div>
-      <a href="{{ book_url or calendly or agenda_url }}" class="sora" style="display:inline-block;background:#F46434;color:#ffffff;text-decoration:none;font-weight:800;padding:15px 40px;border-radius:12px;font-size:16px">{{ 'Book my slot →' if en else 'Reservar mi hora →' }}</a>
-      <div style="margin-top:15px;font-size:13px;color:#8fb3c0">{{ 'or call us at' if en else 'o llámanos al' }} <a href="tel:{{ phone|replace(' ','') }}" class="sora" style="color:#7fe0f5;text-decoration:none;font-weight:700">{{ phone }}</a></div>
+      <div style="margin:10px auto 22px;color:#aecbd6;font-size:14px;line-height:1.55;max-width:44ch">{% if en %}A short video call on your own site: we point out exactly where to start to get more customers. No strings.{% else %}Una videollamada corta sobre tu propia web: te señalamos por dónde empezar para conseguir más clientes. Sin líos.{% endif %}</div>
+      <a href="{{ book_url or calendly or agenda_url }}" class="sora pulse" style="display:inline-block;background:#F46434;color:#ffffff;text-decoration:none;font-weight:800;padding:16px 42px;border-radius:12px;font-size:16px">{{ 'Book my slot →' if en else 'Reservar mi hora →' }}</a>
+      <div style="margin-top:16px;font-size:13px;color:#8fb3c0">{{ 'or call us at' if en else 'o llámanos al' }} <a href="tel:{{ phone|replace(' ','') }}" class="sora" style="color:#7fe0f5;text-decoration:none;font-weight:700">{{ phone }}</a></div>
     </td></tr></table>
   </td></tr>
 
-  <!-- Footer con LOGO REAL -->
+  <!-- Footer -->
   <tr><td class="pad" style="padding:22px 34px 30px">
     <table width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #eef1f4"><tr><td style="padding-top:22px">
     <table width="100%" cellpadding="0" cellspacing="0"><tr>
       <td class="stack" valign="top">
         <img src="{{ logo }}" alt="Cupperlab" height="24" style="display:block;height:24px;width:auto;border:0;margin-bottom:10px">
-        <div class="sora" style="font-size:13.5px;color:#0A1014">{{ 'We improve your profitability.' if en else 'Mejoramos tu rentabilidad.' }}</div>
+        <div class="sora" style="font-size:13.5px;color:#0A1014;font-weight:700">{{ 'We improve your profitability.' if en else 'Mejoramos tu rentabilidad.' }}</div>
         <div style="font-size:12px;color:#7b8694;margin-top:5px;line-height:1.5;max-width:34ch">{{ 'We make you visible on Google and in AI.' if en else 'Te hacemos visible en Google y en la IA.' }}</div>
       </td>
       <td class="stack stack-r" valign="top" align="right">
@@ -140,7 +196,7 @@
       </td>
     </tr></table>
     <div class="mono" style="font-size:10px;color:#9aa4b0;margin-top:18px">© {{ year }} Cupperlab · <a href="{{ site }}" style="color:#9aa4b0;text-decoration:none">{{ site|replace('https://','')|replace('http://','') }}</a></div>
-    <div style="font-size:10.5px;color:#aab3bd;margin-top:7px;line-height:1.5">{{ 'You received this email because you requested a free diagnosis of your website.' if en else 'Recibes este correo porque solicitaste un diagnóstico gratuito de tu web.' }}</div>
+    <div style="font-size:10.5px;color:#aab3bd;margin-top:7px;line-height:1.5">{% if en %}You received this email because you requested a free diagnosis of your website. Data processed under our privacy policy; reply STOP to opt out.{% else %}Recibes este correo porque solicitaste un diagnóstico gratuito de tu web. Tratamos tus datos conforme a nuestra política de privacidad (RGPD); responde BAJA para no recibir más.{% endif %}</div>
     </td></tr></table>
   </td></tr>
 
