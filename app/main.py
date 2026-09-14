@@ -163,8 +163,23 @@ async def salud():
 def _set(job_id: str, progress: int, stage: str) -> None:
     j = _jobs.get(job_id)
     if j:
-        j["progress"] = progress
+        j["progress"] = max(j.get("progress", 0), progress)  # el progreso solo sube
         j["stage"] = stage
+
+
+async def _progress_ticker(job_id: str, cap: int = 95) -> None:
+    """Sube el progreso de forma CONTINUA mientras el análisis trabaja (entre hitos),
+    para que la barra nunca se quede parada. Los hitos reales (_set) lo adelantan."""
+    try:
+        while True:
+            await asyncio.sleep(1.3)
+            j = _jobs.get(job_id)
+            if not j or j.get("done"):
+                return
+            if j.get("progress", 0) < cap:
+                j["progress"] = min(j.get("progress", 0) + 1, cap)
+    except asyncio.CancelledError:  # noqa: PERF203
+        return
 
 
 @app.post("/api/analyze")
@@ -219,6 +234,7 @@ async def _run_job(job_id: str, url: str, email: str, name: str, lead: dict, lan
     i18n.set_lang(lang)  # idioma del analisis (lo leen analyzer, geo_ai, report_pdf)
     """Analisis REAL por etapas, con progreso. El mismo resultado que ve la pantalla
     es el que va al correo (mismo dict de datos)."""
+    _tick = asyncio.create_task(_progress_ticker(job_id))
     try:
         # 1) SEO + salud tecnica (rastreo en vivo)
         _set(job_id, 8, "Revisando SEO y salud tecnica...")
@@ -325,7 +341,8 @@ async def _run_job(job_id: str, url: str, email: str, name: str, lead: dict, lan
             print(f"[dims:ERROR] {exc}"); data["dims"] = []
 
         # 5) Resultado LISTO para la pantalla (mismos datos que el correo)
-        _set(job_id, 96, "Preparando tu diagnostico...")
+        _tick.cancel()
+        _set(job_id, 98, "Preparando tu diagnostico...")
         _jobs[job_id].update(result=data, progress=100, stage="Listo", done=True)
 
         # 6) PDF + correo (mismo dict de datos) — no bloquea la pantalla

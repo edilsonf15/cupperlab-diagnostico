@@ -1192,11 +1192,10 @@
     enqueuePhase(0);
     clearInterval(creepT);clearInterval(feedT);clearInterval(factT);
     creepT=setInterval(function(){
-      // Avance ESTABLE por tiempo (velocidad constante hasta 96); el progreso real
-      // del backend solo sirve de suelo para no quedarnos cortos. Nunca se para.
-      if(shown<96)shown=shown+0.13;
-      if((targetP||0)>shown)shown=Math.min(targetP,96);
-      shown=Math.min(shown,96);
+      // SIGUE el progreso real del backend (que sube de forma continua con un ticker),
+      // acercándose suave. No corre por su cuenta: así es estable y nunca se atasca.
+      var t=targetP||0;
+      if(t>shown)shown=Math.min(shown+Math.max(0.12,(t-shown)*0.14),99);
       consProg.style.width=shown+"%";consPct.innerHTML=Math.round(shown)+'<span style="font-size:.4em;color:var(--mut2)">%</span>';
       consPhase.textContent=phaseName(shown);  // el título cambia conforme avanza
     },70);

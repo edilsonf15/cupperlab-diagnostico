@@ -21,7 +21,7 @@ from i18n import L, is_en  # idioma del analisis (ES/EN)
 ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
 ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
-AI_BUDGET = float(os.getenv("AI_GEO_BUDGET", "22"))
+AI_BUDGET = float(os.getenv("AI_GEO_BUDGET", "40"))  # grounded (búsqueda web) necesita margen; 22s se quedaba corto
 
 
 def _provider() -> tuple[str, str, str]:
@@ -898,8 +898,9 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
             f"ZONA: <city and country it serves; if no city, only country>\n"
             f"RECOMIENDA: <SI, NO or AVECES> if someone asks for that service in that area WITHOUT naming the brand, "
             f"would you recommend it?\n"
-            f"COMPETENCIA: <up to 5 real companies you'd recommend for that service IN THAT AREA/CITY (local "
-            f"competitors near its location), separated by |>\n"
+            f"COMPETENCIA: <ALWAYS give 3-5 REAL companies (with their real names) that compete for that service. "
+            f"If it is a LOCAL business, prefer competitors in its city/area; if it operates online or broadly "
+            f"(SaaS, agency, ecommerce), give the main competitors in its sector. Never leave this empty; separated by |>\n"
             f"FUENTES: <up to 4 web domains you rely on to describe the brand, separated by |>\n"
             f"BUSQUEDAS: <3 searches a customer would type for that service, with the city, separated by |>\n"
             f"FICHA_GOOGLE: <SI or NO> does it have a Google Business profile?\n"
@@ -920,8 +921,9 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
             f"ZONA: <ciudad y país donde opera; si no hay ciudad, solo país>\n"
             f"RECOMIENDA: <SI, NO o AVECES> si alguien pide ese tipo de servicio en esa zona SIN nombrar la "
             f"marca, ¿la recomendarías?\n"
-            f"COMPETENCIA: <hasta 5 empresas reales que recomendarías para ese servicio EN ESA ZONA/CIUDAD "
-            f"(competencia local cercana a su ubicación), separadas por |>\n"
+            f"COMPETENCIA: <SIEMPRE da 3-5 empresas REALES (con su nombre real) que compitan por ese servicio. "
+            f"Si es un negocio LOCAL, prioriza competidores de su ciudad/zona; si opera online o de forma amplia "
+            f"(SaaS, agencia, ecommerce), da los principales competidores de su sector. Nunca lo dejes vacío; separadas por |>\n"
             f"FUENTES: <hasta 4 dominios web en los que te apoyas para describir a la marca, separadas por |>\n"
             f"BUSQUEDAS: <3 búsquedas que un cliente escribiría para ese servicio, con la ciudad, separadas por |>\n"
             f"FICHA_GOOGLE: <SI o NO> ¿tiene ficha de Google Business?\n"
