@@ -740,16 +740,25 @@
   function exUrls(arr,key){return (arr||[]).map(function(x){return shortU(key?x[key]:x);}).slice(0,3).join(", ");}
   function onpageDesc(op){
     var i=op.issues||{},np=(op.totals&&op.totals.pages)||0,lead=null;
+    // problemas graves mandan aunque afecten pocas páginas
     if((i.noindex||{}).count>0)lead=P(i.noindex.count+" página(s) marcadas como 'no indexar'",i.noindex.count+" page(s) set to noindex");
-    else if((i.title_missing||{}).count>0)lead=P("hay páginas sin título","some pages have no title");
-    else if((i.h1_missing||{}).count>0)lead=P("hay páginas sin titular principal (H1)","some pages have no H1");
-    else if((i.desc_missing||{}).count>0)lead=P(i.desc_missing.count+" página(s) sin meta descripción",i.desc_missing.count+" page(s) with no meta description");
-    else if((i.thin||{}).count>0)lead=P(i.thin.count+" página(s) con poco contenido",i.thin.count+" thin page(s)");
-    else if((i.img_no_alt||{}).total>0)lead=P("faltan textos ALT en "+i.img_no_alt.total+" imágenes","ALT text missing on "+i.img_no_alt.total+" images");
-    else if((i.title_dup||{}).count>0)lead=P("hay títulos repetidos entre páginas","some titles are duplicated across pages");
-    else if((i.canonical_missing||{}).count>0)lead=P("faltan etiquetas canonical","some canonical tags are missing");
+    else if((i.title_missing||{}).count>0)lead=P(i.title_missing.count+" página(s) sin título",i.title_missing.count+" page(s) with no title");
+    else if((i.h1_missing||{}).count>0)lead=P(i.h1_missing.count+" página(s) sin titular principal (H1)",i.h1_missing.count+" page(s) with no H1");
+    else{
+      // si no hay graves, lidera el problema MÁS extendido
+      var cand=[];
+      if((i.img_no_alt||{}).total>0)cand.push([(i.img_no_alt.pages||0),P("faltan textos ALT en "+i.img_no_alt.total+" imágenes","ALT text missing on "+i.img_no_alt.total+" images")]);
+      if((i.og_missing||{}).count>0)cand.push([i.og_missing.count,P(i.og_missing.count+" página(s) sin vista previa al compartir (Open Graph)",i.og_missing.count+" page(s) with no social preview (Open Graph)")]);
+      if((i.desc_missing||{}).count>0)cand.push([i.desc_missing.count,P(i.desc_missing.count+" página(s) sin meta descripción",i.desc_missing.count+" page(s) with no meta description")]);
+      if((i.thin||{}).count>0)cand.push([i.thin.count,P(i.thin.count+" página(s) con poco contenido",i.thin.count+" thin page(s)")]);
+      if((i.h2_missing||{}).count>0)cand.push([i.h2_missing.count,P(i.h2_missing.count+" página(s) sin subtítulos (H2)",i.h2_missing.count+" page(s) with no H2 subheadings")]);
+      if((i.title_dup||{}).count>0)cand.push([i.title_dup.count,P("títulos repetidos entre páginas","duplicate titles across pages")]);
+      if((i.canonical_missing||{}).count>0)cand.push([i.canonical_missing.count,P(i.canonical_missing.count+" página(s) sin canonical",i.canonical_missing.count+" page(s) with no canonical")]);
+      cand.sort(function(a,b){return b[0]-a[0];});
+      if(cand.length)lead=cand[0][1];
+    }
     if(!lead)return P("On-page sólido en las "+np+" páginas revisadas: títulos, encabezados y estructura bien resueltos.","Solid on-page across the "+np+" pages reviewed: titles, headings and structure are well done.");
-    return P("Revisamos "+np+" páginas: la base está bien, pero "+lead+".","We reviewed "+np+" pages: the base is fine, but "+lead+".");
+    return P("Revisamos "+np+" páginas a fondo: la base está bien, pero "+lead+".","We reviewed "+np+" pages in depth: the base is fine, but "+lead+".");
   }
   function onpageFindings(r){
     var op=r.onpage;if(!op||!op.issues)return [];
