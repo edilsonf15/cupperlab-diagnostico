@@ -106,22 +106,6 @@
     </td></tr></table>
   </td></tr>
 
-  <!-- LO QUE LA IA DICE DE TI (la estrella) -->
-  {% if aiok %}
-  <tr><td class="pad" style="padding:18px 34px 0">
-    <table width="100%" cellpadding="0" cellspacing="0" style="background:#0e1626;border-radius:16px;overflow:hidden"><tr><td style="padding:20px 22px">
-      <table width="100%" cellpadding="0" cellspacing="0"><tr>
-        <td width="42" valign="top"><span style="display:inline-block;width:34px;height:34px;background:#6c5ce7;border-radius:9px;color:#fff;font-size:11px;font-weight:800;text-align:center;line-height:34px" class="mono">IA</span></td>
-        <td valign="top" style="padding-left:12px">
-          <div class="sora" style="color:#fff;font-size:13.5px;font-weight:700">{% if en %}We asked the AI for your service{% else %}Le preguntamos a la IA por tu servicio{% endif %}{% if zona %} <span style="color:#8a93a3;font-weight:500">· {{ zona }}</span>{% endif %}</div>
-          <div style="color:#c7ccd6;font-size:13px;line-height:1.6;margin-top:6px">{% if reco %}{{ 'Good news: when someone asks for your service, the AI includes you. You are ahead of most.' if en else 'Buena noticia: cuando alguien pide tu servicio, la IA te incluye. Vas por delante de la mayoría.' }}{% elif compnames %}{% if en %}Without naming you, the AI recommended <b style="color:#fff">{{ compnames[:2]|join(', ') }}</b> before you. Those are the customers you're missing.{% else %}Sin nombrarte, la IA recomendó a <b style="color:#fff">{{ compnames[:2]|join(', ') }}</b> antes que a ti. Esos son los clientes que se te escapan.{% endif %}{% else %}{{ 'When someone asks for your service without naming you, you do not show up yet.' if en else 'Cuando alguien pide tu servicio sin nombrarte, todavía no apareces.' }}{% endif %}</div>
-          <div class="mono" style="display:inline-block;margin-top:11px;font-size:10px;font-weight:700;letter-spacing:.5px;padding:5px 11px;border-radius:20px;{% if reco %}background:#12492f;color:#57e39b{% else %}background:#4a1d1d;color:#ff8c7a{% endif %}">{% if reco %}{{ 'RECOMMENDS YOU' if en else 'TE RECOMIENDA' }}{% else %}{{ "DOESN'T RECOMMEND YOU" if en else 'NO TE RECOMIENDA' }}{% endif %}</div>
-        </td>
-      </tr></table>
-    </td></tr></table>
-  </td></tr>
-  {% endif %}
-
   <!-- TU DIAGNÓSTICO EN NÚMEROS -->
   {% if (onp is not none) or (geoS is not none) or (mob is not none) or (sec is not none) %}
   <tr><td class="pad" style="padding:20px 34px 0">
