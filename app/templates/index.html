@@ -636,11 +636,22 @@
     var pf=r.perf2;
     if(pf&&(pf.mobile||pf.desktop)){
       function perfDesc(strat){
-        var mm=strat.metrics||{},sc=(strat.score==null?0:strat.score),lcp=mm.lcp||{};
+        var mm=strat.metrics||{},sc=(strat.score==null?0:strat.score);
+        var lcp=mm.lcp||{},cls=mm.cls||{},ttfb=mm.ttfb||{},inp=mm.inp||{};
         if(sc>=80)return P("Carga rápida y estable: buena experiencia para el visitante.","Fast and stable load: a good experience for the visitor.");
-        if(lcp.value!=null&&lcp.score<40)return P("La carga es lenta: lo principal tarda "+lcp.display+" en verse y eso frena la experiencia y las conversiones.","Load is slow: the main content takes "+lcp.display+" to appear, which hurts experience and conversions.");
-        if(lcp.value!=null&&lcp.score<80)return P("La carga se puede acelerar (lo principal aparece en "+lcp.display+") y quedan recursos por optimizar.","Load can be faster (main content appears in "+lcp.display+") and some resources still need optimizing.");
-        return P("La velocidad funciona, pero tiene margen de mejora.","Speed is fine, but there is room to improve.");
+        // gancho positivo: una métrica que sí va bien
+        var good=null;
+        if(ttfb.value!=null&&ttfb.score>=80)good=P("El servidor responde al instante","The server responds instantly");
+        else if(cls.value!=null&&cls.score>=80)good=P("La página no salta al cargar","The page doesn't shift as it loads");
+        else if(inp.value!=null&&inp.score>=80)good=P("Responde bien al tocar","It responds well to taps");
+        // lo que más frena
+        var bad;
+        if(lcp.value!=null&&lcp.score<80)bad=P("la carga tarda ("+lcp.display+", lo ideal es <2,5 s)","load is slow ("+lcp.display+", ideal is <2.5s)");
+        else if(inp.value!=null&&inp.score<80)bad=P("tarda en responder al tocar ("+inp.display+")","it lags on tap ("+inp.display+")");
+        else if(cls.value!=null&&cls.score<80)bad=P("el contenido se mueve al cargar","content shifts while loading");
+        else bad=P("hay recursos por optimizar","some resources need optimizing");
+        if(good)return cap(good)+P(", pero "+bad+".",", but "+bad+".");
+        return cap(bad)+P(". Hay margen claro de mejora.",". There is clear room to improve.");
       }
       if(pf.mobile)out.push({ic:"movil",grp:"perf",name:P("Velocidad en móvil","Mobile speed"),score:(pf.mobile.score==null?0:pf.mobile.score),desc:perfDesc(pf.mobile)});
       if(pf.desktop)out.push({ic:"speed",grp:"perf",name:P("Velocidad en escritorio","Desktop speed"),score:(pf.desktop.score==null?0:pf.desktop.score),desc:perfDesc(pf.desktop)});
