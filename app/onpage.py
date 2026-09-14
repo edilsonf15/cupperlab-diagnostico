@@ -15,6 +15,7 @@ Todo se mide en vivo; nada se inventa. Español neutro, sin guion largo.
 from __future__ import annotations
 
 import asyncio
+import json
 import re
 from collections import deque
 from urllib.parse import urljoin, urlparse
@@ -119,9 +120,16 @@ def _parse_page(url: str, html: str, status: int, base_net: str) -> dict:
     word_count = len(text.split())
 
     schema_types = []
+    schema_bad = 0
     for s in soup.find_all("script", attrs={"type": re.compile("ld\\+json", re.I)}):
-        for m in re.findall(r'"@type"\s*:\s*"([^"]+)"', s.get_text() or ""):
+        raw = s.get_text() or ""
+        for m in re.findall(r'"@type"\s*:\s*"([^"]+)"', raw):
             schema_types.append(m.strip())
+        if raw.strip():
+            try:
+                json.loads(raw)
+            except Exception:  # noqa: BLE001
+                schema_bad += 1
 
     # breadcrumbs: schema BreadcrumbList o navegación de migas visible
     schema_low0 = [t.lower() for t in schema_types]
@@ -166,6 +174,7 @@ def _parse_page(url: str, html: str, status: int, base_net: str) -> dict:
         "img_total": img_total, "img_no_alt": img_no_alt,
         "word_count": word_count,
         "schema_types": sorted(set(t.lower() for t in schema_types)),
+        "schema_bad": schema_bad,
         "url_issues": url_issues,
         "int_links": len(links),
         "poor_anchor": poor_anchor,
@@ -289,14 +298,17 @@ def _aggregate(pages: list[dict], norm_home: str = "") -> dict:
     # Datos estructurados (schema) agregados de TODO el sitio
     schema_all: dict = {}
     pages_with_schema = 0
+    schema_errors = 0
     for p in pages:
         ts = p.get("schema_types") or []
         if ts:
             pages_with_schema += 1
         for t in ts:
             schema_all[t] = schema_all.get(t, 0) + 1
+        schema_errors += p.get("schema_bad", 0)
     schema_info = {"types": sorted(schema_all.keys()), "counts": schema_all,
-                   "pages_with": pages_with_schema, "pages": len(pages)}
+                   "pages_with": pages_with_schema, "pages": len(pages),
+                   "errors": schema_errors}
 
     n = len(pages) or 1
     issues = {

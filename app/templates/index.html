@@ -620,13 +620,11 @@
     var op=r.onpage;
     if(op&&op.issues){out.push({ic:"seo",grp:"seo",name:P("SEO on-page (Google)","On-page SEO (Google)"),score:(op.score==null?0:op.score),desc:onpageDesc(op)});}
     else if(C.onpage){var of=fails(C.onpage,ONP_NAMES);out.push({ic:"seo",name:P("SEO on-page (Google)","On-page SEO (Google)"),score:C.onpage.score,desc:of.length?P("Por mejorar para Google: ","To improve for Google: ")+of.slice(0,4).join(", ")+".":P("On-page sólido: títulos, textos y estructura bien resueltos.","Solid on-page: titles, copy and structure well done.")});}
-    if(sec&&sec.score!=null){var sb=[];if((sec.headers_missing||[]).length)sb.push(P("faltan "+sec.headers_missing.length+" cabeceras de seguridad","missing "+sec.headers_missing.length+" security headers"));if((sec.exposed||[]).length)sb.push(P("hay archivos sensibles expuestos","sensitive files are exposed"));if((sec.leaks||[]).length)sb.push(P("el servidor revela su versión","the server reveals its version"));out.push({ic:"shield",name:P("Seguridad y tecnología","Security & tech"),score:sec.score,desc:sb.length?cap(sb.join(", "))+".":P("Configuración de seguridad correcta.","Security configuration is correct.")});}
+    // Nota: Seguridad y Contenido se mostrarán cuando las reconstruyamos a fondo.
     var tm=techModel(r);
     if(tm)out.push({ic:"tech",grp:"tech",name:P("Salud técnica / Indexación y rastreo","Technical health / Indexing & crawling"),score:tm.score,desc:tm.desc});
     var scm=schemaModel(r);
     if(scm)out.push({ic:"geo",grp:"schema",name:P("Datos estructurados (Schema)","Structured data (Schema)"),score:scm.score,desc:scm.desc});
-    else if(C.tecnico){var tf=fails(C.tecnico,TEC_NAMES);out.push({ic:"tech",name:P("Salud técnica","Technical health"),score:C.tecnico.score,desc:tf.length?P("Por revisar: ","To review: ")+tf.slice(0,4).join(", ")+".":P("Base técnica correcta: HTTPS, sitemap y sin enlaces rotos.","Technically sound: HTTPS, sitemap and no broken links.")});}
-    if(meta.word_count!=null){var w=meta.word_count||0,cs=Math.max(0,Math.min(100,Math.round(w/8)));out.push({ic:"content",name:P("Contenido","Content"),score:cs,desc:w<400?P("Poco contenido ("+w+" palabras) para que Google y la IA te citen con autoridad.","Thin content ("+w+" words) for Google and AI to cite you with authority."):P(w+" palabras: base de contenido suficiente para que te citen.",w+" words: enough content to be cited.")});}
     var pf=r.perf2;
     if(pf&&(pf.mobile||pf.desktop)){
       function perfDesc(strat){
@@ -894,16 +892,18 @@
     var haveData=(op.schema&&op.schema.pages)||(meta.schema_types!=null);
     if(!haveData)return null;
     var has=function(re){return types.some(function(x){return re.test(x);});};
-    var org=has(/organization|localbusiness|professionalservice/),website=has(/website/);
+    var org=has(/organization|localbusiness|professionalservice/),website=has(/website/),searchaction=has(/searchaction/);
     var breadcrumb=has(/breadcrumblist/)||!!(op.issues&&op.issues.breadcrumbs&&op.issues.breadcrumbs.present);
     var faq=has(/faqpage|qapage/),article=has(/article|blogposting|newsarticle/);
     var prodserv=has(/product|service|offer/),review=has(/review|aggregaterating|rating/);
+    var errs=(op.schema&&op.schema.errors)||0,anySchema=!!((op.schema&&op.schema.pages_with>0)||types.length);
     var st=[],add=function(k,ok,w){st.push({k:k,ok:ok,w:w});};
-    add("org",org,22);add("website",website,10);add("breadcrumb",breadcrumb,12);add("faq",faq,16);
-    add("article",article,10);add("prodserv",prodserv,14);add("review",review,16);
+    add("org",org,22);add("website",(website&&searchaction),10);add("breadcrumb",breadcrumb,12);add("faq",faq,16);
+    add("article",article,8);add("prodserv",prodserv,14);add("review",review,14);
+    if(anySchema)add("valid",errs===0,8);
     var sw=0,ss=0;st.forEach(function(p){sw+=p.w;ss+=(p.ok?100:0)*p.w;});
     var score=sw?Math.round(ss/sw):0;
-    var LAB={org:P("los datos de tu empresa (Organization)","your company data (Organization)"),website:P("el buscador del sitio (WebSite)","site search (WebSite)"),breadcrumb:P("las migas de pan (Breadcrumb)","breadcrumbs (Breadcrumb)"),faq:P("las preguntas frecuentes (FAQ)","FAQ markup"),article:P("los artículos (Article)","articles (Article)"),prodserv:P("tus productos o servicios","your products or services"),review:P("las reseñas y valoraciones (Review)","reviews and ratings (Review)")};
+    var LAB={org:P("los datos de tu empresa (Organization)","your company data (Organization)"),website:P("el sitio + buscador (WebSite/SearchAction)","site + search (WebSite/SearchAction)"),breadcrumb:P("las migas de pan (Breadcrumb)","breadcrumbs (Breadcrumb)"),faq:P("las preguntas frecuentes (FAQ)","FAQ markup"),article:P("los artículos (Article)","articles (Article)"),prodserv:P("tus productos o servicios","your products or services"),review:P("las reseñas y valoraciones (Review)","reviews and ratings (Review)"),valid:P("un marcado sin errores de formato","valid markup with no format errors")};
     var goodK=st.filter(function(p){return p.ok;}),badK=st.filter(function(p){return !p.ok;}),desc;
     if(goodK.length&&badK.length)desc=P("Ya marcas "+LAB[goodK[0].k]+", pero falta "+LAB[badK[0].k]+" y otros datos que ayudan a Google y a la IA a entenderte.","You already mark "+LAB[goodK[0].k]+", but "+LAB[badK[0].k]+" and other data that help Google and AI understand you are missing.");
     else if(!goodK.length)desc=P("No tienes datos estructurados: Google y la IA entienden peor quién eres y qué ofreces.","No structured data: Google and AI understand less about who you are and what you offer.");
@@ -914,9 +914,11 @@
     var m=schemaModel(r);if(!m)return [];
     var by={},out=[];m.points.forEach(function(p){by[p.k]=p.ok;});
     if(!by.org)out.push({sev:"critico",t:P("Falta el marcado de tu empresa (Organization)","Missing company markup (Organization)"),d:P("El Schema Organization le dice a Google y a la IA tu nombre, logo, contacto y perfiles oficiales. Es la base para que te reconozcan como entidad. Añádelo en todo el sitio.","Organization Schema tells Google and AI your name, logo, contact and official profiles. It's the base for being recognized as an entity. Add it site-wide.")});
-    if(!by.website)out.push({sev:"op",t:P("Falta WebSite + búsqueda del sitio","Missing WebSite + SearchAction"),d:P("El marcado WebSite con SearchAction permite que Google muestre tu buscador interno en los resultados. Un extra que da imagen de marca sólida.","WebSite markup with SearchAction lets Google show your internal search box in results. An extra that signals a solid brand.")});
+    if(!by.website)out.push({sev:"op",t:P("Falta WebSite + búsqueda del sitio (SearchAction)","Missing WebSite + SearchAction"),d:P("El marcado WebSite con SearchAction permite que Google muestre tu buscador interno en los resultados. Un extra que da imagen de marca sólida.","WebSite markup with SearchAction lets Google show your internal search box in results. An extra that signals a solid brand.")});
     if(!by.prodserv)out.push({sev:"op",t:P("Falta marcar tus productos o servicios","Product/Service markup missing"),d:P("Marcar cada servicio o producto con Schema ayuda a Google y a la IA a saber exactamente qué ofreces y a mostrarte cuando lo buscan.","Marking each service or product with Schema helps Google and AI know exactly what you offer and show you when it's searched.")});
     if(!by.review)out.push({sev:"op",t:P("Falta marcar reseñas y valoraciones (Review)","Missing Review/Rating markup"),d:P("El Schema Review/AggregateRating puede mostrar tus estrellas en Google y es una señal que la IA usa para recomendarte. Márcalo si tienes valoraciones.","Review/AggregateRating Schema can show your stars in Google and is a signal AI uses to recommend you. Mark it up if you have ratings.")});
+    var errs=((r.onpage||{}).schema||{}).errors||0;
+    if(by.valid===false&&errs>0)out.push({sev:"op",t:P("Tus datos estructurados tienen errores de formato","Your structured data has format errors"),d:P("Detectamos "+errs+" bloque(s) de datos estructurados que no son JSON válido, así que Google los ignora. Corrige el formato para que cuenten. (La validación completa se confirma con el Test de Resultados Enriquecidos de Google.)","We found "+errs+" structured-data block(s) that aren't valid JSON, so Google ignores them. Fix the format so they count. (Full validation is confirmed with Google's Rich Results Test.)")});
     return out;
   }
 
