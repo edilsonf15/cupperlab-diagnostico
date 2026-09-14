@@ -740,7 +740,7 @@
   function exUrls(arr,key){return (arr||[]).map(function(x){return shortU(key?x[key]:x);}).slice(0,3).join(", ");}
   function onpageDesc(op){
     var i=op.issues||{},np=(op.totals&&op.totals.pages)||0,lead=null;
-    if((i.noindex||{}).count>0)lead=P(i.noindex.count+" página(s) marcadas como 'no indexar'","+ i.noindex.count +" page(s) set to noindex");
+    if((i.noindex||{}).count>0)lead=P(i.noindex.count+" página(s) marcadas como 'no indexar'",i.noindex.count+" page(s) set to noindex");
     else if((i.title_missing||{}).count>0)lead=P("hay páginas sin título","some pages have no title");
     else if((i.h1_missing||{}).count>0)lead=P("hay páginas sin titular principal (H1)","some pages have no H1");
     else if((i.desc_missing||{}).count>0)lead=P(i.desc_missing.count+" página(s) sin meta descripción",i.desc_missing.count+" page(s) with no meta description");
