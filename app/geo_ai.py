@@ -20,7 +20,7 @@ from i18n import L, is_en  # idioma del analisis (ES/EN)
 
 ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
 ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
 AI_BUDGET = float(os.getenv("AI_GEO_BUDGET", "22"))
 
 
@@ -80,11 +80,10 @@ async def _ask(client: httpx.AsyncClient, provider: str, key: str, model: str,
 
         async def _call(use_grounding: bool):
             body = {"contents": [{"parts": [{"text": prompt}]}],
-                    "generationConfig": {"maxOutputTokens": max_tokens, "temperature": 0.3}}
+                    "generationConfig": {"maxOutputTokens": max_tokens, "temperature": 0.3,
+                                         "thinkingConfig": {"thinkingBudget": 0}}}  # sin "thinking": mucho más rápido
             if use_grounding:
                 body["tools"] = [{"google_search": {}}]   # busca en vivo, como la app de Gemini
-            else:
-                body["generationConfig"]["thinkingConfig"] = {"thinkingBudget": 0}
             return await client.post(url, params={"key": key}, json=body, timeout=AI_BUDGET)
 
         r = await _call(grounded)
@@ -221,12 +220,46 @@ def _country_from_domain(domain: str) -> tuple[str, str] | None:
 
 
 def _openai_engine() -> dict | None:
-    """Unico motor: ChatGPT (OpenAI) con busqueda web en vivo."""
+    """ChatGPT (OpenAI) con busqueda web en vivo."""
     ok = os.getenv("OPENAI_API_KEY", "").strip()
     if not ok:
         return None
     return {"name": "ChatGPT", "provider": "openai", "key": ok,
             "model": OPENAI_MODEL, "strong": OPENAI_MODEL_STRONG, "grounded": True}
+
+
+def _gemini_engine() -> dict | None:
+    gk = os.getenv("GEMINI_API_KEY", "").strip()
+    if not gk:
+        return None
+    return {"name": "Gemini", "provider": "gemini", "key": gk,
+            "model": GEMINI_MODEL, "strong": GEMINI_MODEL, "grounded": True}
+
+
+async def _pick_working_engine() -> dict | None:
+    """Elige un motor de IA que REALMENTE funcione: prueba OpenAI (preferido) con una
+    llamada barata; si la clave está caduca/ausente, cae a Gemini. Evita que GEO y la
+    capa de contenido se rompan por una clave mala."""
+    oe = _openai_engine()
+    async with httpx.AsyncClient() as c:
+        if oe:
+            try:
+                r = await c.get("https://api.openai.com/v1/models",
+                                headers={"Authorization": f"Bearer {oe['key']}"}, timeout=8)
+                if r.status_code == 200:
+                    return oe
+            except Exception:  # noqa: BLE001
+                pass
+        ge = _gemini_engine()
+        if ge:
+            try:
+                r = await c.get("https://generativelanguage.googleapis.com/v1beta/models",
+                                params={"key": ge["key"]}, timeout=8)
+                if r.status_code == 200:
+                    return ge
+            except Exception:  # noqa: BLE001
+                pass
+    return oe or _gemini_engine()
 
 
 def _strip_cites(s: str) -> str:
@@ -426,7 +459,7 @@ async def run_ai_geo(domain: str, meta: dict) -> dict | None:
     fraseos, el veredicto deja de contradecirse. Competencia enfocada en el pais
     del dominio real.
     """
-    eng = _openai_engine()
+    eng = await _pick_working_engine()
     if not eng:
         return None
     prov, key, model = eng["provider"], eng["key"], eng["model"]
@@ -781,3 +814,49 @@ async def run_ai_geo(domain: str, meta: dict) -> dict | None:
         "sources": sources_out,
         "ai_score": score,
     }
+
+
+async def analyze_content(domain: str, meta: dict, lang: str = "es") -> dict | None:
+    """Capa SEMÁNTICA con la IA que ya tenemos (1 llamada, con búsqueda web): evalúa la
+    calidad del contenido, sus temas y las mejoras concretas. None si no hay motor."""
+    eng = await _pick_working_engine()
+    if not eng:
+        return None
+    brand = derive_brand(meta or {}, domain) or domain
+    full = domain if str(domain).startswith("http") else f"https://{domain}"
+    if lang == "en":
+        prompt = (f"Use web search and open {full}. Assess the CONTENT quality of \"{brand}\" for SEO "
+                  f"and for AI answers. Reply EXACTLY in this format, plain text, no markdown, no links:\n"
+                  f"TEMAS: <3-5 main topics the site covers, separated by |>\n"
+                  f"EVALUACION: <one honest sentence: is the content useful, deep and original, or thin, "
+                  f"salesy or repetitive?>\n"
+                  f"MEJORAS: <2-3 concrete content improvements, separated by |>")
+    else:
+        prompt = (f"Usa búsqueda web y entra en {full}. Evalúa la CALIDAD del contenido de \"{brand}\" "
+                  f"para SEO y para las respuestas de la IA. Responde EXACTAMENTE en este formato, en "
+                  f"texto plano, sin markdown y sin enlaces:\n"
+                  f"TEMAS: <3-5 temas principales que cubre el sitio, separados por |>\n"
+                  f"EVALUACION: <una frase honesta: ¿el contenido es útil, profundo y original, o flojo, "
+                  f"comercial o repetitivo?>\n"
+                  f"MEJORAS: <2-3 mejoras concretas de contenido, separadas por |>")
+    try:
+        async with httpx.AsyncClient(headers={"User-Agent": "Mozilla/5.0"}) as client:
+            txt = await _ask(client, eng["provider"], eng["key"], eng.get("strong") or eng["model"],
+                             prompt, max_tokens=380, grounded=True)
+    except Exception:  # noqa: BLE001
+        return None
+    txt = _strip_cites(txt or "")
+    if not txt.strip():
+        return None
+
+    def _field(label):
+        m = re.search(label + r"\s*:\s*(.+?)(?:\n[A-ZÁÉÍÓÚ]+\s*:|$)", txt, re.S | re.I)
+        return (m.group(1).strip() if m else "")
+
+    topics = [t.strip(" .-•") for t in _field("TEMAS").split("|") if t.strip()][:5]
+    assessment = re.sub(r"\s+", " ", _field("EVALUACION")).strip()[:300]
+    gaps = [g.strip(" .-•") for g in _field("MEJORAS").split("|") if g.strip()][:3]
+    if not (topics or assessment or gaps):
+        # sin formato claro: usa el texto como evaluación
+        assessment = re.sub(r"\s+", " ", txt).strip()[:300]
+    return {"topics": topics, "assessment": assessment, "gaps": gaps}

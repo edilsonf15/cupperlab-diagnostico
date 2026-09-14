@@ -629,6 +629,8 @@
     if(secm)out.push({ic:"shield",grp:"sec",name:P("Seguridad","Security"),score:secm.score,desc:secm.desc});
     var lcm=localModel(r);
     if(lcm)out.push({ic:"geo",grp:"local",name:P("Presencia local y reputación","Local presence & reputation"),score:lcm.score,desc:lcm.desc});
+    var ctm=contentModel(r);
+    if(ctm)out.push({ic:"content",grp:"content",name:P("Contenido y relevancia","Content & relevance"),score:ctm.score,desc:ctm.desc});
     var pf=r.perf2;
     if(pf&&(pf.mobile||pf.desktop)){
       function perfDesc(strat){
@@ -1005,6 +1007,48 @@
     return out;
   }
 
+  /* ===== CONTENIDO Y RELEVANCIA ===== */
+  function contentModel(r){
+    var c=(r.onpage||{}).content,ca=r.content_ai,meta=r.meta||{};
+    if(!c)return null;
+    var st=[],add=function(k,s,w){st.push({k:k,s:s,w:w});};
+    var aw=c.avg_words||0;
+    add("depth",aw>=600?"ok":(aw>=300?"warn":"bad"),20);
+    add("unique",(c.duplicates&&c.duplicates.count>0)?"bad":"ok",18);
+    var fr=c.dated_pages?c.fresh_pages/c.dated_pages:0;
+    add("fresh",c.dated_pages===0?"warn":(fr>=0.5?"ok":"warn"),14);
+    add("coherence",c.coherence_pct>=70?"ok":(c.coherence_pct>=40?"warn":"bad"),14);
+    var trust=(c.about_page?1:0)+(meta.has_contact?1:0)+(c.author?1:0);
+    add("trust",trust>=2?"ok":(trust===1?"warn":"bad"),16);
+    var val={ok:100,warn:55,bad:0},sw=0,ss=0;st.forEach(function(p){sw+=p.w;ss+=val[p.s]*p.w;});
+    var score=sw?Math.round(ss/sw):0;
+    var desc;
+    if(ca&&ca.assessment){desc=cap(ca.assessment);}
+    else{
+      var GOOD={depth:P("tienes contenido con profundidad","your content has depth"),unique:P("tu contenido es único","your content is unique"),fresh:P("tu contenido está actualizado","your content is up to date"),coherence:P("tu contenido está bien enfocado","your content is well focused"),trust:P("transmites confianza (sobre, contacto, autor)","you convey trust (about, contact, author)")};
+      var BAD={depth:P("el contenido es escaso ("+aw+" palabras de media)","content is thin ("+aw+" words on average)"),unique:P("hay páginas casi duplicadas","there are near-duplicate pages"),fresh:(c.dated_pages===0?P("no se ve cuándo actualizas el contenido","there's no visible content date"):P("buena parte del contenido está desactualizado","much of the content is outdated")),coherence:P("el contenido no refleja bien su tema","content doesn't reflect its topic well"),trust:P("faltan señales de confianza (sobre, contacto, autor)","trust signals are missing (about, contact, author)")};
+      var goodK=st.filter(function(p){return p.s==="ok";}),badK=st.filter(function(p){return p.s==="bad";}).concat(st.filter(function(p){return p.s==="warn";}));
+      var good=goodK.length?GOOD[goodK[0].k]:null,bad=badK.length?BAD[badK[0].k]:null;
+      if(good&&bad)desc=cap(good)+P(", pero "+bad+".",", but "+bad+".");
+      else if(bad)desc=cap(bad)+".";
+      else desc=P("Buen contenido: profundo, único y enfocado.","Good content: deep, unique and focused.");
+    }
+    return {score:score,desc:desc,points:st};
+  }
+  function contentFindings(r){
+    var c=(r.onpage||{}).content,ca=r.content_ai,meta=r.meta||{},out=[];
+    if(!c)return out;
+    if(c.duplicates&&c.duplicates.count>0){var ex=(c.duplicates.examples||[])[0]||{};out.push({sev:"op",t:P("Páginas con contenido casi duplicado","Near-duplicate content pages"),d:P("Detectamos "+c.duplicates.count+" par(es) de páginas con texto casi idéntico"+(ex.a?" (p. ej. "+shortU(ex.a)+" ↔ "+shortU(ex.b)+")":"")+". El contenido duplicado confunde a Google sobre cuál posicionar; unifícalas o diferéncialas.","We found "+c.duplicates.count+" pair(s) of pages with near-identical text"+(ex.a?" (e.g. "+shortU(ex.a)+" ↔ "+shortU(ex.b)+")":"")+". Duplicate content confuses Google about which to rank; merge or differentiate them.")});}
+    var fr=c.dated_pages?c.fresh_pages/c.dated_pages:0;
+    if(c.dated_pages===0)out.push({sev:"op",t:P("No se ve cuándo actualizas el contenido","No visible content dates"),d:P("Tus páginas no muestran fecha de publicación o actualización. Google y la IA valoran el contenido fresco; añade fechas visibles y datePublished/dateModified en el schema.","Your pages show no publish/update date. Google and AI value fresh content; add visible dates and datePublished/dateModified in schema.")});
+    else if(fr<0.5)out.push({sev:"op",t:P("Buena parte del contenido está desactualizado","Much of the content is outdated"),d:P("Solo "+c.fresh_pages+" de "+c.dated_pages+" páginas con fecha están actualizadas (lo más nuevo: "+(c.newest||"")+"). Refresca los artículos clave: el contenido antiguo pierde posiciones.","Only "+c.fresh_pages+" of "+c.dated_pages+" dated pages are recent (newest: "+(c.newest||"")+"). Refresh key articles: stale content loses rankings.")});
+    if(c.coherence_pct<70)out.push({sev:"op",t:P("Contenido poco enfocado en su tema","Content not focused on its topic"),d:P("En el "+(100-c.coherence_pct)+"% de las páginas el título o el H1 no reflejan bien de qué trata el texto. Alinea título, H1 y contenido en torno a una idea principal por página.","On "+(100-c.coherence_pct)+"% of pages the title or H1 doesn't reflect the text well. Align title, H1 and content around one main idea per page.")});
+    if(!c.about_page)out.push({sev:"op",t:P("Falta una página 'Sobre nosotros'","Missing an 'About' page"),d:P("No encontramos una página que cuente quién está detrás. Es una señal de confianza (E-E-A-T) que Google y la IA valoran para recomendarte.","We couldn't find a page telling who's behind the site. It's a trust signal (E-E-A-T) Google and AI value when recommending you.")});
+    if(!c.author)out.push({sev:"op",t:P("Tus contenidos no muestran autor","Your content shows no author"),d:P("Los artículos sin autor pierden autoridad (E-E-A-T). Añade el autor con su experiencia y marcado Author en el schema.","Articles with no author lose authority (E-E-A-T). Add the author with their expertise and Author schema markup.")});
+    if(ca&&ca.gaps&&ca.gaps.length)out.push({sev:"op",t:P("Mejoras de contenido (análisis de IA)","Content improvements (AI analysis)"),d:P("La IA revisó tu contenido en vivo y sugiere: "+ca.gaps.join("; ")+".","AI reviewed your content live and suggests: "+ca.gaps.join("; ")+".")});
+    return out;
+  }
+
   /* hero panel is static (sin movimiento) */
 
   /* ===== CONSOLE (never pauses) ===== */
@@ -1091,13 +1135,14 @@
     var schemaDims=allDims.filter(function(d){return d.grp==="schema";});
     var secDims=allDims.filter(function(d){return d.grp==="sec";});
     var localDims=allDims.filter(function(d){return d.grp==="local";});
+    var contentDims=allDims.filter(function(d){return d.grp==="content";});
     var restDims=allDims.filter(function(d){return !d.grp;}).sort(function(a,b){return a.score-b.score;});
-    var dims=perfDims.concat(seoDims).concat(geoDims).concat(techDims).concat(schemaDims).concat(secDims).concat(localDims).concat(restDims);
+    var dims=perfDims.concat(seoDims).concat(geoDims).concat(techDims).concat(schemaDims).concat(secDims).concat(localDims).concat(contentDims).concat(restDims);
     document.getElementById("dimsTitle").textContent=P("Las "+dims.length+" dimensiones","The "+dims.length+" dimensions");
     document.getElementById("dimsGrid").innerHTML=dims.map(function(d,i){var c=clsColor(d.score);return '<div class="dcard" style="animation-delay:'+(i*0.05)+'s"><div class="dt"><span class="di">'+icon(d.ic)+'</span><span class="dh"><span class="dn">'+esc(d.name)+'</span><span class="dc" style="color:'+c+'">'+clsLabel(d.score)+'</span></span><span class="ds" style="color:'+c+'">'+d.score+'<small>/100</small></span></div><div class="dbar"><div class="df" style="width:'+d.score+'%;background:'+c+'"></div></div><p class="dd">'+esc(d.desc)+'</p></div>';}).join("");
 
     document.getElementById("hallTitle").textContent=t("hall_title");
-    var f=geoFindings(r).slice(0,5).concat(localFindings(r).slice(0,4)).concat(perfFindings(r).slice(0,3)).concat(onpageFindings(r).slice(0,5)).concat(techFindings(r).slice(0,4)).concat(schemaFindings(r).slice(0,3)).concat(securityFindings(r).slice(0,4)).slice(0,26);
+    var f=geoFindings(r).slice(0,5).concat(contentFindings(r).slice(0,4)).concat(localFindings(r).slice(0,3)).concat(perfFindings(r).slice(0,3)).concat(onpageFindings(r).slice(0,5)).concat(techFindings(r).slice(0,4)).concat(schemaFindings(r).slice(0,3)).concat(securityFindings(r).slice(0,4)).slice(0,28);
     document.getElementById("hallGrid").innerHTML=f.map(function(x){var isC=x.sev==="critico";return '<div class="hcard'+(isC?"":" op")+'"><span class="htag">'+(isC?t("tag_critico"):t("tag_oportunidad"))+'</span><p class="hti">'+esc(x.t)+'</p><p class="hd2">'+esc(x.d)+'</p></div>';}).join("");
 
     var ai=r.geo_ai||{},probs=[];

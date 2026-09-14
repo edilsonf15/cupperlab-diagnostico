@@ -30,7 +30,7 @@ load_dotenv()
 
 from analyzer import (analyze, result_to_dict, normalize_url, apply_ai_to_result,  # noqa: E402
                       apply_analytics, fetch_psi_full, finalize_score)
-from geo_ai import run_ai_geo  # noqa: E402
+from geo_ai import run_ai_geo, analyze_content  # noqa: E402
 from search import check_google, check_indexation  # noqa: E402
 import emailer  # noqa: E402
 import report_pdf  # noqa: E402
@@ -237,6 +237,8 @@ async def _run_job(job_id: str, url: str, email: str, name: str, lead: dict, lan
         analytics_task = asyncio.create_task(_perf.measure_device(final_url, mobile=True))
         # Auditoria SEO on-page AVANZADA (multi-pagina), en paralelo
         onpage_task = asyncio.create_task(_onpage.audit(final_url))
+        # Capa semantica de contenido con la IA (1 llamada), en paralelo
+        content_ai_task = asyncio.create_task(analyze_content(domain, data.get("meta", {}), lang))
 
         # 2) Consulta REAL a la IA
         _set(job_id, 40, "Preguntandole a la IA por tu marca y tu servicio...")
@@ -307,6 +309,12 @@ async def _run_job(job_id: str, url: str, email: str, name: str, lead: dict, lan
                 data["onpage"] = op
         except Exception as exc:  # noqa: BLE001
             print(f"[onpage:ERROR] {exc}"); data["onpage"] = None
+        try:
+            ca = await content_ai_task
+            if isinstance(ca, dict):
+                data["content_ai"] = ca
+        except Exception as exc:  # noqa: BLE001
+            print(f"[content-ai:ERROR] {exc}"); data["content_ai"] = None
 
         # Recalcula el score con la velocidad real ya incorporada
         try:

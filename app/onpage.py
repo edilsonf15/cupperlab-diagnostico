@@ -49,6 +49,44 @@ def _norm(u: str) -> str:
     return (u or "").split("#")[0].rstrip("/").lower()
 
 
+# --- Análisis de contenido (frecuencia de términos, duplicados, frescura) ---
+_STOP = set((
+    "de la que el en y a los del se las por un para con no una su al es lo como mas pero "
+    "sus le ya o este si porque esta entre cuando muy sin sobre tambien me hasta hay donde "
+    "quien desde todo nos durante todos uno les ni contra otros ese eso ante ellos e esto mi "
+    "antes algunos que unos yo otro otras otra el tanto esa estos mucho quienes nada muchos "
+    "cual sea poco ella estar haber estas estaba estamos algunas algo nosotros mi mis tu te ti "
+    "the of to and a in is it you that he was for on are with as his they be at one have this "
+    "from or had by hot but some what there we can out other were all your when up use word how "
+    "said an each she which do their time if will way about many then them would write like so "
+    "these her long make thing see him two has look more day could go come did my no most who "
+    "para más está sí").split())
+
+
+def _c_tokens(text: str) -> list:
+    return [w for w in re.findall(r"[a-záéíóúñü0-9]{3,}", (text or "").lower()) if w not in _STOP]
+
+
+def _shingles(tokens: list, n: int = 4) -> set:
+    return set(" ".join(tokens[i:i + n]) for i in range(max(0, len(tokens) - n + 1)))
+
+
+def _page_date(soup, raw_dates: str) -> str:
+    """Fecha de publicación/actualización más reciente (YYYY-MM-DD) que se pueda leer."""
+    found = re.findall(r"\"date(?:Modified|Published)\"\s*:\s*\"(\d{4}-\d{2}-\d{2})", raw_dates or "")
+    mt = soup.find("meta", attrs={"property": re.compile("article:modified_time", re.I)})
+    if mt and mt.get("content"):
+        m = re.match(r"(\d{4}-\d{2}-\d{2})", mt["content"])
+        if m:
+            found.append(m.group(1))
+    for tt in soup.find_all("time"):
+        dt = tt.get("datetime") or ""
+        m = re.match(r"(\d{4}-\d{2}-\d{2})", dt)
+        if m:
+            found.append(m.group(1))
+    return max(found) if found else ""
+
+
 # Campos obligatorios por tipo (alineado con lo que pide Google para resultados enriquecidos)
 _REQ = {
     "organization": ["name", "url", "logo"],
@@ -166,16 +204,14 @@ def _parse_page(url: str, html: str, status: int, base_net: str) -> dict:
                 poor_anchor += 1
     links = list(dict.fromkeys(links))
 
-    for tag in soup(["script", "style", "noscript"]):
-        tag.decompose()
-    text = re.sub(r"\s+", " ", soup.get_text(" ", strip=True))
-    word_count = len(text.split())
-
+    # --- Schema (ANTES de eliminar los <script>) + fechas ---
     schema_types = []
     schema_bad = 0
     schema_incomplete = []
+    raw_ld = ""
     for s in soup.find_all("script", attrs={"type": re.compile("ld\\+json", re.I)}):
         raw = s.get_text() or ""
+        raw_ld += raw + "\n"
         for m in re.findall(r'"@type"\s*:\s*"([^"]+)"', raw):
             schema_types.append(m.strip())
         if raw.strip():
@@ -199,6 +235,14 @@ def _parse_page(url: str, html: str, status: int, base_net: str) -> dict:
                 'ul[class*="breadcrumb" i], [class*="breadcrumb" i]'))
         except Exception:  # noqa: BLE001
             breadcrumb = False
+
+    page_date = _page_date(soup, raw_ld)
+
+    # --- Texto visible (ahora sí elimina scripts/estilos) ---
+    for tag in soup(["script", "style", "noscript"]):
+        tag.decompose()
+    text = re.sub(r"\s+", " ", soup.get_text(" ", strip=True))
+    word_count = len(text.split())
 
     lang = ""
     htmltag = soup.find("html")
@@ -234,6 +278,8 @@ def _parse_page(url: str, html: str, status: int, base_net: str) -> dict:
         "schema_types": sorted(set(t.lower() for t in schema_types)),
         "schema_bad": schema_bad,
         "schema_incomplete": schema_incomplete,
+        "date": page_date,
+        "_text": text[:6000],
         "url_issues": url_issues,
         "int_links": len(links),
         "poor_anchor": poor_anchor,
@@ -479,6 +525,65 @@ def _aggregate(pages: list[dict], norm_home: str = "") -> dict:
     }
 
 
+def _content(pages: list) -> dict:
+    """Análisis de contenido: profundidad, casi-duplicados, frescura, términos,
+    coherencia de tema y señales de confianza (E-E-A-T). Todo con el texto rastreado."""
+    from collections import Counter  # noqa: PLC0415
+    import datetime as _dt  # noqa: PLC0415
+    n = len(pages) or 1
+    toks_by = [_c_tokens(p.get("_text", "")) for p in pages]
+
+    docfreq = Counter()
+    for tk in toks_by:
+        docfreq.update(set(tk))
+    top_terms = [w for w, _ in docfreq.most_common(12)]
+
+    sh = [_shingles(tk) for tk in toks_by]
+    dups = []
+    for i in range(len(pages)):
+        for j in range(i + 1, len(pages)):
+            a, b = sh[i], sh[j]
+            if len(a) < 20 or len(b) < 20:
+                continue
+            inter = len(a & b)
+            uni = len(a | b)
+            if uni and inter / uni >= 0.6:
+                dups.append({"a": pages[i]["url"], "b": pages[j]["url"], "sim": round(inter / uni, 2)})
+    dups.sort(key=lambda d: d["sim"], reverse=True)
+
+    coherent = 0
+    for p, tk in zip(pages, toks_by):
+        ptop = [w for w, _ in Counter(tk).most_common(5)]
+        blob = (p.get("title", "") + " " + p.get("h1_first", "")).lower()
+        if ptop and any(w in blob for w in ptop):
+            coherent += 1
+
+    dated = [p["date"] for p in pages if p.get("date")]
+    newest = max(dated) if dated else ""
+    fresh = 0
+    if dated:
+        try:
+            cutoff = (_dt.date.today() - _dt.timedelta(days=400)).isoformat()
+            fresh = sum(1 for d in dated if d >= cutoff)
+        except Exception:  # noqa: BLE001
+            fresh = 0
+
+    urls = [p["url"].lower() for p in pages]
+    about = any(re.search(r"/(about|sobre|nosotros|quienes|equipo|team|adn|empresa|conocenos|conócenos)(/|$)", u)
+                for u in urls)
+    author = any(any(t in (p.get("schema_types") or []) for t in ("author", "person")) for p in pages)
+
+    return {
+        "avg_words": round(sum(p["word_count"] for p in pages) / n),
+        "thin": sum(1 for p in pages if p["word_count"] < THIN_WORDS),
+        "top_terms": top_terms,
+        "duplicates": {"count": len(dups), "examples": dups[:4]},
+        "coherence_pct": round(100 * coherent / n),
+        "dated_pages": len(dated), "fresh_pages": fresh, "newest": newest, "pages": len(pages),
+        "about_page": about, "author": author,
+    }
+
+
 # --------------------------------------------------------------------------- #
 # Entrada principal — crawl BFS
 # --------------------------------------------------------------------------- #
@@ -583,6 +688,12 @@ async def audit(url: str, home_html: str | None = None,
 
     model = _aggregate(pages, norm_home)
     model["broken"] = broken
+    try:
+        model["content"] = _content(pages)
+    except Exception:  # noqa: BLE001
+        model["content"] = None
+    for p in pages:
+        p.pop("_text", None)
     model["pages"] = pages
     model["engine"] = "onpage"
     return model
