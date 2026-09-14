@@ -766,6 +766,7 @@
       if((i.h2_missing||{}).count>0)cand.push([i.h2_missing.count,P(pg(i.h2_missing.count)+" sin subtítulos (H2)",pg(i.h2_missing.count)+" with no H2 subheadings")]);
       if((i.title_dup||{}).count>0)cand.push([i.title_dup.count,P("hay títulos repetidos entre páginas","duplicate titles across pages")]);
       if((i.canonical_missing||{}).count>0)cand.push([i.canonical_missing.count,P(pg(i.canonical_missing.count)+" sin canonical",pg(i.canonical_missing.count)+" with no canonical")]);
+      if((i.orphans||{}).count>0)cand.push([i.orphans.count+0.5,P(pg(i.orphans.count)+" sin enlaces internos que las apunten (huérfanas)",pg(i.orphans.count)+" with no internal links pointing to them (orphans)")]);
       cand.sort(function(a,b){return b[0]-a[0];});
       if(cand.length)lead=cand[0][1];
     }
@@ -788,6 +789,10 @@
     if((i.thin||{}).count>0)out.push({sev:"op",t:P("Páginas con poco contenido","Thin content pages"),d:P(i.thin.count+" página(s) tienen poco texto (p. ej. "+exUrls(i.thin.examples,"url")+"). Con poco contenido, Google y la IA tienen menos para entenderte y citarte.",i.thin.count+" page(s) have little text (e.g. "+exUrls(i.thin.examples,"url")+"). With thin content, Google and AI have less to understand and cite you.")});
     if((i.canonical_missing||{}).count>0)out.push({sev:"op",t:P("Falta la etiqueta canonical","Missing canonical tag"),d:P(i.canonical_missing.count+" página(s) no declaran su URL canónica: "+exUrls(i.canonical_missing.examples)+". Ayuda a evitar contenido duplicado.",i.canonical_missing.count+" page(s) don't declare a canonical URL: "+exUrls(i.canonical_missing.examples)+". It helps avoid duplicate content.")});
     if((i.url_unfriendly||{}).count>0)out.push({sev:"op",t:P("URLs poco amigables","Unfriendly URLs"),d:P(i.url_unfriendly.count+" URL(s) no son ideales (largas, con parámetros o mayúsculas): "+exUrls(i.url_unfriendly.examples,"url")+". Las URLs limpias posicionan y se comparten mejor.",i.url_unfriendly.count+" URL(s) aren't ideal (long, with params or uppercase): "+exUrls(i.url_unfriendly.examples,"url")+". Clean URLs rank and share better.")});
+    if((i.orphans||{}).count>0)out.push({sev:"op",t:P("Páginas huérfanas (sin enlaces internos)","Orphan pages (no internal links)"),d:P(pg(i.orphans.count)+" no reciben ningún enlace interno: "+exUrls(i.orphans.examples)+". Google y los visitantes casi no llegan a ellas; enlázalas desde el menú o desde páginas relacionadas.",pg(i.orphans.count)+" receive no internal links: "+exUrls(i.orphans.examples)+". Google and visitors barely reach them; link them from the menu or related pages.")});
+    if((i.deep||{}).count>0)out.push({sev:"op",t:P("Páginas demasiado profundas (más de 3 clics)","Pages too deep (more than 3 clicks)"),d:P(pg(i.deep.count)+" están a más de 3 clics del inicio: "+exUrls(i.deep.examples,"url")+". Cuanto más escondida, menos las prioriza Google. Acércalas con enlaces desde páginas principales.",pg(i.deep.count)+" are more than 3 clicks from the home: "+exUrls(i.deep.examples,"url")+". The deeper they sit, the less Google prioritizes them. Bring them closer with links from top pages.")});
+    if(i.breadcrumbs&&i.breadcrumbs.present===false)out.push({sev:"op",t:P("Sin migas de pan (breadcrumbs)","No breadcrumbs"),d:P("Tu sitio no usa breadcrumbs. Ayudan a Google a entender la jerarquía de páginas, mejoran la navegación y pueden salir en los resultados de búsqueda.","Your site has no breadcrumbs. They help Google understand the page hierarchy, improve navigation and can appear in search results.")});
+    if((i.poor_anchor||{}).count>0)out.push({sev:"op",t:P("Enlaces con texto poco descriptivo","Links with vague anchor text"),d:P(i.poor_anchor.count+" enlace(s) usan textos genéricos como 'aquí' o 'leer más'. Un texto de enlace descriptivo le dice a Google (y al usuario) a dónde lleva y reparte mejor la autoridad.",i.poor_anchor.count+" link(s) use generic text like 'here' or 'read more'. Descriptive anchor text tells Google (and users) where it leads and spreads authority better.")});
     return out;
   }
 
@@ -878,7 +883,7 @@
     document.getElementById("dimsGrid").innerHTML=dims.map(function(d,i){var c=clsColor(d.score);return '<div class="dcard" style="animation-delay:'+(i*0.05)+'s"><div class="dt"><span class="di">'+icon(d.ic)+'</span><span class="dh"><span class="dn">'+esc(d.name)+'</span><span class="dc" style="color:'+c+'">'+clsLabel(d.score)+'</span></span><span class="ds" style="color:'+c+'">'+d.score+'<small>/100</small></span></div><div class="dbar"><div class="df" style="width:'+d.score+'%;background:'+c+'"></div></div><p class="dd">'+esc(d.desc)+'</p></div>';}).join("");
 
     document.getElementById("hallTitle").textContent=t("hall_title");
-    var f=perfFindings(r).slice(0,3).concat(onpageFindings(r).slice(0,7)).concat(buildFindings(r)).slice(0,14);
+    var f=perfFindings(r).slice(0,3).concat(onpageFindings(r).slice(0,10)).concat(buildFindings(r)).slice(0,16);
     document.getElementById("hallGrid").innerHTML=f.map(function(x){var isC=x.sev==="critico";return '<div class="hcard'+(isC?"":" op")+'"><span class="htag">'+(isC?t("tag_critico"):t("tag_oportunidad"))+'</span><p class="hti">'+esc(x.t)+'</p><p class="hd2">'+esc(x.d)+'</p></div>';}).join("");
 
     var ai=r.geo_ai||{},probs=[];

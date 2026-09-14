@@ -98,12 +98,19 @@ def _parse_page(url: str, html: str, status: int, base_net: str) -> dict:
         if not (im.get("alt") or "").strip():
             img_no_alt += 1
 
-    # enlaces internos (para BFS y para conteo)
+    # enlaces internos (para BFS, grafo y conteo) + anchor text pobre
+    _GENERIC = {"aquí", "aqui", "aca", "acá", "clic", "click", "aquí.", "leer más", "leer mas",
+                "ver más", "ver mas", "más info", "mas info", "más", "mas", "ver", "saber más",
+                "saber mas", "read more", "here", "learn more", "more", "click here"}
     links = []
+    poor_anchor = 0
     for a in soup.find_all("a", href=True):
         h = urljoin(url, a["href"]).split("#")[0]
         if _valid(h, base_net):
             links.append(h)
+            txt = a.get_text(" ", strip=True).lower()
+            if txt in _GENERIC or (0 < len(txt) <= 2):
+                poor_anchor += 1
     links = list(dict.fromkeys(links))
 
     for tag in soup(["script", "style", "noscript"]):
@@ -115,6 +122,17 @@ def _parse_page(url: str, html: str, status: int, base_net: str) -> dict:
     for s in soup.find_all("script", attrs={"type": re.compile("ld\\+json", re.I)}):
         for m in re.findall(r'"@type"\s*:\s*"([^"]+)"', s.get_text() or ""):
             schema_types.append(m.strip())
+
+    # breadcrumbs: schema BreadcrumbList o navegación de migas visible
+    schema_low0 = [t.lower() for t in schema_types]
+    breadcrumb = "breadcrumblist" in schema_low0
+    if not breadcrumb:
+        try:
+            breadcrumb = bool(soup.select_one(
+                'nav[aria-label*="bread" i], ol[class*="breadcrumb" i], '
+                'ul[class*="breadcrumb" i], [class*="breadcrumb" i]'))
+        except Exception:  # noqa: BLE001
+            breadcrumb = False
 
     lang = ""
     htmltag = soup.find("html")
@@ -150,6 +168,8 @@ def _parse_page(url: str, html: str, status: int, base_net: str) -> dict:
         "schema_types": sorted(set(t.lower() for t in schema_types)),
         "url_issues": url_issues,
         "int_links": len(links),
+        "poor_anchor": poor_anchor,
+        "breadcrumb": breadcrumb,
         "_links": links,
     }
 
@@ -199,16 +219,17 @@ async def _sitemap_urls(client, home_url) -> list[str]:
 # --------------------------------------------------------------------------- #
 # Agregación
 # --------------------------------------------------------------------------- #
-def _aggregate(pages: list[dict]) -> dict:
+def _aggregate(pages: list[dict], norm_home: str = "") -> dict:
     def ex(items, n=5):
         return items[:n]
 
     title_missing, title_bad, h1_missing, h1_multi, h2_missing = [], [], [], [], []
     desc_missing, desc_bad, og_missing = [], [], []
     thin, canon_missing, canon_other, noindex, no_schema, url_bad, img_alt = [], [], [], [], [], [], []
+    orphans, deep_pages = [], []
     titles, descs = {}, {}
     total_imgs = total_missing_alt = words_sum = 0
-    hreflang_pages = 0
+    hreflang_pages = breadcrumb_pages = poor_anchor_total = 0
 
     for p in pages:
         u = p["url"]
@@ -248,6 +269,16 @@ def _aggregate(pages: list[dict]) -> dict:
             img_alt.append({"url": u, "missing": p["img_no_alt"], "total": p["img_total"]})
         if p["hreflangs"]:
             hreflang_pages += 1
+        if p.get("breadcrumb"):
+            breadcrumb_pages += 1
+        poor_anchor_total += p.get("poor_anchor", 0)
+        # arquitectura: huérfanas (nadie las enlaza) y profundidad de clics
+        k = _norm(p["url"])
+        if k != norm_home:
+            if p.get("inbound", 0) == 0:
+                orphans.append(u)
+            if isinstance(p.get("depth"), int) and p["depth"] > 3:
+                deep_pages.append({"url": u, "depth": p["depth"]})
         total_imgs += p["img_total"]
         total_missing_alt += p["img_no_alt"]
         words_sum += p["word_count"]
@@ -275,6 +306,10 @@ def _aggregate(pages: list[dict]) -> dict:
         "url_unfriendly": {"count": len(url_bad), "examples": ex(url_bad)},
         "img_no_alt": {"pages": len(img_alt), "total": total_missing_alt,
                        "total_imgs": total_imgs, "examples": ex(img_alt)},
+        "orphans": {"count": len(orphans), "examples": ex(orphans)},
+        "deep": {"count": len(deep_pages), "examples": ex(deep_pages)},
+        "breadcrumbs": {"present": breadcrumb_pages > 0, "pages": breadcrumb_pages},
+        "poor_anchor": {"count": poor_anchor_total},
     }
 
     def frac(c):
@@ -297,6 +332,10 @@ def _aggregate(pages: list[dict]) -> dict:
     score -= 20 * frac(len(noindex))
     score -= 10 * (total_missing_alt / total_imgs if total_imgs else 0)
     score -= 5 * frac(len(url_bad))
+    score -= 14 * frac(len(orphans))            # huérfanas: sin enlaces internos
+    score -= 6 * frac(len(deep_pages))          # demasiado profundas (>3 clics)
+    if breadcrumb_pages == 0 and n >= 3:
+        score -= 5                               # sin breadcrumbs en todo el sitio
     score = max(0, min(100, round(score)))
 
     return {
@@ -307,6 +346,8 @@ def _aggregate(pages: list[dict]) -> dict:
             "img_total": total_imgs,
             "img_no_alt": total_missing_alt,
             "hreflang_pages": hreflang_pages,
+            "breadcrumb_pages": breadcrumb_pages,
+            "orphans": len(orphans),
         },
         "score": score,
     }
@@ -364,7 +405,7 @@ async def audit(url: str, home_html: str | None = None,
                     if key in final_seen:
                         continue
                     final_seen.add(key)
-                    for l in p.pop("_links", []):
+                    for l in p.get("_links", []):
                         enqueue(l)
                     pages.append(p)
     except Exception:  # noqa: BLE001
@@ -372,7 +413,38 @@ async def audit(url: str, home_html: str | None = None,
 
     if not pages:
         return None
-    model = _aggregate(pages)
+
+    # ---- Grafo de enlaces internos: profundidad de clics, inbound y huérfanas
+    norm_home = _norm(url)
+    nodes = {_norm(p["url"]): p for p in pages}
+    adj = {k: set() for k in nodes}
+    for p in pages:
+        src = _norm(p["url"])
+        for l in p.get("_links", []):
+            t = _norm(l)
+            if t in nodes and t != src:
+                adj[src].add(t)
+    inbound = {k: 0 for k in nodes}
+    for src, tgts in adj.items():
+        for t in tgts:
+            inbound[t] += 1
+    depth = {k: None for k in nodes}
+    if norm_home in nodes:
+        dq = deque([norm_home])
+        depth[norm_home] = 0
+        while dq:
+            cur = dq.popleft()
+            for t in adj.get(cur, ()):
+                if depth[t] is None:
+                    depth[t] = depth[cur] + 1
+                    dq.append(t)
+    for p in pages:
+        k = _norm(p["url"])
+        p["inbound"] = inbound.get(k, 0)
+        p["depth"] = depth.get(k)
+        p.pop("_links", None)
+
+    model = _aggregate(pages, norm_home)
     model["pages"] = pages
     model["engine"] = "onpage"
     return model
