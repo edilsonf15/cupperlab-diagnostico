@@ -745,6 +745,46 @@ async def fetch_psi_full(url: str) -> dict | None:
 
 # ---- Motor principal ---------------------------------------------------------
 
+async def _www_variants(domain: str) -> dict:
+    """Comprueba www y no-www de la MISMA forma (sin pedirlo al cliente). Detecta si
+    ambas sirven contenido por separado (DUPLICADO) o si una redirige a la otra
+    (canonical unificado). Aquí saltan 'novedades' importantes."""
+    host = (domain or "").split("/")[0].replace("www.", "").lower()
+    if not host:
+        return {}
+    root_h, www_h = host, "www." + host
+
+    async def probe(client, h):
+        try:
+            r = await client.get(f"https://{h}/", timeout=8)
+            return {"status": r.status_code,
+                    "final_host": urlparse(str(r.url)).netloc.lower(),
+                    "https": str(r.url).lower().startswith("https://"),
+                    "ok": r.status_code < 400}
+        except Exception:  # noqa: BLE001
+            return {"status": None, "final_host": "", "https": False, "ok": False}
+
+    try:
+        async with httpx.AsyncClient(headers=HEADERS, verify=False, follow_redirects=True) as c:
+            root, www = await asyncio.gather(probe(c, root_h), probe(c, www_h))
+    except Exception:  # noqa: BLE001
+        return {}
+    rf, wf = root.get("final_host", ""), www.get("final_host", "")
+    both_ok = bool(root["ok"] and www["ok"])
+    unified = bool(both_ok and rf and rf == wf)
+    duplicate = bool(both_ok and rf and wf and rf != wf)   # ambas sirven por separado
+    # una versión responde con error (resuelve pero 4xx/5xx) mientras la otra funciona:
+    # debería redirigir (301), no dar error.
+    www_broken = bool(root["ok"] and www["status"] is not None and www["status"] >= 400)
+    root_broken = bool(www["ok"] and root["status"] is not None and root["status"] >= 400)
+    one_fails = www_broken or root_broken
+    broken_host = (www_h if www_broken else (root_h if root_broken else ""))
+    canonical = wf if (unified and wf) else ((rf if root["ok"] else wf) or rf or wf)
+    return {"root": root, "www": www, "both_ok": both_ok, "unified": unified,
+            "duplicate": duplicate, "one_fails": one_fails, "broken_host": broken_host,
+            "canonical_host": canonical, "prefers_www": bool(canonical.startswith("www."))}
+
+
 async def _check_https_forced(domain: str) -> bool:
     """Prueba REAL: ¿http://dominio redirige a https? (buena practica tecnica)."""
     host = (domain or "").split("/")[0]
@@ -814,9 +854,9 @@ async def analyze(raw_url: str) -> Result:
         llms_task = fetch_text(client, urljoin(url + "/", "llms.txt"))
 
         (robots_status, robots_text), (sm_status, sm_text), \
-            (smi_status, smi_text), (llms_status, llms_text), https_forced = await asyncio.gather(
+            (smi_status, smi_text), (llms_status, llms_text), https_forced, www_info = await asyncio.gather(
                 robots_task, sitemap_task, sitemap_idx_task, llms_task,
-                _check_https_forced(res.domain),
+                _check_https_forced(res.domain), _www_variants(res.domain),
             )
         psi = None
 
@@ -914,6 +954,7 @@ async def analyze(raw_url: str) -> Result:
 
     res.signals = {
         "sitemap_comp": sitemap_comp,
+        "www": www_info,
         "https": https_ok,
         "https_forced": bool(https_forced),
         "home_status": home_status,
