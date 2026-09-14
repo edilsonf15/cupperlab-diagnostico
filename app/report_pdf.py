@@ -52,8 +52,8 @@ def _logo_uri() -> str:
 
 
 def _color(s: int) -> str:
-    # MISMOS umbrales que la pantalla: >85 verde (óptimo), 50-85 ámbar (mejorable), <50 rojo (crítico).
-    return GREEN if s > 85 else (AMBER if s >= 50 else RED)
+    # MISMOS umbrales que la pantalla: >82 verde (óptimo), 50-82 ámbar (mejorable), <50 rojo (crítico).
+    return GREEN if s > 82 else (AMBER if s >= 50 else RED)
 
 
 def _lvl_color(s: int) -> str:
@@ -118,8 +118,8 @@ def build_plan(r: dict) -> list[dict]:
         add(L("Crear el mapa del sitio (sitemap.xml) para que Google y la IA descubran todas tus páginas.", "Create the sitemap (sitemap.xml) so Google and AI can discover all your pages."), "Alto", "Bajo", 1)
     elif not s.get("sitemap_in_robots"):
         add(L("Declarar el mapa del sitio dentro del robots.txt para que Google lo encuentre antes.", "Declare the sitemap inside the robots.txt so Google finds it sooner."), "Bajo", "Bajo", 2)
-    if s.get("links_broken", 0) > 0:
-        add(f"{L('Reparar los', 'Fix the')} {s['links_broken']} {L('enlace(s) roto(s) (404) y limpiar el mapa del sitio (quitar etiquetas y páginas vacias).', 'broken link(s) (404) and clean up the sitemap (remove tags and empty pages).')}",
+    if _broken(r)[0] > 0:
+        add(f"{L('Reparar los', 'Fix the')} {_broken(r)[0]} {L('enlace(s) roto(s) (404) y limpiar el mapa del sitio (quitar etiquetas y páginas vacias).', 'broken link(s) (404) and clean up the sitemap (remove tags and empty pages).')}",
             "Medio", "Medio", 2)
     # --- On-page (que Google entienda y muestre) ---
     if not m.get("title") or not (25 <= len(m.get("title", "")) <= 65):
@@ -161,8 +161,8 @@ def build_plan(r: dict) -> list[dict]:
             "Show a clear contact block (name, phone, address) and mark it up with schema: AI trusts verifiable businesses."),
             "Medio", "Bajo", 2)
     if ai.get("gbp") is False:
-        add(L("Crear y verificar tu ficha de Google Business (hoy no la encontramos): clave para el mapa, las búsquedas locales y la IA local.",
-            "Create and verify your Google Business listing (we could not find it today): key for the map, local searches and local AI."),
+        add(L("Activar y verificar tu ficha de Google Business (hoy no la encontramos): es clave para el mapa, las búsquedas locales y la IA local.",
+            "Activate and verify your Google Business listing (we could not find it today): it is key for the map, local searches and local AI."),
             "Alto", "Bajo", 1)
     elif ai.get("gbp") is not True and m.get("has_contact"):
         add(L("Verificar y optimizar tu ficha de Google Business (categoría, fotos, reseñas): clave para mapas y para la IA local.",
@@ -435,8 +435,20 @@ def _check_list(items: list) -> str:
     return f'<table class="cktbl"><tbody>{rows}</tbody></table>'
 
 
+def _broken(r: dict):
+    """404 del rastreo COMPLETO del sitio (mismo dato que la pantalla), no la muestra
+    del home. Devuelve (count, checked, ejemplos)."""
+    opb = (r.get("onpage") or {}).get("broken") or {}
+    s = r.get("signals") or {}
+    count = opb.get("count") if opb.get("count") is not None else (s.get("links_broken") or 0)
+    checked = opb.get("checked") if opb.get("checked") is not None else (s.get("links_checked") or 0)
+    ex = opb.get("broken") or s.get("broken_examples") or []
+    return count, checked, ex
+
+
 def _tech_rows(r: dict) -> str:
     s = r["signals"]; m = r["meta"]
+    _bc, _bk, _ = _broken(r)
     rb = s.get("robots_info") or {}
     if rb.get("blocks_all"):
         robots_st, robots_code, robots_obs = "crit", L("Bloquea todo", "Blocks everything"), L("Disallow: / · Google no puede rastrear el sitio", "Disallow: / · Google cannot crawl the site")
@@ -456,9 +468,9 @@ def _tech_rows(r: dict) -> str:
          f'{s["sitemap_total"]} {L("URLs listadas", "URLs listed")}' if s["sitemap"] else L("No encontrado", "Not found")),
         (L("llms.txt (guia para IA)", "llms.txt (guide for AI)"), "OK" if s["llms_txt"] else "404", "ok" if s["llms_txt"] else "hi",
          L("Presente", "Present") if s["llms_txt"] else L("No existe: sin guia para los buscadores con IA", "Does not exist: no guide for AI search engines")),
-        (L("Enlaces rotos (404)", "Broken links (404)"), f'{s["links_broken"]}/{s["links_checked"]}',
-         "ok" if s["links_broken"] == 0 else ("crit" if s["broken_ratio"] > 0.2 else "med"),
-         L("Sin enlaces rotos en la muestra", "No broken links in the sample") if s["links_broken"] == 0 else L("Páginas que ya no existen", "Pages that no longer exist")),
+        (L("Enlaces rotos (404)", "Broken links (404)"), f'{_bc}/{_bk}',
+         "ok" if _bc == 0 else ("crit" if _bc >= 5 else "med"),
+         L("Sin enlaces rotos en el rastreo", "No broken links in the crawl") if _bc == 0 else f'{_bc} {L("de", "of")} {_bk} {L("dan error", "return an error")}'),
         (L("Preparada para móvil", "Mobile-ready"), "OK" if m["viewport"] else L("Falta", "Missing"), "ok" if m["viewport"] else "med",
          L("Etiqueta viewport presente", "Viewport tag present") if m["viewport"] else L("Sin viewport móvil", "No mobile viewport")),
     ]
@@ -700,7 +712,7 @@ def _geo_tactics(r: dict) -> list[str]:
     # Reseñas: señal clave para que la IA recomiende. Adaptado a tu ficha real.
     gbp = ai.get("gbp"); gn = ai.get("gbp_reviews_n")
     if gbp is False:
-        tips.append(L("Crear tu <b>ficha de Google Business y conseguir reseñas</b>: la IA recomienda a negocios con opiniones reales y buena valoración.", "Create your <b>Google Business listing and gather reviews</b>: AI recommends businesses with real opinions and a good rating."))
+        tips.append(L("Tu <b>ficha de Google Business con reseñas</b>: la IA recomienda a negocios con opiniones reales y buena valoración.", "Your <b>Google Business listing with reviews</b>: AI recommends businesses with real opinions and a good rating."))
     elif gbp and (gn is None or (isinstance(gn, int) and gn < 15)):
         tips.append(L("<b>Conseguir más reseñas en tu ficha de Google</b>: tienes ficha pero pocas valoraciones, y la IA prioriza a los negocios mejor valorados. Pide reseñas a tus clientes de forma sistemática.", "<b>Gather more reviews on your Google listing</b>: you have a listing but few ratings, and AI prioritizes the best-rated businesses. Ask your clients for reviews systematically."))
     else:
@@ -745,12 +757,16 @@ def _ai_section(r: dict) -> str:
     # Tarjeta 1: lo que la IA MENCIONA de ti (verde/ambar/rojo según reconocimiento)
     rec_tag = {"strong": L("TE RECONOCE", "RECOGNIZES YOU"), "weak": L("SOLO CON TU WEB", "ONLY WITH YOUR SITE"), "none": L("NO TE RECONOCE", "DOES NOT RECOGNIZE YOU")}[recg]
     rec_v = {"strong": "yes", "weak": "", "none": "no"}[recg]
+    _men = _esc(mentions[:210]).strip()
     if recg == "strong":
-        m_line = f'{L("Esto es lo que la IA sabe de ti:", "This is what AI knows about you:")} "{_esc(mentions[:220])}"'
+        m_line = (f'{L("Esto es lo que la IA sabe de ti:", "This is what AI knows about you:")} "{_men}"' if _men
+                  else L("La IA te reconoce por tu cuenta, sin necesidad de darle tu web.", "AI recognizes you on its own, without being handed your site."))
         m_src = L("La IA te reconoce por su cuenta: vas por delante de la mayoria.", "AI recognizes you on its own: you are ahead of most.")
     elif recg == "weak":
-        m_line = (f'{L("Hicimos dos pruebas. <b>1) Sin pistas</b>, preguntando solo por tu nombre: la IA <b>no sabe quien eres</b> (no te tiene en su memoria). <b>2) Dandole tu dirección web</b>: entonces si te lee y te describe así:", "We ran two tests. <b>1) With no hints</b>, asking only by your name: AI <b>does not know who you are</b> (you are not in its memory). <b>2) Giving it your website address</b>: then it does read you and describes you like this:")} "{_esc(mentions[:190])}". '
-                  f'{L("Traducción: la IA <b>solo</b> te conoce si ya tiene el enlace de tu web delante; cuando un cliente pregunta sin conocerte, no apareces.", "In short: AI <b>only</b> knows you if it already has your website link in front of it; when a customer asks without knowing you, you do not show up.")}')
+        _p2 = (f'{L("entonces sí te lee y te describe así:", "then it does read you and describes you like this:")} "{_men}".' if _men
+               else L("entonces sí te lee, pero por su cuenta (solo con tu nombre) no sabe quién eres.", "then it does read you, but on its own (with just your name) it doesn't know who you are."))
+        m_line = (f'{L("Hicimos dos pruebas. <b>1) Sin pistas</b>, preguntando solo por tu nombre: la IA <b>no sabe quién eres</b> (no te tiene en su memoria). <b>2) Dándole tu dirección web</b>:", "We ran two tests. <b>1) With no hints</b>, asking only by your name: AI <b>does not know who you are</b> (you are not in its memory). <b>2) Giving it your website address</b>:")} {_p2} '
+                  f'{L("En claro: la IA <b>solo</b> te conoce si ya tiene tu web delante; cuando un cliente pregunta sin conocerte, no apareces.", "In short: AI <b>only</b> knows you if it already has your site in front of it; when a customer asks without knowing you, you do not show up.")}')
         m_src = L("Objetivo: que la IA te reconozca por tu nombre, sin tener que darle tu web.", "Goal: for AI to recognize you by name, without being handed your site.")
     else:
         m_line = L("Ni dandole tu web la IA encuentra información fiable de tu marca.", "Even when given your site, AI finds no reliable information about your brand.")
@@ -793,13 +809,19 @@ def _ai_section(r: dict) -> str:
         <div class="qt">{L("No encontramos una ficha activa. Es clave para el mapa, las búsquedas locales y para que la IA te cite con reseñas reales.", "We could not find an active listing. It is key for the map, local searches and for AI to cite you with real reviews.")}</div></div></div>
       <div class="src"><span>{L("Buscada por nombre en", "Searched by name in")} {_esc(zona)} {L("y por tu dominio", "and by your domain")}</span><span class="v no">{L("SIN FICHA", "NO LISTING")}</span></div>
     </div>"""
+    _realcomps = _comp_names(ai, 4)
+    _c2_line = (f'{L("Nombró a:", "It named:")} {_realcomps}.' if _realcomps
+                else L("En esta consulta no nos dio nombres concretos de competidores.", "In this query it gave us no specific competitor names."))
+    _c2_v, _c2_lab = (("yes", L('TE RECOMIENDA', 'RECOMMENDS YOU')) if reco is True
+                      else (("no", L('NO TE RECOMIENDA', 'DOES NOT RECOMMEND YOU')) if reco is False
+                            else ("", L('SOLO A VECES', 'ONLY SOMETIMES'))))
     card2 = f"""
     <div class="aiq">
       <div class="q"><div class="ico">IA</div><div>
-        <div class="ask">{L('Le preguntamos a la IA: "¿Que empresas recomiendas para este servicio?"', 'We asked AI: "Which companies do you recommend for this service?"')}</div>
-        <div class="qt">{L("Menciono a:", "It mentioned:")} {comps}.</div></div></div>
+        <div class="ask">{L('Le preguntamos a la IA: "¿Qué empresas recomiendas para este servicio?"', 'We asked AI: "Which companies do you recommend for this service?"')}</div>
+        <div class="qt">{_c2_line}</div></div></div>
       <div class="src"><span>{L("Consulta a la IA en vivo · sobre tu categoría (sin nombrarte)", "Live AI query · about your category (without naming you)")}</span>
-        <span class="v {'yes' if reco else 'no'}">{L('TE RECOMIENDA', 'RECOMMENDS YOU') if reco else (L('NO TE RECOMIENDA', 'DOES NOT RECOMMEND YOU') if reco is False else L('SIN DETERMINAR', 'UNDETERMINED'))}</span></div>
+        <span class="v {_c2_v}">{_c2_lab}</span></div>
     </div>"""
 
     # Las 3 búsquedas reales de un cliente (el corazon de la prueba GEO), como tarjetas
@@ -862,13 +884,12 @@ def _crawl_structure_block(r: dict) -> str:
     buscadores): cuantas páginas tiene y cuantas revisamos una a una."""
     s = r.get("signals") or {}
     pf = s.get("pages_found", 0)
-    checked = s.get("links_checked", 0)
-    broken = s.get("links_broken", 0)
+    broken, checked, _ = _broken(r)
     if not pf and not checked:
         return ""
     sm = s.get("sitemap_total", 0)
     fuente = (f'{L("según tu mapa del sitio", "according to your sitemap")} ({sm} URLs)' if sm else L("por los enlaces internos de tu web", "from your site's internal links"))
-    rota = (f' {L("De ellas,", "Of those,")} <b>{broken}</b> {L("daban error 404.", "returned a 404 error.")}' if broken else L(" No encontramos enlaces rotos en la muestra.", " We found no broken links in the sample."))
+    rota = (f' {L("De ellas,", "Of those,")} <b>{broken}</b> {L("daban error 404.", "returned a 404 error.")}' if broken else L(" No encontramos enlaces rotos.", " We found no broken links."))
     return (f'<div class="block callout o"><b>{L("Estructura de tu sitio (rastreo página por página).", "Your site structure (page-by-page crawl).")}</b> '
             f'{L("Tu web tiene del orden de", "Your site has around")} <b>{pf}</b> {L("páginas", "pages")} {fuente}. {L("Revisamos", "We checked")} {checked} {L("una a una.", "one by one.")}{rota} '
             f'{L("El número exacto que Google tiene indexado se confirma con Search Console (lo activamos al empezar).", "The exact number Google has indexed is confirmed with Search Console (we enable it at the start).")}</div>')
@@ -881,9 +902,9 @@ def _index_block(r: dict) -> str:
     n = ix.get("sample_count", 0)
     tot = ix.get("sitemap_total", 0)
     prov = ix.get("provider", L("el buscador", "the search engine"))
-    if not ix.get("indexed"):
-        return ('<div class="block callout r"><b>' + L("Indexación.", "Indexing.") + '</b> ' + L("No encontramos tu sitio indexado en la muestra de", "We didn't find your site indexed in the sample from")
-                + ' ' + _esc(prov) + '. ' + L("Hay que revisar que Google pueda rastrearte e indexarte.", "We need to check that Google can crawl and index you.") + '</div>')
+    if not ix.get("indexed") and not isinstance(ix.get("indexed_estimate"), int):
+        # medición con buscador proxy poco fiable: NO afirmamos que no estás indexado
+        return ('<div class="block callout o"><b>' + L("Indexación.", "Indexing.") + '</b> ' + L("No pudimos confirmar tu indexación de forma automática (medimos con un buscador proxy, no con Google directo). El número exacto de páginas que Google tiene indexadas se confirma en Search Console (Cobertura), que activamos al empezar.", "We couldn't confirm your indexing automatically (we measure with a proxy engine, not Google directly). The exact number of pages Google has indexed is confirmed in Search Console (Coverage), which we enable at the start.") + '</div>')
     est = ix.get("indexed_estimate")
     concl = ix.get("conclusion") or ""
     extra = f' {L("Tu mapa del sitio lista", "Your sitemap lists")} {tot} URLs.' if tot else ""
@@ -1163,7 +1184,7 @@ def _speed_section(r: dict) -> str:
     return f"""
     <div class="keep">
     <div class="eyebrow" style="margin-top:16px"><span class="bar"></span>{L('Rendimiento · Core Web Vitals', 'Performance · Core Web Vitals')}</div>
-    <h2 class="sec">{L('La velocidad de tu web, con la vara de Google', 'Your site speed, the Google way')}</h2>
+    <h2 class="sec">{L('La velocidad de tu web', 'Your site speed')}</h2>
     <p class="sub">{speed_lead}</p>
     {_cwv_strip(psi)}
     </div>
@@ -1241,8 +1262,8 @@ def _estado_resumen(r: dict) -> str:
         weak.append(L("no tiene meta descripción", "no meta description"))
     if m.get("h1_count", 0) != 1:
         weak.append(f'{L("el H1 no esta bien definido", "the H1 is not well defined")} ({m.get("h1_count",0)})')
-    if s.get("links_broken", 0) > 0:
-        weak.append(f'{s["links_broken"]} {L("enlace(s) roto(s)", "broken link(s)")}')
+    if _broken(r)[0] > 0:
+        weak.append(f'{_broken(r)[0]} {L("enlace(s) roto(s)", "broken link(s)")}')
     mob = (r.get("psi_full") or {}).get("mobile") or {}
     if mob.get("performance") is not None and mob["performance"] < 60:
         weak.append(f'{L("el móvil es lento", "mobile is slow")} ({mob["performance"]}/100)')
@@ -1378,7 +1399,7 @@ def build_report_html(r: dict, contact: dict, name: str = "") -> str:
     facts = f"""
       <div class="f"><div class="n {"c" if score>=70 else "o" if score>=40 else "r"}">{score}</div><div class="l">{L("salud digital global, verificada en vivo", "overall digital health, verified live")}</div></div>
       {ai_fact}
-      <div class="f"><div class="n {"r" if s["links_broken"]>0 else ""}">{s["links_broken"]}</div><div class="l">{L("enlaces rotos (404) en la muestra revisada", "broken links (404) in the sample checked")}</div></div>
+      <div class="f"><div class="n {"r" if _broken(r)[0]>0 else ""}">{_broken(r)[0]}</div><div class="l">{L("enlaces rotos (404) en el rastreo del sitio", "broken links (404) in the site crawl")}</div></div>
       <div class="f"><div class="n {"o" if s["home_time"]>=3 else "c"}">{s["home_time"]}s</div><div class="l">{L("tiempo de respuesta del servidor", "server response time")}</div></div>"""
 
     # Banda de veredicto
@@ -1559,8 +1580,8 @@ def build_report_html(r: dict, contact: dict, name: str = "") -> str:
     psi = r.get("psi_full") or {}
     mob = (psi.get("mobile") or {})
     speed_bit = f' {L("Medimos la velocidad real en móvil y escritorio (móvil", "We measured real speed on mobile and desktop (mobile")} {mob.get("performance")}/100).' if mob.get("performance") is not None else ""
-    n404 = s.get("links_broken", 0)
-    tec_bit = (f' {L("Rastreamos", "We crawled")} {s.get("links_checked",0)} {L("direcciones una a una", "addresses one by one")}'
+    n404, nchk, _ = _broken(r)
+    tec_bit = (f' {L("Rastreamos", "We crawled")} {nchk} {L("direcciones una a una", "addresses one by one")}'
                + (f' {L("y encontramos", "and found")} {n404} {L("enlace(s) roto(s).", "broken link(s).")}' if n404 else L(" sin enlaces rotos.", " with no broken links.")))
     lede = (f'{L("Diagnóstico con <b>datos reales comprobados en vivo</b>: revisamos tu web por dentro, página a página.", "Diagnosis with <b>real data checked live</b>: we reviewed your site from the inside, page by page.")}{tec_bit}{ai_bit}{speed_bit} '
             f'{L("Aquí tienes lo que encontramos y el plan para que Google y la IA te encuentren y te recomienden.", "Here is what we found and the plan for Google and AI to find and recommend you.")}')

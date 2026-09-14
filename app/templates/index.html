@@ -630,8 +630,8 @@
   function esc(s){return (s||"").toString().replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
   function cap(s){s=(s||"").trim();return s?s.charAt(0).toUpperCase()+s.slice(1):s;}
   function sleep(ms){return new Promise(function(r){setTimeout(r,ms);});}
-  function clsOf(v){return v>85?"optimo":(v>=50?"mejorable":"critico");}
-  function clsColor(v){return v>85?OK:(v>=50?WARN:CRIT);}
+  function clsOf(v){return v>82?"optimo":(v>=50?"mejorable":"critico");}
+  function clsColor(v){return v>82?OK:(v>=50?WARN:CRIT);}
   // Glosario: iconito (ⓘ) que explica cada concepto en lenguaje simple
   function _G(es,en){return [null,P(es,en)];}
   var GLOSS=[
@@ -641,7 +641,7 @@
     [/minif/i,P("Minificar: quitar espacios y comentarios del código (CSS/JS) para que pese menos y cargue más rápido.","Minify: remove whitespace/comments from CSS/JS so it weighs less and loads faster.")],
     [/CDN/i,P("CDN: red de servidores repartidos por el mundo que entrega tu web desde el más cercano al visitante. Baja el tiempo de carga.","CDN: a network of servers worldwide that serves your site from the closest one to each visitor. Cuts load time.")],
     [/Open Graph/i,P("Open Graph: el título e imagen que se ven cuando alguien comparte tu enlace en WhatsApp, LinkedIn o redes.","Open Graph: the title and image shown when your link is shared on WhatsApp, LinkedIn or social.")],
-    [/ALT/i,P("Texto ALT: la descripción de una imagen que Google y los lectores de pantalla leen. Ayuda a posicionar y a la accesibilidad.","ALT text: the image description Google and screen readers read. Helps ranking and accessibility.")],
+    [/\bALT\b|texto alternativo/i,P("Texto ALT: la descripción de una imagen que Google y los lectores de pantalla leen. Ayuda a posicionar y a la accesibilidad.","ALT text: the image description Google and screen readers read. Helps ranking and accessibility.")],
     [/H1|titular principal/i,P("H1: el titular principal de la página. Debe haber uno solo y decir de qué trata la página.","H1: the page's main heading. There should be exactly one, saying what the page is about.")],
     [/H2|subtítulos/i,P("H2: los subtítulos que ordenan el contenido por secciones. Ayudan a Google y a la IA a entender la estructura.","H2: subheadings that organize content into sections. Help Google and AI understand structure.")],
     [/meta descrip/i,P("Meta descripción: el texto que Google muestra bajo el título en los resultados. Bien escrita sube los clics.","Meta description: the text Google shows under the title in results. A good one lifts clicks.")],
@@ -937,8 +937,10 @@
     if(sig.home_status==null&&!sig.sitemap&&!ix.indexed)return null;
     var st=[],add=function(k,s,w){st.push({k:k,s:s,w:w});};
     var pages=sig.pages_found||0,idx=(ix.indexed_estimate!=null?ix.indexed_estimate:(ix.indexed?(ix.sample_count||0):0));
-    var idxState=(!ix.indexed&&!idx)?"bad":(pages>0&&idx<pages*0.5?"warn":"ok");
-    add("index",idxState,20);
+    // La indexación se mide con un buscador proxy (Bing/DuckDuckGo), no con Google
+    // directo, así que NO es fiable al 100%: solo puntúa si hay dato, y nunca "bad".
+    var hasIdx=(ix.indexed||ix.indexed_estimate!=null||(ix.sample_count||0)>0);
+    if(hasIdx)add("index",(pages>0&&idx<pages*0.3)?"warn":"ok",20);
     var comp=sig.sitemap_comp||{},dirty=sig.sitemap&&(((comp.etiquetas||0)>(comp.paginas||0))||((comp.fichas||0)>(comp.paginas||0)));
     add("sitemap",!sig.sitemap?"bad":(dirty?"warn":"ok"),14);
     var rob=sig.robots_info||{},robBad=!!(rob.blocks_all||(rob.blocks_render&&rob.blocks_render.length)||(rob.blocks_content&&rob.blocks_content.length));
@@ -982,8 +984,8 @@
       if(rob.blocks_content&&rob.blocks_content.length)out.push({sev:"op",t:P("Tu robots.txt bloquea secciones de contenido","Your robots.txt blocks content sections"),d:P("Estás impidiendo que Google rastree "+rob.blocks_content.slice(0,3).join(", ")+". Si ahí hay contenido que quieres posicionar, no aparecerá en Google. Revisa que solo bloquees lo que de verdad no debe indexarse (admin, carrito, búsquedas).","You're preventing Google from crawling "+rob.blocks_content.slice(0,3).join(", ")+". If that's content you want to rank, it won't show on Google. Make sure you only block what truly shouldn't be indexed (admin, cart, search).")});
       if(!sig.sitemap_in_robots&&sig.sitemap)out.push({sev:"op",t:P("Tu robots.txt no declara el sitemap","Your robots.txt doesn't declare the sitemap"),d:P("Añade la línea 'Sitemap:' con la URL de tu mapa del sitio en el robots.txt para que Google lo encuentre antes.","Add a 'Sitemap:' line with your sitemap URL in robots.txt so Google finds it sooner.")});
     }
-    if(pages>0&&idx<pages*0.5&&(ix.indexed||idx))out.push({sev:"op",t:P("Google indexa pocas de tus páginas","Google indexes few of your pages"),d:P("Detectamos ~"+pages+" páginas pero Google tiene indexadas alrededor de "+idx+". Revisa noindex accidentales, contenido débil o falta de enlaces internos para que las indexe.","We detected ~"+pages+" pages but Google has about "+idx+" indexed. Check accidental noindex, weak content or missing internal links so they get indexed.")});
-    else if(!ix.indexed&&!idx)out.push({sev:"critico",t:P("Google apenas te tiene indexado","Google barely has you indexed"),d:P("No encontramos apenas páginas tuyas en el índice de Google. Si el sitio es nuevo es normal; si no, revisa bloqueos (robots/noindex) y envía el sitemap en Search Console.","We found almost no pages of yours in Google's index. If the site is new that's normal; otherwise check blocks (robots/noindex) and submit the sitemap in Search Console.")});
+    var hasIdxData=(ix.indexed||ix.indexed_estimate!=null||(ix.sample_count||0)>0);
+    if(hasIdxData&&pages>0&&idx<pages*0.3)out.push({sev:"op",t:P("Revisa tu cobertura de indexación","Review your indexing coverage"),d:P("Rastreamos ~"+pages+" páginas y en el buscador aparecen alrededor de "+idx+". La medición es orientativa (no consultamos Google directo); confírmalo en Search Console (Cobertura) y refuerza el sitemap y los enlaces internos.","We crawled ~"+pages+" pages and about "+idx+" show in search. This is an estimate (we don't query Google directly); confirm it in Search Console (Coverage) and reinforce the sitemap and internal links.")});
     if(!meta.viewport)out.push({sev:"op",t:P("No está preparada para móvil","Not mobile-ready"),d:P("Falta la etiqueta viewport. Google indexa en modo móvil primero; sin esto se ve mal en el teléfono y pierdes posiciones.","The viewport tag is missing. Google indexes mobile-first; without it the site looks bad on phones and you lose rankings.")});
     return out;
   }
@@ -1030,7 +1032,7 @@
     if(!by.review)out.push({sev:"op",t:P("Falta marcar reseñas y valoraciones (Review)","Missing Review/Rating markup"),d:P("El Schema Review/AggregateRating puede mostrar tus estrellas en Google y es una señal que la IA usa para recomendarte. Márcalo si tienes valoraciones.","Review/AggregateRating Schema can show your stars in Google and is a signal AI uses to recommend you. Mark it up if you have ratings.")});
     var sch=(r.onpage||{}).schema||{},errs=sch.errors||0,incompl=sch.incomplete||[];
     if(errs>0)out.push({sev:"op",t:P("Tus datos estructurados tienen errores de formato","Your structured data has format errors"),d:P("Detectamos "+errs+" bloque(s) de datos estructurados que no son JSON válido, así que Google los ignora. Corrige el formato para que cuenten.","We found "+errs+" structured-data block(s) that aren't valid JSON, so Google ignores them. Fix the format so they count.")});
-    if(incompl.length)out.push({sev:"op",t:P("Datos estructurados incompletos (campos obligatorios)","Structured data missing required fields"),d:P("Algunos tipos no traen los campos que Google exige y no darán resultado enriquecido: "+incompl.slice(0,3).map(function(x){return x.type+" (falta "+x.missing.join(", ")+")";}).join("; ")+". Complétalos.","Some types are missing the fields Google requires and won't earn rich results: "+incompl.slice(0,3).map(function(x){return x.type+" (missing "+x.missing.join(", ")+")";}).join("; ")+". Complete them.")});
+    if(incompl.length)out.push({sev:"op",t:P("A tus datos estructurados les faltan datos","Your structured data is incomplete"),d:P("Algunas de tus etiquetas ("+incompl.slice(0,3).map(function(x){return x.type;}).join(", ")+") no traen toda la información que Google pide, así que no te darán los resultados destacados (estrellas, imágenes, precios). Conviene completarlas para que cuenten.","Some of your tags ("+incompl.slice(0,3).map(function(x){return x.type;}).join(", ")+") don't carry all the info Google asks for, so they won't earn rich results (stars, images, prices). Completing them makes them count.")});
     return out;
   }
 
@@ -1099,7 +1101,7 @@
     var types=(op.schema&&op.schema.types)||meta.schema_types||[];
     var lb=types.some(function(t){return /localbusiness|professionalservice/.test(t);});
     var rev=ai.gbp_reviews_n||0;
-    if(ai.gbp===false)out.push({sev:"critico",t:P("No encontramos tu ficha de Google Business","We couldn't find your Google Business profile"),d:P("Sin ficha no apareces en el mapa ni en las búsquedas locales, y pierdes las reseñas que Google y la IA usan para recomendarte. Créala gratis y complétala (categoría, dirección, teléfono, horario, fotos).","Without a profile you don't appear on the map or in local searches, and you lose the reviews Google and AI use to recommend you. Create it for free and complete it (category, address, phone, hours, photos).")});
+    if(ai.gbp===false)out.push({sev:"critico",t:P("No encontramos tu ficha de Google Business","We couldn't find your Google Business profile"),d:P("Sin ficha no apareces en el mapa ni en las búsquedas locales, y pierdes las reseñas que Google y la IA usan para recomendarte. Una ficha activa y bien completa (categoría, dirección, teléfono, horario, fotos) es de lo que más mueve tu visibilidad local.","Without a profile you don't appear on the map or in local searches, and you lose the reviews Google and AI use to recommend you. Create it for free and complete it (category, address, phone, hours, photos).")});
     else if(ai.gbp===true&&rev===0)out.push({sev:"op",t:P("Tu ficha de Google no tiene reseñas","Your Google profile has no reviews"),d:P("Las reseñas son de lo que más miran los clientes y la IA para elegir. Pide reseñas a tus clientes contentos: suben tu posición local y tu confianza.","Reviews are one of the things customers and AI look at most when choosing. Ask your happy customers for reviews: they boost your local ranking and trust.")});
     if(!(meta.has_address&&meta.has_phone))out.push({sev:"op",t:P("Faltan datos de contacto claros (NAP)","Missing clear contact details (NAP)"),d:P("No mostramos "+(!meta.has_address?P("tu dirección","your address"):P("tu teléfono","your phone"))+" de forma clara. El nombre, la dirección y el teléfono (NAP) deben aparecer iguales en la web y en tu ficha para que Google y la IA confíen en ti.","We couldn't clearly find "+(!meta.has_address?P("your address","your address"):P("your phone","your phone"))+". Your name, address and phone (NAP) should appear the same on the site and your profile so Google and AI trust you.")});
     if(!(meta.has_map||meta.has_geo))out.push({sev:"op",t:P("No muestras tu ubicación en un mapa","You don't show your location on a map"),d:P("Incrustar un mapa de Google en la página de contacto ayuda a los clientes a llegar y refuerza la señal de negocio local ante Google.","Embedding a Google map on your contact page helps customers reach you and reinforces the local-business signal to Google.")});
@@ -1190,18 +1192,20 @@
     enqueuePhase(0);
     clearInterval(creepT);clearInterval(feedT);clearInterval(factT);
     creepT=setInterval(function(){
-      // Siempre avanza, sin pausar: si el backend va por delante, alcanza el
-      // progreso real rápido; si está esperando (fase larga de IA), gotea despacio
-      // hacia ~96 (nunca salta a 99). Al terminar, stopConsole lo lleva a 100.
-      if((targetP||0)>shown)shown=shown+Math.max(0.35,(targetP-shown)*0.14);
-      else if(shown<96)shown=shown+(96-shown)*0.004;
+      // Avance ESTABLE por tiempo (velocidad constante hasta 96); el progreso real
+      // del backend solo sirve de suelo para no quedarnos cortos. Nunca se para.
+      if(shown<96)shown=shown+0.13;
+      if((targetP||0)>shown)shown=Math.min(targetP,96);
       shown=Math.min(shown,96);
       consProg.style.width=shown+"%";consPct.innerHTML=Math.round(shown)+'<span style="font-size:.4em;color:var(--mut2)">%</span>';
+      consPhase.textContent=phaseName(shown);  // el título cambia conforme avanza
     },70);
-    feedT=setInterval(function(){var it=queue.shift();if(it)pushLine(it[0],it[1]);else{var m=ONGOING[ongIx%ONGOING.length];ongIx++;pushLine("run",P(m[0],m[1]));}},1500);
+    // Mensajes uno a uno, SIN repetir: primero los de cada fase, luego los pasos
+    // reales hasta agotarlos (no vuelve a empezar).
+    feedT=setInterval(function(){var it=queue.shift();if(it)pushLine(it[0],it[1]);else if(ongIx<ONGOING.length){var m=ONGOING[ongIx++];pushLine("run",P(m[0],m[1]));}},2000);
     factT=setInterval(function(){factIx=(factIx+1)%FACTS.length;consFact.style.opacity="0";setTimeout(function(){consFact.textContent="◆ "+P(FACTS[factIx][0],FACTS[factIx][1]);consFact.style.opacity="1";},380);},4200);
   }
-  function setProgress(pct){targetP=Math.max(targetP,pct);consPhase.textContent=phaseName(pct);var pi=phaseIdx(pct);if(pi>lastPhase){for(var k=lastPhase+1;k<=pi;k++)enqueuePhase(k);lastPhase=pi;}}
+  function setProgress(pct){targetP=Math.max(targetP,pct);var pi=phaseIdx(pct);if(pi>lastPhase){for(var k=lastPhase+1;k<=pi;k++)enqueuePhase(k);lastPhase=pi;}}
   function stopConsole(){clearInterval(creepT);clearInterval(feedT);clearInterval(factT);shown=100;consProg.style.width="100%";consPct.innerHTML='100<span style="font-size:.4em;color:var(--mut2)">%</span>';consPhase.textContent=P("¡Listo! Mostrando tu diagnóstico…","Done! Showing your diagnosis…");pushLine("ok",P("Diagnóstico completado","Diagnosis complete"));}
   function fail(msg){clearInterval(creepT);clearInterval(feedT);clearInterval(factT);consoleEl.classList.add("hidden");formBlock.classList.remove("hidden");err.textContent=msg;err.style.display="inline";submitBtn.disabled=false;submitBtn.textContent=t("submit_btn");document.getElementById("motor").scrollIntoView({behavior:"smooth"});}
 
