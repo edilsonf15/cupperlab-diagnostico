@@ -105,6 +105,12 @@ def build_plan(r: dict) -> list[dict]:
             "Alto", "Bajo", 1)
     elif not rb.get("present"):
         add(L("Publicar un robots.txt que guie el rastreo de Google y declare el mapa del sitio.", "Publish a robots.txt that guides Google's crawling and declares the sitemap."), "Medio", "Bajo", 1)
+    if rb.get("blocks_render") and not rb.get("blocks_all"):
+        add(L("URGENTE: tu robots.txt bloquea CSS/JS que Google necesita para ver tu web (", "URGENT: your robots.txt blocks CSS/JS Google needs to render your site (") +
+            ", ".join(rb["blocks_render"][:3]) + L("). Permitir esos recursos para que no te vea rota.", "). Allow those resources so it does not see your site broken."), "Alto", "Bajo", 1)
+    if rb.get("blocks_content") and not rb.get("blocks_all"):
+        add(L("Revisar el robots.txt: hoy bloquea secciones de contenido (", "Review the robots.txt: it currently blocks content sections (") +
+            ", ".join(rb["blocks_content"][:3]) + L("). Si ahí hay páginas que quieres posicionar, no aparecerán en Google.", "). If those hold pages you want to rank, they will not show on Google."), "Medio", "Bajo", 2)
     if rb.get("present") and rb.get("suggest_block"):
         add(L("Afinar el robots.txt: bloquear ", "Fine-tune the robots.txt: block ") + ", ".join(rb["suggest_block"]) +
             L(" para que Google no gaste rastreo en páginas sin valor y priorice las que venden.", " so Google does not waste its crawl budget on low-value pages and prioritizes the ones that sell."), "Medio", "Bajo", 2)
@@ -187,6 +193,41 @@ def build_plan(r: dict) -> list[dict]:
     if mob is not None and mob < 60:
         add(f"{L('Acelerar el móvil (hoy', 'Speed up mobile (today')} {mob}/100): {L('comprimir imagenes y aligerar la portada para bajar de 2,5 s de carga.', 'compress images and lighten the homepage to load in under 2.5s.')}",
             "Alto", "Medio", 1)
+    # --- Datos estructurados (schema) específicos: lo que la web marca en su dimensión ---
+    st_types = [x.lower() for x in (m.get("schema_types") or [])]
+    _has = lambda *ks: any(any(k in t for k in ks) for t in st_types)
+    if st_types and not _has("website"):
+        add(L("Añadir el marcado WebSite + SearchAction para que Google pueda mostrar tu buscador en los resultados.",
+              "Add WebSite + SearchAction markup so Google can show your site search in the results."), "Bajo", "Bajo", 2)
+    if st_types and not _has("product", "service", "offer"):
+        add(L("Marcar tus productos o servicios con schema para que Google y la IA sepan qué ofreces.",
+              "Mark up your products or services with schema so Google and AI know what you offer."), "Medio", "Bajo", 2)
+    if st_types and not _has("review", "aggregaterating", "rating"):
+        add(L("Marcar tus valoraciones (Review) para que puedan salir las estrellas en Google.",
+              "Mark up your ratings (Review) so star ratings can appear in Google."), "Medio", "Bajo", 2)
+    # --- Presencia local: mapa y horario (reseñas y ficha ya se cubren arriba) ---
+    if m.get("has_map") is False:
+        add(L("Incrustar un mapa de Google en tu página de contacto: ayuda a los clientes a llegar y refuerza lo local.",
+              "Embed a Google map on your contact page: it helps customers reach you and reinforces the local signal."), "Bajo", "Bajo", 2)
+    if m.get("has_hours") is False:
+        add(L("Publicar tu horario de atención (en la web y en tu ficha de Google).",
+              "Publish your opening hours (on the site and on your Google listing)."), "Bajo", "Bajo", 2)
+    # --- Contenido y relevancia (E-E-A-T): autor, 'sobre nosotros', frescura ---
+    oc = (r.get("onpage") or {}).get("content") or {}
+    if oc:
+        if oc.get("about_page") is False:
+            add(L("Crear una página 'Sobre nosotros' clara: genera confianza (E-E-A-T) para Google, la IA y el cliente.",
+                  "Create a clear 'About us' page: it builds trust (E-E-A-T) for Google, AI and the customer."), "Medio", "Bajo", 2)
+        if oc.get("author") is False:
+            add(L("Firmar los contenidos con su autor (y marcado Author): da autoridad ante Google y la IA.",
+                  "Sign your content with its author (and Author markup): it gives authority with Google and AI."), "Bajo", "Bajo", 3)
+        _dated = oc.get("dated_pages") or 0; _fresh = oc.get("fresh_pages") or 0
+        if _dated and _fresh < max(1, round(_dated * 0.4)):
+            add(L("Actualizar y fechar tus artículos clave: Google y la IA prefieren el contenido reciente.",
+                  "Update and date your key articles: Google and AI prefer recent content."), "Medio", "Medio", 3)
+        if (oc.get("duplicates") or {}).get("count", 0) > 0:
+            add(L("Unificar las páginas casi duplicadas para no repartir tu fuerza en Google.",
+                  "Consolidate near-duplicate pages so you don't split your strength in Google."), "Medio", "Medio", 2)
     add(L("Medir cada semana tu posición en buscadores y si la IA ya te reconoce y te recomienda.", "Track your search rankings every week and whether AI now recognizes and recommends you."), "Medio", "Bajo", 2)
     return plan
 
@@ -1629,10 +1670,12 @@ def build_report_html(r: dict, contact: dict, name: str = "") -> str:
   <p class="sub">{L('Una sola lista con todo lo que hay que hacer, ordenada por prioridad. Cada acción lleva su etiqueta: SEO (para Google) o IA (para los buscadores con inteligencia artificial).', 'One single list with everything to do, ordered by priority. Each action is tagged: SEO (for Google) or AI (for AI search engines).')}</p>
   </div>
   {_plan_unificado(r)}
+  <div class="keep">
   {_que_esperamos(r)}
   <div class="closeband">
     <div class="l"><b>{L('¿Damos el siguiente paso?', 'Shall we take the next step?')}</b><p>{L('Ponemos en marcha este plan contigo: base técnica, on-page, contenido y las señales que hacen que la IA te recomiende. Primera revisión sin costo.', 'We put this plan into motion with you: technical base, on-page, content and the signals that get AI to recommend you. First review at no cost.')}</p></div>
     <div class="r">{L('Tel', 'Tel')} <b>{contact.get('phone','')}</b><br>{contact.get('email','')}<br>{L('Mejoramos tu rentabilidad.', 'We improve your profitability.')}</div>
+  </div>
   </div>
 </section>
 
