@@ -210,6 +210,7 @@
   .dcard .di{flex-shrink:0;width:38px;height:38px;border-radius:10px;background:var(--surf2);display:flex;align-items:center;justify-content:center;color:var(--cy-d)}
   .dcard .dh{flex:1;min-width:0}
   .dcard .dn{display:block;font-family:var(--disp);font-weight:600;font-size:14.5px;color:var(--ink)}
+  .dcard .dn .info{vertical-align:-3px;margin-left:5px}
   .dcard .dc{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase}
   .dcard .ds{font-family:var(--disp);font-weight:700;font-size:28px;line-height:1;letter-spacing:-.03em}
   .dcard .ds small{font-size:12px;font-weight:400;color:var(--mut3)}
@@ -629,8 +630,8 @@
   function esc(s){return (s||"").toString().replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
   function cap(s){s=(s||"").trim();return s?s.charAt(0).toUpperCase()+s.slice(1):s;}
   function sleep(ms){return new Promise(function(r){setTimeout(r,ms);});}
-  function clsOf(v){return v>75?"optimo":(v>=50?"mejorable":"critico");}
-  function clsColor(v){return v>75?OK:(v>=50?WARN:CRIT);}
+  function clsOf(v){return v>85?"optimo":(v>=50?"mejorable":"critico");}
+  function clsColor(v){return v>85?OK:(v>=50?WARN:CRIT);}
   // Glosario: iconito (ⓘ) que explica cada concepto en lenguaje simple
   function _G(es,en){return [null,P(es,en)];}
   var GLOSS=[
@@ -682,6 +683,19 @@
     [/móvil|responsive|viewport/i,P("Apto para móvil: Google indexa primero la versión móvil; si no está preparada, pierdes posiciones.","Mobile-ready: Google indexes the mobile version first; if it's not ready, you lose rankings.")]
   ];
   function findInfo(txt){for(var i=0;i<GLOSS.length;i++){if(GLOSS[i][0].test(txt||""))return GLOSS[i][1];}return "";}
+  // Glosario de las dimensiones (qué mide cada tarjeta)
+  var DIMGLOSS=[
+    [/m[oó]vil/i,P("Mide la velocidad y experiencia de carga de tu web en teléfonos. Google indexa primero la versión móvil, así que es la que más pesa en tu posición.","Measures your site's load speed and experience on phones. Google indexes mobile first, so it weighs most on ranking.")],
+    [/escritorio/i,P("Mide la velocidad y experiencia de carga en ordenador (pantalla grande). Complementa a la móvil para dar la nota real de rendimiento.","Measures load speed and experience on desktop (large screens). Complements the mobile score for the real performance picture.")],
+    [/on-page|SEO/i,P("Revisa lo que Google mira dentro de cada página: títulos, descripciones, encabezados (H1/H2), imágenes con ALT, vista previa al compartir, enlaces internos y estructura. Es la base para posicionar.","Checks what Google reads inside each page: titles, descriptions, headings, image ALT, share preview, internal links and structure. The base for ranking.")],
+    [/GEO/i,P("Mide si los buscadores con IA (ChatGPT, Gemini, etc.) te conocen, te recomiendan cuando piden tu servicio y con qué fuentes te citan. Es la nueva forma en que los clientes te encuentran.","Measures whether AI search engines (ChatGPT, Gemini, etc.) know you, recommend you when your service is asked for, and which sources cite you. The new way clients find you.")],
+    [/t[eé]cnica|indexaci/i,P("Revisa la salud técnica: que Google pueda rastrear e indexar tu web (sitemap, robots), que uses HTTPS, que no haya enlaces rotos (404) y que www y no-www no dupliquen contenido.","Checks technical health: that Google can crawl and index your site (sitemap, robots), HTTPS is on, there are no broken links (404), and www/non-www don't duplicate content.")],
+    [/estructurados|schema/i,P("Comprueba los datos estructurados (Schema): etiquetas invisibles que le explican a Google y a la IA qué es cada cosa (empresa, productos, reseñas, FAQ). Ayudan a salir con estrellas y respuestas destacadas.","Checks structured data (schema): invisible tags that tell Google and AI what each thing is (company, products, reviews, FAQ). Help you show with stars and rich answers.")],
+    [/seguridad/i,P("Evalúa la seguridad de tu web: certificado SSL válido (el candado), cabeceras de protección, archivos sensibles expuestos y fugas de información. Google penaliza y los clientes desconfían de una web insegura.","Assesses your site's security: valid SSL certificate (the padlock), protection headers, exposed sensitive files and info leaks. Google penalizes and customers distrust an insecure site.")],
+    [/local|reputaci/i,P("Mide tu presencia local: ficha de Google Business, reseñas, datos de contacto (NAP) coherentes y mapa. Es lo que te hace salir en el mapa y en las búsquedas 'cerca de mí'.","Measures your local presence: Google Business profile, reviews, consistent contact info (NAP) and map. It's what puts you on the map and in 'near me' searches.")],
+    [/contenido|relevancia/i,P("Analiza la calidad y relevancia de tu contenido: enfoque en las palabras clave de tus clientes, señales de confianza (autor, 'sobre nosotros'), frescura y que no haya páginas duplicadas.","Analyzes content quality and relevance: focus on your customers' keywords, trust signals (author, 'about'), freshness and no duplicate pages.")]
+  ];
+  function dimInfo(name){for(var i=0;i<DIMGLOSS.length;i++){if(DIMGLOSS[i][0].test(name||""))return DIMGLOSS[i][1];}return "";}
   function clsLabel(v){var c=clsOf(v);return c==="optimo"?t("cls_optimo"):(c==="mejorable"?t("cls_mejorable"):t("cls_critico"));}
   // Descripción rica: hasta 2 cosas bien + hasta 2 por mejorar, tono "está bien, pero…"
   function mkDesc(st,GOOD,BAD,okMsg,leadOk){
@@ -1226,7 +1240,7 @@
     var restDims=allDims.filter(function(d){return !d.grp;}).sort(function(a,b){return a.score-b.score;});
     var dims=perfDims.concat(seoDims).concat(geoDims).concat(techDims).concat(schemaDims).concat(secDims).concat(localDims).concat(contentDims).concat(restDims);
     document.getElementById("dimsTitle").textContent=P("Las "+dims.length+" dimensiones","The "+dims.length+" dimensions");
-    document.getElementById("dimsGrid").innerHTML=dims.map(function(d,i){var c=clsColor(d.score);return '<div class="dcard" style="animation-delay:'+(i*0.05)+'s"><div class="dt"><span class="di">'+icon(d.ic)+'</span><span class="dh"><span class="dn">'+esc(d.name)+'</span><span class="dc" style="color:'+c+'">'+clsLabel(d.score)+'</span></span><span class="ds" style="color:'+c+'">'+d.score+'<small>/100</small></span></div><div class="dbar"><div class="df" style="width:'+d.score+'%;background:'+c+'"></div></div><p class="dd">'+esc(d.desc)+'</p></div>';}).join("");
+    document.getElementById("dimsGrid").innerHTML=dims.map(function(d,i){var c=clsColor(d.score);var nfo=dimInfo(d.name);var info=nfo?'<span class="info" tabindex="0" aria-label="'+esc(nfo)+'"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6v.1"/></svg><span class="tip">'+esc(nfo)+'</span></span>':'';return '<div class="dcard" style="animation-delay:'+(i*0.05)+'s"><div class="dt"><span class="di">'+icon(d.ic)+'</span><span class="dh"><span class="dn">'+esc(d.name)+info+'</span><span class="dc" style="color:'+c+'">'+clsLabel(d.score)+'</span></span><span class="ds" style="color:'+c+'">'+d.score+'<small>/100</small></span></div><div class="dbar"><div class="df" style="width:'+d.score+'%;background:'+c+'"></div></div><p class="dd">'+esc(d.desc)+'</p></div>';}).join("");
 
     document.getElementById("hallTitle").textContent=t("hall_title");
     function hc(x){var isC=x.sev==="critico";var nfo=findInfo(x.t+" "+(x.d||""));var info=nfo?'<span class="info" tabindex="0" aria-label="'+esc(nfo)+'"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6v.1"/></svg><span class="tip">'+esc(nfo)+'</span></span>':'';return '<div class="hcard'+(isC?"":" op")+'"><span class="htag">'+(isC?t("tag_critico"):t("tag_oportunidad"))+'</span><p class="hti">'+esc(x.t)+info+'</p><p class="hd2">'+esc(x.d)+'</p></div>';}
