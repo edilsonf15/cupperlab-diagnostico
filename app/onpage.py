@@ -286,6 +286,18 @@ def _aggregate(pages: list[dict], norm_home: str = "") -> dict:
     dup_titles = [{"value": t, "urls": us} for t, us in titles.items() if len(us) > 1]
     dup_descs = [{"value": d, "urls": us} for d, us in descs.items() if len(us) > 1]
 
+    # Datos estructurados (schema) agregados de TODO el sitio
+    schema_all: dict = {}
+    pages_with_schema = 0
+    for p in pages:
+        ts = p.get("schema_types") or []
+        if ts:
+            pages_with_schema += 1
+        for t in ts:
+            schema_all[t] = schema_all.get(t, 0) + 1
+    schema_info = {"types": sorted(schema_all.keys()), "counts": schema_all,
+                   "pages_with": pages_with_schema, "pages": len(pages)}
+
     n = len(pages) or 1
     issues = {
         "title_missing": {"count": len(title_missing), "examples": ex(title_missing)},
@@ -349,6 +361,7 @@ def _aggregate(pages: list[dict], norm_home: str = "") -> dict:
             "breadcrumb_pages": breadcrumb_pages,
             "orphans": len(orphans),
         },
+        "schema": schema_info,
         "score": score,
     }
 
