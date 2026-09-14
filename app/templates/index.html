@@ -859,8 +859,8 @@
     if(i.breadcrumbs&&i.breadcrumbs.present===false)cand.push([0.3,P("sin migas de pan","no breadcrumbs")]);
     cand.sort(function(a,b){return b[0]-a[0];});
     cand.forEach(function(c){leads.push(c[1]);});
-    if(!leads.length)return P("On-page sólido en las "+np+" páginas revisadas: títulos, H1, descripciones y estructura bien resueltos.","Solid on-page across the "+np+" pages reviewed: titles, H1, descriptions and structure well done.");
-    return P("Revisamos "+np+" páginas: títulos y H1 bien, pero "+leads.slice(0,3).join("; ")+".","We reviewed "+np+" pages: titles and H1 are fine, but "+leads.slice(0,3).join("; ")+".");
+    if(!leads.length)return P("Analizamos tu sitio página por página ("+np+" páginas): on-page sólido, con títulos, H1, descripciones y estructura bien resueltos.","We analyzed your site page by page ("+np+" pages): solid on-page, with titles, H1, descriptions and structure well done.");
+    return P("Analizamos tu sitio página por página ("+np+" páginas): títulos y H1 bien, pero "+leads.slice(0,3).join("; ")+".","We analyzed your site page by page ("+np+" pages): titles and H1 are fine, but "+leads.slice(0,3).join("; ")+".");
   }
   function onpageFindings(r){
     var op=r.onpage;if(!op||!op.issues)return [];

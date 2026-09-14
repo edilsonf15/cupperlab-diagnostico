@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+import time
 from collections import deque
 from urllib.parse import urljoin, urlparse
 
@@ -27,7 +28,8 @@ _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
        "(KHTML, like Gecko) Chrome/124.0 Safari/537.36")
 _HEADERS = {"User-Agent": _UA, "Accept-Language": "es-ES,es;q=0.9,en;q=0.6"}
 
-MAX_PAGES = 40          # tope de páginas a analizar a fondo (contenido)
+MAX_PAGES = 120         # analizamos a fondo TODO el sitio (hasta este tope alto)
+CRAWL_BUDGET = 35.0     # segundos máx. de rastreo profundo (para no eternizar webs enormes)
 CONCURRENCY = 8
 PAGE_TIMEOUT = 10.0
 SITEMAP_CAP = 300       # URLs máximas a leer del sitemap para sembrar
@@ -632,10 +634,11 @@ async def audit(url: str, home_html: str | None = None,
             for u in (extra_urls or []):
                 enqueue(u)
 
-            # ---- crawl por rondas (BFS) hasta MAX_PAGES
+            # ---- crawl por rondas (BFS) hasta MAX_PAGES o el presupuesto de tiempo
             sem = asyncio.Semaphore(CONCURRENCY)
             pages, final_seen = [], set()
-            while queue and len(pages) < MAX_PAGES:
+            _crawl_t0 = time.perf_counter()
+            while queue and len(pages) < MAX_PAGES and (time.perf_counter() - _crawl_t0) < CRAWL_BUDGET:
                 take = min(CONCURRENCY, len(queue), MAX_PAGES - len(pages))
                 batch = [queue.popleft() for _ in range(take)]
                 results = await asyncio.gather(*(_fetch(client, u, sem, base_net) for u in batch))
