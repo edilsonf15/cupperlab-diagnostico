@@ -100,7 +100,6 @@ async def _ask(client: httpx.AsyncClient, provider: str, key: str, model: str,
         if grounded:
             _LAST_GROUNDING["status"] = r.status_code
             _LAST_GROUNDING["fell_back"] = (r.status_code != 200)
-            _LAST_GROUNDING["body"] = (r.text[:300] if r.status_code != 200 else "")
         if grounded and r.status_code != 200:
             # el grounding puede estar limitado: reintenta sin busqueda en vivo
             r = await _call_retry(False)
@@ -1008,8 +1007,9 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
         "competitors": comps, "gap": "; ".join(content["gaps"])[:400],
         "category_queries": cat_queries, "gl": gl, "sources": src_out,
         "ai_score": score, "content": content, "engine": eng["name"],
-        "_dbg": {"mega_len": len(mega or ""), "mem_len": len(mem or ""),
-                 "mega_head": (mega or "")[:500], "mem_head": (mem or "")[:200],
-                 "model": model, "strong": strong, "provider": prov,
-                 "grounding": dict(_LAST_GROUNDING)},
+        # Si el grounding falló por cuota/límite y no obtuvimos datos, marcamos
+        # 'limited' para NO decir en falso que "la IA no te reconoce".
+        "limited": bool(_LAST_GROUNDING.get("fell_back")
+                        and _LAST_GROUNDING.get("status") in (401, 403, 429)
+                        and not knows_brand and not knows_with_web and not comps),
     }

@@ -888,7 +888,7 @@
   /* ===== GEO / VISIBILIDAD EN LA IA (profundo) ===== */
   function geoModel(r){
     var ai=r.geo_ai||{},sig=r.signals||{},meta=r.meta||{};
-    if(!ai.available)return null;
+    if(!ai.available||ai.limited)return null;
     var st=[],add=function(k,s,w){st.push({k:k,s:s,w:w});};
     var rec=ai.recognition;
     add("know",rec==="strong"?"ok":rec==="weak"?"warn":"bad",20);
@@ -913,6 +913,7 @@
   }
   function geoFindings(r){
     var ai=r.geo_ai||{},sig=r.signals||{},meta=r.meta||{},out=[];
+    if(ai.limited)return [{sev:"op",t:P("Consulta a la IA no completada","AI query not completed"),d:P("En este análisis no pudimos completar la consulta en vivo a la IA (límite temporal del servicio). No significa que la IA no te conozca; se reintenta. El resto del diagnóstico es completo.","We couldn't complete the live AI query in this analysis (a temporary service limit). It does not mean AI doesn't know you; we'll retry. The rest of the diagnosis is complete.")}];
     if(!ai.available)return out;
     var rec=ai.recognition,comp=((ai.competitors||[]).map(function(c){return c.name;}).filter(Boolean)).slice(0,3);
     if(rec==="none")out.push({sev:"critico",t:P("La IA no sabe quién eres","AI doesn't know who you are"),d:P("Le preguntamos por tu marca (con búsqueda web) y no te reconoce. Cada vez más clientes preguntan a la IA antes de decidir y hoy no apareces. Se corrige con entidad de marca (Schema Organization + perfiles), contenido citable y presencia en fuentes que la IA lee.","We asked about your brand (with web search) and it doesn't recognize you. More customers ask AI before deciding and today you don't appear. Fix it with brand entity (Organization Schema + profiles), citable content and presence in sources AI reads.")});

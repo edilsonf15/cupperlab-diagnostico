@@ -35,8 +35,8 @@ def _geo(data) -> int | None:
     ai = data.get("geo_ai") or {}
     sig = data.get("signals") or {}
     meta = data.get("meta") or {}
-    if not ai.get("available"):
-        return None
+    if not ai.get("available") or ai.get("limited"):
+        return None  # sin datos fiables de IA (o cuota agotada): no puntuamos GEO
     rec = ai.get("recognition")
     st = []
     st.append(("know", "ok" if rec == "strong" else ("warn" if rec == "weak" else "bad"), 20))

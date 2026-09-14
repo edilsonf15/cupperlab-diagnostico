@@ -737,6 +737,11 @@ def _geo_plan_block(r: dict) -> str:
 def _ai_section(r: dict) -> str:
     ai = r.get("geo_ai") or {}
     answered = ai.get("answered_names") or []
+    if ai.get("limited"):
+        return f"""
+        <div class="eyebrow"><span class="bar"></span>04 · {L("Cómo te ve la inteligencia artificial", "How artificial intelligence sees you")}</div>
+        <h2 class="sec">{L("Cómo te ve la IA", "How AI sees you")}</h2>
+        <div class="block callout o">{L("En este análisis no pudimos completar la consulta en vivo a la IA (límite temporal del servicio). No significa que la IA no te reconozca; lo reintentamos. El resto del diagnóstico está completo.", "We couldn't complete the live AI query in this analysis (a temporary service limit). It doesn't mean AI doesn't recognize you; we'll retry. The rest of the diagnosis is complete.")}</div>"""
     if not (ai.get("available") and not ai.get("error") and answered):
         geo = r["categories"].get("geo", {})
         return f"""
