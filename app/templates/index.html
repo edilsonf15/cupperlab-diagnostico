@@ -738,22 +738,23 @@
   /* ===== SEO ON-PAGE (onpage) ===== */
   function shortU(u){return (u||"").toString().replace(/^https?:\/\/[^/]+/,"")||"/";}
   function exUrls(arr,key){return (arr||[]).map(function(x){return shortU(key?x[key]:x);}).slice(0,3).join(", ");}
+  function pg(n){return n+" "+P(n===1?"página":"páginas",n===1?"page":"pages");}
   function onpageDesc(op){
     var i=op.issues||{},np=(op.totals&&op.totals.pages)||0,lead=null;
     // problemas graves mandan aunque afecten pocas páginas
-    if((i.noindex||{}).count>0)lead=P(i.noindex.count+" página(s) marcadas como 'no indexar'",i.noindex.count+" page(s) set to noindex");
-    else if((i.title_missing||{}).count>0)lead=P(i.title_missing.count+" página(s) sin título",i.title_missing.count+" page(s) with no title");
-    else if((i.h1_missing||{}).count>0)lead=P(i.h1_missing.count+" página(s) sin titular principal (H1)",i.h1_missing.count+" page(s) with no H1");
+    if((i.noindex||{}).count>0)lead=P(pg(i.noindex.count)+" con 'no indexar' (no saldrán en Google)",pg(i.noindex.count)+" set to noindex (won't show on Google)");
+    else if((i.title_missing||{}).count>0)lead=P(pg(i.title_missing.count)+" sin título",pg(i.title_missing.count)+" with no title");
+    else if((i.h1_missing||{}).count>0)lead=P(pg(i.h1_missing.count)+" sin titular principal (H1)",pg(i.h1_missing.count)+" with no H1");
     else{
       // si no hay graves, lidera el problema MÁS extendido
       var cand=[];
       if((i.img_no_alt||{}).total>0)cand.push([(i.img_no_alt.pages||0),P("faltan textos ALT en "+i.img_no_alt.total+" imágenes","ALT text missing on "+i.img_no_alt.total+" images")]);
-      if((i.og_missing||{}).count>0)cand.push([i.og_missing.count,P(i.og_missing.count+" página(s) sin vista previa al compartir (Open Graph)",i.og_missing.count+" page(s) with no social preview (Open Graph)")]);
-      if((i.desc_missing||{}).count>0)cand.push([i.desc_missing.count,P(i.desc_missing.count+" página(s) sin meta descripción",i.desc_missing.count+" page(s) with no meta description")]);
-      if((i.thin||{}).count>0)cand.push([i.thin.count,P(i.thin.count+" página(s) con poco contenido",i.thin.count+" thin page(s)")]);
-      if((i.h2_missing||{}).count>0)cand.push([i.h2_missing.count,P(i.h2_missing.count+" página(s) sin subtítulos (H2)",i.h2_missing.count+" page(s) with no H2 subheadings")]);
-      if((i.title_dup||{}).count>0)cand.push([i.title_dup.count,P("títulos repetidos entre páginas","duplicate titles across pages")]);
-      if((i.canonical_missing||{}).count>0)cand.push([i.canonical_missing.count,P(i.canonical_missing.count+" página(s) sin canonical",i.canonical_missing.count+" page(s) with no canonical")]);
+      if((i.og_missing||{}).count>0)cand.push([i.og_missing.count,P("falta la vista previa al compartir (Open Graph) en "+pg(i.og_missing.count),"social preview (Open Graph) missing on "+pg(i.og_missing.count))]);
+      if((i.desc_missing||{}).count>0)cand.push([i.desc_missing.count,P("falta la meta descripción en "+pg(i.desc_missing.count),"meta description missing on "+pg(i.desc_missing.count))]);
+      if((i.thin||{}).count>0)cand.push([i.thin.count,P(pg(i.thin.count)+" con poco contenido",pg(i.thin.count)+" with thin content")]);
+      if((i.h2_missing||{}).count>0)cand.push([i.h2_missing.count,P(pg(i.h2_missing.count)+" sin subtítulos (H2)",pg(i.h2_missing.count)+" with no H2 subheadings")]);
+      if((i.title_dup||{}).count>0)cand.push([i.title_dup.count,P("hay títulos repetidos entre páginas","duplicate titles across pages")]);
+      if((i.canonical_missing||{}).count>0)cand.push([i.canonical_missing.count,P(pg(i.canonical_missing.count)+" sin canonical",pg(i.canonical_missing.count)+" with no canonical")]);
       cand.sort(function(a,b){return b[0]-a[0];});
       if(cand.length)lead=cand[0][1];
     }
