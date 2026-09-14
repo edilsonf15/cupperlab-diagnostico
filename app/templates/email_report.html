@@ -71,15 +71,12 @@
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:100%;background:#ffffff;border-radius:22px;overflow:hidden;box-shadow:0 18px 50px rgba(10,16,20,.12)">
 
   <!-- HERO con movimiento -->
-  <tr><td class="hero" bgcolor="#12a6d0" style="padding:28px 34px 32px">
+  <tr><td class="hero" bgcolor="#12a6d0" style="padding:26px 34px 28px">
     <table width="100%" cellpadding="0" cellspacing="0"><tr>
       <td valign="middle"><span style="display:inline-block;background:#ffffff;border-radius:12px;padding:10px 15px"><img src="{{ logo }}" alt="Cupperlab" height="22" style="display:block;height:22px;width:auto;border:0"></span></td>
       <td align="right" valign="middle" class="mono" style="color:rgba(255,255,255,.85);font-size:10px;letter-spacing:2.5px">{{ 'SEO & GEO DIAGNOSIS' if en else 'DIAGNÓSTICO SEO & GEO' }}</td>
     </tr></table>
     <div class="sora" style="margin-top:22px;color:#ffffff;font-size:22px;font-weight:800;line-height:1.2;letter-spacing:-.015em">{% if en %}How Google and AI see you{% else %}Cómo te ve Google y la IA{% endif %}</div>
-    <table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:18px"><tr><td bgcolor="#ffffff" style="background:#ffffff;border-radius:999px;padding:9px 18px 9px 14px">
-      <span style="font-size:14px;vertical-align:middle;line-height:1">🔗</span>&nbsp;<span class="sora" style="color:#0b6f8c;font-size:15px;font-weight:800;vertical-align:middle;letter-spacing:.01em">{{ r.domain }}</span>
-    </td></tr></table>
   </td></tr>
 
   <!-- Saludo (humano, varia por dominio) -->
@@ -107,26 +104,6 @@
         <td style="height:10px;font-size:1px;line-height:10px">&nbsp;</td>
       </tr></table>
     </td></tr></table>
-  </td></tr>
-
-  <!-- DOS MUNDOS: Google vs IA -->
-  <tr><td class="pad" style="padding:20px 34px 0">
-    <table width="100%" cellpadding="0" cellspacing="0"><tr>
-      <td class="col2" width="50%" valign="top" style="padding-right:7px">
-        <table width="100%" cellpadding="0" cellspacing="0" style="background:#f2fbfe;border:1px solid #cdeef8;border-radius:14px"><tr><td style="padding:16px 17px">
-          <div style="font-size:22px;line-height:1" class="floaty">🔎</div>
-          <div class="sora" style="font-size:13.5px;font-weight:800;color:#0b6f8c;margin-top:8px">{{ 'Google (SEO)' if en else 'Google (SEO)' }}</div>
-          <div style="font-size:12px;color:#3f7f92;line-height:1.5;margin-top:4px">{% if onp is not none %}{% if onp>=70 %}{{ 'Well positioned to be shown.' if en else 'Bien preparada para que te muestre.' }}{% elif onp>=45 %}{{ 'Some fixable gaps hold you back.' if en else 'Con detalles corregibles que te frenan.' }}{% else %}{{ 'Key on-page signals are missing.' if en else 'Faltan señales clave on-page.' }}{% endif %}{% else %}{{ 'Analyzed page by page.' if en else 'Analizado página por página.' }}{% endif %}</div>
-        </td></tr></table>
-      </td>
-      <td class="col2b" width="50%" valign="top" style="padding-left:7px">
-        <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f2fe;border:1px solid #ddd7f6;border-radius:14px"><tr><td style="padding:16px 17px">
-          <div style="font-size:22px;line-height:1" class="floaty">🤖</div>
-          <div class="sora" style="font-size:13.5px;font-weight:800;color:#5b46c9;margin-top:8px">{{ 'AI (GEO)' if en else 'IA (GEO)' }}</div>
-          <div style="font-size:12px;color:#6a5fa0;line-height:1.5;margin-top:4px">{% if aiok %}{% if reco %}{{ 'AI recommends you for your service.' if en else 'La IA te recomienda para tu servicio.' }}{% elif knows %}{{ 'It knows you, but recommends rivals.' if en else 'Te conoce, pero recomienda a otros.' }}{% else %}{{ 'AI does not know you yet.' if en else 'La IA aún no sabe quién eres.' }}{% endif %}{% else %}{{ 'We measured your AI readiness.' if en else 'Medimos tu preparación para la IA.' }}{% endif %}</div>
-        </td></tr></table>
-      </td>
-    </tr></table>
   </td></tr>
 
   <!-- LO QUE LA IA DICE DE TI (la estrella) -->
