@@ -502,6 +502,42 @@ def analyze_robots(robots_text: str) -> dict:
     }
     good_blocks = [name for name, kws in checks.items() if any(k in joined for k in kws)]
     suggest = [name for name, kws in checks.items() if not any(k in joined for k in kws)]
+
+    # ---- ¿Bloquea algo NECESARIO y significativo? -----------------------------
+    # Solo miramos las reglas que afectan a Google/rastreadores normales: el grupo
+    # global (*) y, si existe, el de googlebot. Un Disallow bajo un bot concreto no
+    # afecta a Google.
+    relevant = list(star["disallow"])
+    for ua, g in groups.items():
+        if ua.lower() in ("googlebot", "googlebot-image", "google"):
+            relevant += g["disallow"]
+    relevant = [d for d in dict.fromkeys(relevant) if d and d != "/"]
+
+    # a) Recursos que Google NECESITA para pintar la pagina (CSS/JS/assets).
+    #    Bloquearlos hace que Google vea la web "rota" y penaliza.
+    render_kw = [".css", ".js", "/css", "/js", "/assets", "/static", "/media",
+                 "/dist", "/build", "/_next", "/wp-content", "/wp-includes",
+                 "/sites/default/files", "/themes", "/scripts", "/styles"]
+    blocks_render = [d for d in relevant if any(k in d.lower() for k in render_kw)]
+
+    # b) Directorios que PARECEN contenido real (no admin/sistema/parametros).
+    benign_kw = ["wp-admin", "wp-login", "/admin", "/login", "/cart", "/checkout",
+                 "/carrito", "/search", "/buscar", "?s=", "?q=", "/?", "*?", "?",
+                 "/feed", "attachment", "/wp-json", "/trackback", "/cgi-bin",
+                 "/tag", "/etiqueta", "/label", "/api", "/account", "/cuenta",
+                 "/wp-includes", "/comments", "/print", "/tmp", "/private",
+                 "/thank", "/gracias", "/out/", "/go/", "/redirect"]
+    def _looks_content(d: str) -> bool:
+        dl = d.lower()
+        if any(k in dl for k in benign_kw):
+            return False
+        if dl in blocks_render or any(k in dl for k in render_kw):
+            return False
+        core = dl.strip("/").split("/")[0].replace("*", "")
+        # un segmento con letras (no solo parametros/comodines) parece una seccion real
+        return bool(re.search(r"[a-z]{2,}", core)) and not core.startswith("?")
+    blocks_content = [d for d in relevant if _looks_content(d)]
+
     return {
         "present": bool(txt.strip()),
         "disallow_count": len(all_dis),
@@ -511,6 +547,8 @@ def analyze_robots(robots_text: str) -> dict:
         "good_blocks": good_blocks,
         "suggest_block": suggest[:3],
         "ai_blocked": ai_blocked,
+        "blocks_render": blocks_render[:6],
+        "blocks_content": blocks_content[:6],
     }
 
 
