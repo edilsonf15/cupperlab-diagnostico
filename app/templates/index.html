@@ -222,6 +222,13 @@
   .hcard.op .htag{color:#b07d0a}
   .hcard .hti{margin:8px 0 8px;font-family:var(--disp);font-weight:600;font-size:16px;letter-spacing:-.01em;color:var(--ink)}
   .hcard .hd2{margin:0;font-size:13.5px;line-height:1.6;color:var(--mut)}
+  .hcard .hti{display:flex;align-items:flex-start;gap:6px}
+  .info{position:relative;display:inline-flex;align-items:center;justify-content:center;flex:none;margin-top:1px;color:var(--mut2);cursor:help;outline:none;-webkit-tap-highlight-color:transparent}
+  .info:hover,.info:focus{color:var(--cy-d)}
+  .info .tip{position:absolute;bottom:calc(100% + 9px);left:50%;transform:translateX(-50%) translateY(4px);width:min(260px,72vw);background:var(--ink);color:#fff;font-family:var(--body);font-weight:400;font-size:12px;line-height:1.5;letter-spacing:0;text-align:left;padding:10px 12px;border-radius:10px;box-shadow:0 8px 24px rgba(14,19,25,.22);opacity:0;visibility:hidden;transition:opacity .16s ease,transform .16s ease;z-index:40;pointer-events:none}
+  .info .tip:after{content:"";position:absolute;top:100%;left:50%;transform:translateX(-50%);border:6px solid transparent;border-top-color:var(--ink)}
+  .info:hover .tip,.info:focus .tip{opacity:1;visibility:visible;transform:translateX(-50%) translateY(0)}
+  @media(max-width:560px){.info .tip{left:auto;right:-6px;transform:translateX(0) translateY(4px)}.info:hover .tip,.info:focus .tip{transform:translateX(0) translateY(0)}.info .tip:after{left:auto;right:12px;transform:none}}
   .hcat{display:flex;align-items:center;gap:11px;font-family:var(--disp);font-size:16px;font-weight:700;letter-spacing:-.01em;color:var(--ink);margin:30px 0 15px;padding-bottom:12px;border-bottom:1px solid var(--line)}
   .hcat .di{flex:none}
   .hcat .hcn{margin-left:auto;background:var(--surf2);color:var(--mut2);font-family:var(--mono);font-size:10.5px;font-weight:500;border-radius:20px;padding:3px 10px;letter-spacing:.04em}
@@ -622,8 +629,59 @@
   function esc(s){return (s||"").toString().replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
   function cap(s){s=(s||"").trim();return s?s.charAt(0).toUpperCase()+s.slice(1):s;}
   function sleep(ms){return new Promise(function(r){setTimeout(r,ms);});}
-  function clsOf(v){return v>=70?"optimo":(v>=40?"mejorable":"critico");}
-  function clsColor(v){return v>=70?OK:(v>=40?WARN:CRIT);}
+  function clsOf(v){return v>75?"optimo":(v>=50?"mejorable":"critico");}
+  function clsColor(v){return v>75?OK:(v>=50?WARN:CRIT);}
+  // Glosario: iconito (ⓘ) que explica cada concepto en lenguaje simple
+  function _G(es,en){return [null,P(es,en)];}
+  var GLOSS=[
+    [/LCP|acelera la carga|carga en m/i,P("LCP: cuánto tarda en verse el contenido principal de la página. Lo ideal es menos de 2,5 segundos.","LCP: how long the main content takes to appear. Ideal is under 2.5s.")],
+    [/INP|respuesta al tocar|al tocar/i,P("INP: cuánto tarda la página en reaccionar cuando el usuario toca o hace clic. Ideal < 200 ms.","INP: how fast the page reacts to a tap or click. Ideal < 200 ms.")],
+    [/TTFB|servidor.*responde|respuesta del servidor/i,P("TTFB: cuánto tarda tu servidor en empezar a responder. Ideal < 0,8 s.","TTFB: how fast your server starts responding. Ideal < 0.8s.")],
+    [/minif/i,P("Minificar: quitar espacios y comentarios del código (CSS/JS) para que pese menos y cargue más rápido.","Minify: remove whitespace/comments from CSS/JS so it weighs less and loads faster.")],
+    [/CDN/i,P("CDN: red de servidores repartidos por el mundo que entrega tu web desde el más cercano al visitante. Baja el tiempo de carga.","CDN: a network of servers worldwide that serves your site from the closest one to each visitor. Cuts load time.")],
+    [/Open Graph/i,P("Open Graph: el título e imagen que se ven cuando alguien comparte tu enlace en WhatsApp, LinkedIn o redes.","Open Graph: the title and image shown when your link is shared on WhatsApp, LinkedIn or social.")],
+    [/ALT/i,P("Texto ALT: la descripción de una imagen que Google y los lectores de pantalla leen. Ayuda a posicionar y a la accesibilidad.","ALT text: the image description Google and screen readers read. Helps ranking and accessibility.")],
+    [/H1|titular principal/i,P("H1: el titular principal de la página. Debe haber uno solo y decir de qué trata la página.","H1: the page's main heading. There should be exactly one, saying what the page is about.")],
+    [/H2|subtítulos/i,P("H2: los subtítulos que ordenan el contenido por secciones. Ayudan a Google y a la IA a entender la estructura.","H2: subheadings that organize content into sections. Help Google and AI understand structure.")],
+    [/meta descrip/i,P("Meta descripción: el texto que Google muestra bajo el título en los resultados. Bien escrita sube los clics.","Meta description: the text Google shows under the title in results. A good one lifts clicks.")],
+    [/canonical/i,P("Canonical: una etiqueta que le dice a Google cuál es la URL 'oficial' de una página, para evitar contenido duplicado.","Canonical: a tag telling Google the 'official' URL of a page, to avoid duplicate content.")],
+    [/huérfan/i,P("Página huérfana: una página a la que ningún enlace interno apunta, así que casi nadie (ni Google) llega a ella.","Orphan page: a page no internal link points to, so almost no one (or Google) reaches it.")],
+    [/breadcrumb|migas/i,P("Migas de pan: la ruta de navegación (Inicio › Sección › Página). Ayuda a Google y al usuario a ubicarse.","Breadcrumbs: the navigation path (Home › Section › Page). Helps Google and users orient.")],
+    [/clics|profund/i,P("Profundidad de clics: a cuántos clics del inicio está una página. Cuanto más lejos, menos la prioriza Google.","Click depth: how many clicks from the homepage a page sits. The deeper, the less Google prioritizes it.")],
+    [/llms\.txt/i,P("llms.txt: un archivo que le dice a los buscadores con IA qué páginas tuyas son clave y cómo entenderte.","llms.txt: a file telling AI search engines which of your pages are key and how to understand you.")],
+    [/entidad/i,P("Entidad de marca: que Google y la IA te reconozcan como un negocio definido (con Schema Organization, perfiles y menciones), no solo como una web.","Brand entity: Google and AI recognizing you as a defined business (Organization schema, profiles, mentions), not just a website.")],
+    [/FAQ|citable/i,P("Contenido citable: respuestas cortas y claras (como una sección de FAQ) que la IA puede tomar y citar directamente.","Citable content: short, clear answers (like an FAQ) that AI can take and quote directly.")],
+    [/WebSite|SearchAction/i,P("WebSite + SearchAction: marcado que permite que Google muestre el buscador de tu sitio dentro de los resultados.","WebSite + SearchAction: markup that lets Google show your site's search box within results.")],
+    [/Organization/i,P("Schema Organization: datos de tu empresa (nombre, logo, contacto, perfiles) en un formato que Google y la IA entienden.","Organization schema: your company data (name, logo, contact, profiles) in a format Google and AI understand.")],
+    [/producto|servicio.*Schema|Schema.*servicio/i,P("Schema de Producto/Servicio: marcar qué ofreces para que Google y la IA lo entiendan y lo muestren.","Product/Service schema: marking what you offer so Google and AI understand and show it.")],
+    [/Review|reseñas y valoraciones/i,P("Schema Review: marcar tus valoraciones para que puedan salir las estrellas en Google.","Review schema: marking your ratings so star ratings can show in Google.")],
+    [/datos estructurados|schema/i,P("Datos estructurados (Schema): etiquetas invisibles que le explican a Google y a la IA qué es cada cosa de tu web.","Structured data (schema): invisible tags that explain to Google and AI what each part of your site is.")],
+    [/recomienda|competencia/i,P("Recomendación por IA: cuando alguien pide tu tipo de servicio sin nombrarte, ¿la IA te incluye o nombra a otros?","AI recommendation: when someone asks for your kind of service without naming you, does AI include you or name others?")],
+    [/conoce|encuentra|memoria|reconoce/i,P("Reconocimiento por IA: si la IA sabe quién eres por su cuenta (de memoria) o solo si visita tu web.","AI recognition: whether AI knows who you are on its own (from memory) or only if it visits your site.")],
+    [/fuentes/i,P("Fuentes: las webs (prensa, directorios, reseñas) en las que la IA se apoya para hablar de ti. Más y mejores = más autoridad.","Sources: the sites (press, directories, reviews) AI relies on to talk about you. More and better = more authority.")],
+    [/reseñas/i,P("Reseñas: las valoraciones de tus clientes en Google. De lo que más miran los clientes y la IA para recomendar.","Reviews: your customers' ratings on Google. One of the top things customers and AI look at to recommend.")],
+    [/ficha de Google|Business/i,P("Ficha de Google Business: tu perfil gratuito en Google que te hace salir en el mapa y en búsquedas locales.","Google Business profile: your free Google profile that gets you on the map and in local searches.")],
+    [/NAP|datos de contacto/i,P("NAP: Nombre, Dirección y Teléfono. Deben aparecer iguales en tu web y tu ficha para que Google confíe.","NAP: Name, Address, Phone. They should match on your site and profile so Google trusts you.")],
+    [/mapa|ubicaci/i,P("Mapa: incrustar Google Maps en tu contacto ayuda a los clientes a llegar y refuerza la señal de negocio local.","Map: embedding Google Maps on your contact page helps customers reach you and reinforces the local signal.")],
+    [/categoría/i,P("Categoría de la ficha: la categoría principal de Google Business decide en qué búsquedas apareces.","Profile category: your Google Business main category decides which searches you show up in.")],
+    [/cabeceras de seguridad/i,P("Cabeceras de seguridad: ajustes del servidor que protegen contra ataques comunes (clickjacking, inyección, etc.).","Security headers: server settings that protect against common attacks (clickjacking, injection, etc.).")],
+    [/SSL|certificado/i,P("Certificado SSL: lo que activa el candado y el HTTPS. Si caduca o falla, el navegador marca tu web como 'no segura'.","SSL certificate: what enables the padlock and HTTPS. If it expires or fails, browsers flag your site as 'not secure'.")],
+    [/HTTPS/i,P("HTTPS: la conexión segura (candado). Google la exige y penaliza a las webs sin ella.","HTTPS: the secure connection (padlock). Google requires it and penalizes sites without it.")],
+    [/revela su versión|versión/i,P("Fuga de versión: tu servidor revela qué software y versión usa, y eso le facilita el trabajo a un atacante.","Version leak: your server reveals its software and version, making an attacker's job easier.")],
+    [/www/i,P("www vs no-www: si ambas versiones responden por separado, Google ve dos webs iguales (contenido duplicado). Una debe redirigir a la otra.","www vs non-www: if both respond separately, Google sees two identical sites (duplicate content). One should redirect to the other.")],
+    [/palabras clave|keyword/i,P("Palabras clave: los términos por los que tus clientes te buscan. Tu contenido debe estar enfocado en ellos.","Keywords: the terms your customers search for. Your content should target them.")],
+    [/autor/i,P("Autor (E-E-A-T): firmar los contenidos con quién los escribe da autoridad y confianza ante Google y la IA.","Author (E-E-A-T): signing content with who wrote it gives authority and trust with Google and AI.")],
+    [/sobre nosotros/i,P("Página 'Sobre nosotros' (E-E-A-T): contar quién está detrás genera confianza para Google, la IA y el cliente.","'About' page (E-E-A-T): telling who's behind the site builds trust for Google, AI and customers.")],
+    [/estructura por temas|pilar|cluster/i,P("Estructura por temas (pilar + clusters): una página principal por tema con sus artículos relacionados enlazados. Lo que más ayuda a posicionar.","Topic structure (pillar + clusters): one main page per topic with its related articles linked. One of the biggest ranking helps.")],
+    [/duplicad/i,P("Contenido duplicado: páginas casi idénticas. Google no sabe cuál posicionar y reparte tu fuerza entre ellas.","Duplicate content: near-identical pages. Google can't tell which to rank and splits your strength.")],
+    [/frescura|actualiz|fecha/i,P("Frescura: contenido actualizado y con fecha. Google y la IA prefieren lo reciente sobre lo antiguo.","Freshness: up-to-date, dated content. Google and AI prefer recent over stale.")],
+    [/indexad|Google te tiene/i,P("Indexación: cuántas de tus páginas están dentro del índice de Google. Si no están, no aparecen en búsquedas.","Indexing: how many of your pages are in Google's index. If they aren't, they don't show in searches.")],
+    [/sitemap|mapa del sitio/i,P("Sitemap: el mapa del sitio que le dice a Google qué páginas rastrear.","Sitemap: the file that tells Google which pages to crawl.")],
+    [/robots/i,P("robots.txt: el archivo que guía a los rastreadores sobre qué pueden y no pueden visitar.","robots.txt: the file guiding crawlers on what they can and can't visit.")],
+    [/404|enlaces rotos/i,P("Error 404: un enlace que lleva a una página que ya no existe. Frustra al visitante y desperdicia rastreo de Google.","404 error: a link to a page that no longer exists. Frustrates visitors and wastes Google's crawl budget.")],
+    [/móvil|responsive|viewport/i,P("Apto para móvil: Google indexa primero la versión móvil; si no está preparada, pierdes posiciones.","Mobile-ready: Google indexes the mobile version first; if it's not ready, you lose rankings.")]
+  ];
+  function findInfo(txt){for(var i=0;i<GLOSS.length;i++){if(GLOSS[i][0].test(txt||""))return GLOSS[i][1];}return "";}
   function clsLabel(v){var c=clsOf(v);return c==="optimo"?t("cls_optimo"):(c==="mejorable"?t("cls_mejorable"):t("cls_critico"));}
   // Descripción rica: hasta 2 cosas bien + hasta 2 por mejorar, tono "está bien, pero…"
   function mkDesc(st,GOOD,BAD,okMsg,leadOk){
@@ -1171,7 +1229,7 @@
     document.getElementById("dimsGrid").innerHTML=dims.map(function(d,i){var c=clsColor(d.score);return '<div class="dcard" style="animation-delay:'+(i*0.05)+'s"><div class="dt"><span class="di">'+icon(d.ic)+'</span><span class="dh"><span class="dn">'+esc(d.name)+'</span><span class="dc" style="color:'+c+'">'+clsLabel(d.score)+'</span></span><span class="ds" style="color:'+c+'">'+d.score+'<small>/100</small></span></div><div class="dbar"><div class="df" style="width:'+d.score+'%;background:'+c+'"></div></div><p class="dd">'+esc(d.desc)+'</p></div>';}).join("");
 
     document.getElementById("hallTitle").textContent=t("hall_title");
-    function hc(x){var isC=x.sev==="critico";return '<div class="hcard'+(isC?"":" op")+'"><span class="htag">'+(isC?t("tag_critico"):t("tag_oportunidad"))+'</span><p class="hti">'+esc(x.t)+'</p><p class="hd2">'+esc(x.d)+'</p></div>';}
+    function hc(x){var isC=x.sev==="critico";var nfo=findInfo(x.t+" "+(x.d||""));var info=nfo?'<span class="info" tabindex="0" aria-label="'+esc(nfo)+'"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6v.1"/></svg><span class="tip">'+esc(nfo)+'</span></span>':'';return '<div class="hcard'+(isC?"":" op")+'"><span class="htag">'+(isC?t("tag_critico"):t("tag_oportunidad"))+'</span><p class="hti">'+esc(x.t)+info+'</p><p class="hd2">'+esc(x.d)+'</p></div>';}
     var hgroups=[
       {ic:"ai",c:P("Visibilidad en la IA (GEO)","AI visibility (GEO)"),f:geoFindings(r)},
       {ic:"speed",c:P("Velocidad y rendimiento","Speed & performance"),f:perfFindings(r)},
@@ -1184,7 +1242,7 @@
     ];
     var hh="";
     hgroups.forEach(function(g){
-      var items=(g.f||[]).slice(0,6);
+      var items=(g.f||[]).slice().sort(function(a,b){return (a.sev==="critico"?0:1)-(b.sev==="critico"?0:1);}).slice(0,6);
       if(!items.length)return;
       var nc=items.filter(function(x){return x.sev==="critico";}).length;
       hh+='<div class="hcat"><span class="di" style="width:20px;height:20px;border-radius:6px;background:var(--cyd);color:var(--cy-d);display:inline-flex;align-items:center;justify-content:center">'+icon(g.ic)+'</span>'+esc(g.c)+'<span class="hcn">'+items.length+(nc?" · "+nc+" "+P("crítico"+(nc>1?"s":""),"critical"):"")+'</span></div>';
