@@ -902,7 +902,10 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
             f"FUENTES: <up to 4 web domains you rely on to describe the brand, separated by |>\n"
             f"BUSQUEDAS: <3 searches a customer would type for that service, with the city, separated by |>\n"
             f"FICHA_GOOGLE: <SI or NO> does it have a Google Business profile?\n"
+            f"CATEGORIA: <the main category of its Google profile, or its line of business if none>\n"
             f"RESENAS: <approx number of reviews on that profile, or 0>\n"
+            f"KEYWORDS: <3-5 keywords/searches this site should rank for, separated by |>\n"
+            f"ENTIDADES: <3-5 key topics or entities the content covers, separated by |>\n"
             f"CONTENIDO: <one honest sentence about the site content quality>\n"
             f"MEJORAS: <2-3 concrete content improvements, separated by |>")
         q_mem = (f'In one sentence, what is "{brand}" and what does it do? Start with the name. '
@@ -920,7 +923,10 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
             f"FUENTES: <hasta 4 dominios web en los que te apoyas para describir a la marca, separadas por |>\n"
             f"BUSQUEDAS: <3 búsquedas que un cliente escribiría para ese servicio, con la ciudad, separadas por |>\n"
             f"FICHA_GOOGLE: <SI o NO> ¿tiene ficha de Google Business?\n"
+            f"CATEGORIA: <la categoría principal de su ficha de Google, o su rubro si no hay ficha>\n"
             f"RESENAS: <número aproximado de reseñas de esa ficha, o 0>\n"
+            f"KEYWORDS: <3-5 palabras clave/búsquedas por las que este sitio debería posicionar, separadas por |>\n"
+            f"ENTIDADES: <3-5 temas o entidades clave que cubre el contenido, separadas por |>\n"
             f"CONTENIDO: <una frase honesta sobre la calidad del contenido del sitio>\n"
             f"MEJORAS: <2-3 mejoras concretas de contenido, separadas por |>")
         q_mem = (f'En una frase, ¿qué es "{brand}" y a qué se dedica? Empieza por el nombre. '
@@ -956,8 +962,11 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
     sector = _f("SECTOR", mega)[:60]
     zona = _clean_zona(_f("ZONA", mega))
     gbp = _f("FICHA_GOOGLE", mega).upper().startswith("SI")
+    gbp_category = _f("CATEGORIA", mega)[:80]
     _rev = re.search(r"\d[\d.,]*", _f("RESENAS", mega))
     gbp_reviews_n = int(re.sub(r"[^\d]", "", _rev.group(0))) if _rev else 0
+    kw_ai = [k.strip(" -•\"") for k in _f("KEYWORDS", mega).split("|") if k.strip()][:5]
+    entities_ai = [e.strip(" -•\"") for e in _f("ENTIDADES", mega).split("|") if e.strip()][:5]
 
     _own = (domain or "").split("/")[0].replace("www.", "").lower()
     src_out, seen = [], set()
@@ -975,12 +984,14 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
 
     reco_frac = 1.0 if recommended is True else (0.5 if recommended is None else 0.0)
     score = round(100 * (0.5 * (1 if knows_brand else 0) + 0.5 * reco_frac))
-    content = {"topics": [], "assessment": re.sub(r"\s+", " ", _f("CONTENIDO", mega)).strip()[:300],
+    content = {"topics": entities_ai, "keywords": kw_ai, "entities": entities_ai,
+               "assessment": re.sub(r"\s+", " ", _f("CONTENIDO", mega)).strip()[:300],
                "gaps": [g.strip(" -•") for g in _f("MEJORAS", mega).split("|") if g.strip()][:3]}
 
     return {
         "available": True, "brand": brand, "service": service, "sector": sector,
         "zona": zona, "country": country, "engine_names": [eng["name"]], "answered_names": [eng["name"]],
+        "gbp_category": gbp_category, "keywords": kw_ai, "entities": entities_ai,
         "knows_brand": knows_brand, "brand_description": mem_c[:400] if knows_brand else "",
         "knows_with_web": knows_with_web, "recognition": recognition,
         "mentions": (mem_c if knows_brand else "")[:400],

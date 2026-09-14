@@ -573,6 +573,15 @@ def _content(pages: list) -> dict:
                 for u in urls)
     author = any(any(t in (p.get("schema_types") or []) for t in ("author", "person")) for p in pages)
 
+    # estructura por temas (pilar + clusters): agrupa por primera carpeta de la URL
+    segs: dict = {}
+    for p in pages:
+        path = urlparse(p["url"]).path.strip("/")
+        seg = path.split("/")[0] if path else "(home)"
+        segs[seg] = segs.get(seg, 0) + 1
+    clusters = sum(1 for s, c in segs.items() if s not in ("", "(home)") and c >= 3)
+    sections = len([s for s in segs if s not in ("", "(home)")])
+
     return {
         "avg_words": round(sum(p["word_count"] for p in pages) / n),
         "thin": sum(1 for p in pages if p["word_count"] < THIN_WORDS),
@@ -581,6 +590,7 @@ def _content(pages: list) -> dict:
         "coherence_pct": round(100 * coherent / n),
         "dated_pages": len(dated), "fresh_pages": fresh, "newest": newest, "pages": len(pages),
         "about_page": about, "author": author,
+        "clusters": clusters, "sections": sections,
     }
 
 
