@@ -22,6 +22,7 @@ ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
 ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
 AI_BUDGET = float(os.getenv("AI_GEO_BUDGET", "40"))  # grounded (búsqueda web) necesita margen; 22s se quedaba corto
+_LAST_GROUNDING: dict = {}  # debug temporal: estado del último grounding
 
 
 def _provider() -> tuple[str, str, str]:
@@ -96,6 +97,10 @@ async def _ask(client: httpx.AsyncClient, provider: str, key: str, model: str,
             return r_
 
         r = await _call_retry(grounded)
+        if grounded:
+            _LAST_GROUNDING["status"] = r.status_code
+            _LAST_GROUNDING["fell_back"] = (r.status_code != 200)
+            _LAST_GROUNDING["body"] = (r.text[:300] if r.status_code != 200 else "")
         if grounded and r.status_code != 200:
             # el grounding puede estar limitado: reintenta sin busqueda en vivo
             r = await _call_retry(False)
@@ -1003,4 +1008,8 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
         "competitors": comps, "gap": "; ".join(content["gaps"])[:400],
         "category_queries": cat_queries, "gl": gl, "sources": src_out,
         "ai_score": score, "content": content, "engine": eng["name"],
+        "_dbg": {"mega_len": len(mega or ""), "mem_len": len(mem or ""),
+                 "mega_head": (mega or "")[:500], "mem_head": (mem or "")[:200],
+                 "model": model, "strong": strong, "provider": prov,
+                 "grounding": dict(_LAST_GROUNDING)},
     }
