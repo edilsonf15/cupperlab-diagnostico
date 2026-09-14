@@ -86,10 +86,19 @@ async def _ask(client: httpx.AsyncClient, provider: str, key: str, model: str,
                 body["tools"] = [{"google_search": {}}]   # busca en vivo, como la app de Gemini
             return await client.post(url, params={"key": key}, json=body, timeout=AI_BUDGET)
 
-        r = await _call(grounded)
+        async def _call_retry(use_grounding: bool):
+            r_ = None
+            for i in range(3):
+                r_ = await _call(use_grounding)
+                if r_.status_code not in (429, 500, 502, 503):
+                    return r_
+                await asyncio.sleep(1.2 * (i + 1))   # transitorio: reintenta con espera
+            return r_
+
+        r = await _call_retry(grounded)
         if grounded and r.status_code != 200:
-            # el grounding gratis puede estar limitado: reintenta sin busqueda en vivo
-            r = await _call(False)
+            # el grounding puede estar limitado: reintenta sin busqueda en vivo
+            r = await _call_retry(False)
         r.raise_for_status()
         data = r.json()
         if sink is not None:
@@ -860,3 +869,130 @@ async def analyze_content(domain: str, meta: dict, lang: str = "es") -> dict | N
         # sin formato claro: usa el texto como evaluación
         assessment = re.sub(r"\s+", " ", txt).strip()[:300]
     return {"topics": topics, "assessment": assessment, "gaps": gaps}
+
+
+# --------------------------------------------------------------------------- #
+# Motor GEO OPTIMIZADO: 1 sola búsqueda en vivo por análisis (coste mínimo)
+# --------------------------------------------------------------------------- #
+def _f(label: str, txt: str) -> str:
+    m = re.search(r"(?im)^\s*" + label + r"\s*:\s*(.+?)\s*$", txt or "")
+    return m.group(1).strip() if m else ""
+
+
+async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | None:
+    """GEO en 1 búsqueda en vivo: reconocimiento, recomendación, competencia, fuentes,
+    ficha/reseñas y evaluación de contenido, en una sola llamada grounded + una barata
+    sin búsqueda para el reconocimiento 'de memoria'. Devuelve el mismo shape que
+    run_ai_geo (+ 'content'). None si no hay motor de IA."""
+    eng = await _pick_working_engine()
+    if not eng:
+        return None
+    prov, key = eng["provider"], eng["key"]
+    strong = eng.get("strong") or eng["model"]
+    model = eng["model"]
+    brand = derive_brand(meta or {}, domain) or domain
+    service = derive_service(meta or {}) or (derive_sector(meta or {}) or "")
+    cc = _country_from_domain(domain)
+    country = cc[0] if cc else ""
+    gl = cc[1] if cc else "es"
+    full = domain if str(domain).startswith("http") else f"https://{domain}"
+
+    if lang == "en":
+        q_mega = (
+            f"Use web search and open {full}. Act as an SEO and GEO analyst. Analyze the company "
+            f'"{brand}". Reply EXACTLY in this format, plain text, no markdown, no links, each field on ONE line:\n'
+            f"SECTOR: <specific sector>\n"
+            f"ZONA: <city and country it serves; if no city, only country>\n"
+            f"RECOMIENDA: <SI, NO or AVECES> if someone asks for that service in that area WITHOUT naming the brand, "
+            f"would you recommend it?\n"
+            f"COMPETENCIA: <up to 5 real companies you'd recommend for that service, separated by |>\n"
+            f"FUENTES: <up to 4 web domains you rely on to describe the brand, separated by |>\n"
+            f"BUSQUEDAS: <3 searches a customer would type for that service, with the city, separated by |>\n"
+            f"FICHA_GOOGLE: <SI or NO> does it have a Google Business profile?\n"
+            f"RESENAS: <approx number of reviews on that profile, or 0>\n"
+            f"CONTENIDO: <one honest sentence about the site content quality>\n"
+            f"MEJORAS: <2-3 concrete content improvements, separated by |>")
+        q_mem = (f'In one sentence, what is "{brand}" and what does it do? Start with the name. '
+                 f"If you have NO reliable info about that brand, reply only NO_LO_SE.")
+    else:
+        q_mega = (
+            f"Usa búsqueda web y entra en {full}. Actúa como analista SEO y GEO. Analiza la empresa "
+            f'"{brand}". Responde EXACTAMENTE en este formato, en texto plano, sin markdown y sin enlaces, '
+            f"cada campo en UNA línea:\n"
+            f"SECTOR: <sector concreto>\n"
+            f"ZONA: <ciudad y país donde opera; si no hay ciudad, solo país>\n"
+            f"RECOMIENDA: <SI, NO o AVECES> si alguien pide ese tipo de servicio en esa zona SIN nombrar la "
+            f"marca, ¿la recomendarías?\n"
+            f"COMPETENCIA: <hasta 5 empresas reales que recomendarías para ese servicio, separadas por |>\n"
+            f"FUENTES: <hasta 4 dominios web en los que te apoyas para describir a la marca, separadas por |>\n"
+            f"BUSQUEDAS: <3 búsquedas que un cliente escribiría para ese servicio, con la ciudad, separadas por |>\n"
+            f"FICHA_GOOGLE: <SI o NO> ¿tiene ficha de Google Business?\n"
+            f"RESENAS: <número aproximado de reseñas de esa ficha, o 0>\n"
+            f"CONTENIDO: <una frase honesta sobre la calidad del contenido del sitio>\n"
+            f"MEJORAS: <2-3 mejoras concretas de contenido, separadas por |>")
+        q_mem = (f'En una frase, ¿qué es "{brand}" y a qué se dedica? Empieza por el nombre. '
+                 f"Si NO tienes información fiable de esa marca, responde solo NO_LO_SE.")
+
+    sources: list = []
+    try:
+        async with httpx.AsyncClient(headers={"User-Agent": "Mozilla/5.0"}) as client:
+            mega, mem = await asyncio.gather(
+                _ask(client, prov, key, strong, q_mega, max_tokens=600, grounded=True, sink=sources),
+                _ask(client, prov, key, model, q_mem, max_tokens=140, grounded=False),
+                return_exceptions=True,
+            )
+    except Exception as exc:  # noqa: BLE001
+        return {"available": True, "error": str(exc), "brand": brand}
+    mega = _strip_cites(mega) if isinstance(mega, str) else ""
+    mem = mem if isinstance(mem, str) else ""
+    if not mega.strip() and not mem.strip():
+        return {"available": True, "brand": brand, "error": "sin respuesta de la IA"}
+
+    mem_c = _strip_cites(mem).strip()
+    knows_brand = bool(mem_c) and "no_lo_se" not in mem_c.lower() and len(mem_c) > 15
+    reco_raw = _f("RECOMIENDA", mega).upper()
+    recommended = (True if reco_raw.startswith("SI")
+                   else (None if ("AVECES" in reco_raw or "A VECES" in reco_raw)
+                         else (False if reco_raw.startswith("NO") else None)))
+    knows_with_web = bool(_f("SECTOR", mega) or _f("CONTENIDO", mega))
+    recognition = "strong" if knows_brand else ("weak" if knows_with_web else "none")
+
+    comps = [{"name": c.strip()} for c in _f("COMPETENCIA", mega).split("|")
+             if c.strip() and not _looks_generic(c.strip())][:6]
+    cat_queries = [q.strip(' -•"') for q in _f("BUSQUEDAS", mega).split("|") if q.strip()][:3]
+    sector = _f("SECTOR", mega)[:60]
+    zona = _clean_zona(_f("ZONA", mega))
+    gbp = _f("FICHA_GOOGLE", mega).upper().startswith("SI")
+    _rev = re.search(r"\d[\d.,]*", _f("RESENAS", mega))
+    gbp_reviews_n = int(re.sub(r"[^\d]", "", _rev.group(0))) if _rev else 0
+
+    _own = (domain or "").split("/")[0].replace("www.", "").lower()
+    src_out, seen = [], set()
+    extra = [{"url": "https://" + d.strip()} for d in _f("FUENTES", mega).split("|") if d.strip()]
+    for s in list(sources) + extra:
+        u = s.get("url") if isinstance(s, dict) else s
+        m = re.search(r"([a-z0-9.\-]+\.[a-z]{2,})", (u or "").lower())
+        h = m.group(1).replace("www.", "") if m else ""
+        if not h or h in seen or "vertexaisearch" in h or "googleusercontent" in h:
+            continue
+        seen.add(h)
+        src_out.append({"domain": h, "own": bool(_own and (h == _own or h.endswith("." + _own))), "title": ""})
+        if len(src_out) >= 8:
+            break
+
+    reco_frac = 1.0 if recommended is True else (0.5 if recommended is None else 0.0)
+    score = round(100 * (0.5 * (1 if knows_brand else 0) + 0.5 * reco_frac))
+    content = {"topics": [], "assessment": re.sub(r"\s+", " ", _f("CONTENIDO", mega)).strip()[:300],
+               "gaps": [g.strip(" -•") for g in _f("MEJORAS", mega).split("|") if g.strip()][:3]}
+
+    return {
+        "available": True, "brand": brand, "service": service, "sector": sector,
+        "zona": zona, "country": country, "engine_names": [eng["name"]], "answered_names": [eng["name"]],
+        "knows_brand": knows_brand, "brand_description": mem_c[:400] if knows_brand else "",
+        "knows_with_web": knows_with_web, "recognition": recognition,
+        "mentions": (mem_c if knows_brand else "")[:400],
+        "recommended": recommended, "gbp": gbp, "gbp_reviews_n": gbp_reviews_n,
+        "competitors": comps, "gap": "; ".join(content["gaps"])[:400],
+        "category_queries": cat_queries, "gl": gl, "sources": src_out,
+        "ai_score": score, "content": content, "engine": eng["name"],
+    }
