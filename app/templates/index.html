@@ -1178,16 +1178,27 @@
     [["run",P("Calculando tu índice de visibilidad…","Calculating your visibility index…")],["run",P("Ordenando los hallazgos…","Sorting the findings…")],["run",P("Generando tu informe en PDF…","Generating your PDF report…")]]
   ][i]||[];}
   var FACTS=[["El 90% de los clics se los llevan los resultados de la primera página de Google.","90% of clicks go to the first page of Google results."],["Cada vez más gente le pregunta a la IA por recomendaciones antes de comprar.","More and more people ask AI for recommendations before buying."],["La IA suele citar muy pocas fuentes: aparecer en ellas lo es casi todo.","AI usually cites very few sources: being one of them is almost everything."],["Un segundo extra de carga en móvil puede costarte una de cada cinco visitas.","One extra second of mobile load can cost you one in five visitors."]];
+  // Pasos reales que van rotando mientras el análisis termina (nunca el mismo repetido)
+  var ONGOING=[["Rastreando tus páginas una a una…","Crawling your pages one by one…"],["Analizando el on-page (títulos, H1, ALT)…","Analyzing on-page (titles, H1, ALT)…"],["Revisando tus datos estructurados (schema)…","Checking your structured data (schema)…"],["Comprobando enlaces rotos (404)…","Checking broken links (404)…"],["Preguntando a la IA por tu sector…","Asking the AI about your sector…"],["Mirando quién es tu competencia real…","Looking at your real competition…"],["Midiendo Core Web Vitals (móvil y escritorio)…","Measuring Core Web Vitals (mobile & desktop)…"],["Evaluando tu seguridad y cabeceras…","Assessing your security and headers…"],["Revisando tu presencia local y reseñas…","Checking your local presence and reviews…"],["Ordenando los hallazgos por prioridad…","Sorting the findings by priority…"]];
+  var ongIx=0;
   function pushLine(kind,txt){var tk=kind==="ok"?"✓":"→";var el=document.createElement("div");el.className="tline "+kind;el.innerHTML='<span class="tk">'+tk+'</span><span>'+esc(txt)+'</span>';termLines.appendChild(el);while(termLines.children.length>6)termLines.removeChild(termLines.firstChild);}
   function enqueuePhase(i){phaseLines(i).forEach(function(x){queue.push(x);});}
   function startConsole(dom){
-    feedDom=dom;shown=0;targetP=2;lastPhase=-1;queue=[];factIx=0;
+    feedDom=dom;shown=0;targetP=2;lastPhase=-1;queue=[];factIx=0;ongIx=0;
     formBlock.classList.add("hidden");results.classList.add("hidden");consoleEl.classList.remove("hidden");
     termLines.innerHTML="";consPct.innerHTML='0<span style="font-size:.4em;color:var(--mut2)">%</span>';consProg.style.width="0%";consPhase.textContent=phaseName(0);consDom.textContent=dom;consFact.textContent="◆ "+P(FACTS[0][0],FACTS[0][1]);
     enqueuePhase(0);
     clearInterval(creepT);clearInterval(feedT);clearInterval(factT);
-    creepT=setInterval(function(){var gap=targetP-shown;var step=0.18+(gap>0?gap*0.05:0);shown=Math.min(shown+step,99);consProg.style.width=shown+"%";consPct.innerHTML=Math.round(shown)+'<span style="font-size:.4em;color:var(--mut2)">%</span>';},70);
-    feedT=setInterval(function(){var it=queue.shift();if(it)pushLine(it[0],it[1]);else pushLine("run",P("Sigue trabajando en segundo plano…","Still working in the background…"));},1200);
+    creepT=setInterval(function(){
+      // Siempre avanza, sin pausar: si el backend va por delante, alcanza el
+      // progreso real rápido; si está esperando (fase larga de IA), gotea despacio
+      // hacia ~96 (nunca salta a 99). Al terminar, stopConsole lo lleva a 100.
+      if((targetP||0)>shown)shown=shown+Math.max(0.35,(targetP-shown)*0.14);
+      else if(shown<96)shown=shown+(96-shown)*0.004;
+      shown=Math.min(shown,96);
+      consProg.style.width=shown+"%";consPct.innerHTML=Math.round(shown)+'<span style="font-size:.4em;color:var(--mut2)">%</span>';
+    },70);
+    feedT=setInterval(function(){var it=queue.shift();if(it)pushLine(it[0],it[1]);else{var m=ONGOING[ongIx%ONGOING.length];ongIx++;pushLine("run",P(m[0],m[1]));}},1500);
     factT=setInterval(function(){factIx=(factIx+1)%FACTS.length;consFact.style.opacity="0";setTimeout(function(){consFact.textContent="◆ "+P(FACTS[factIx][0],FACTS[factIx][1]);consFact.style.opacity="1";},380);},4200);
   }
   function setProgress(pct){targetP=Math.max(targetP,pct);consPhase.textContent=phaseName(pct);var pi=phaseIdx(pct);if(pi>lastPhase){for(var k=lastPhase+1;k<=pi;k++)enqueuePhase(k);lastPhase=pi;}}
@@ -1241,6 +1252,9 @@
     var cur=0,anim=setInterval(function(){cur+=Math.max(1,Math.round(score/28));if(cur>=score){cur=score;clearInterval(anim);}sEl.textContent=cur;},22);
 
     var allDims=buildDims(r);
+    // Fuente ÚNICA: si el backend envía dims (dims.py), sus scores mandan (así la
+    // pantalla, el PDF y el correo muestran EXACTAMENTE lo mismo).
+    if(r.dims&&r.dims.length){var _dm={};r.dims.forEach(function(x){_dm[x.name]=x.score;});allDims.forEach(function(d){if(_dm[d.name]!=null)d.score=_dm[d.name];});}
     var perfDims=allDims.filter(function(d){return d.grp==="perf";});
     var seoDims=allDims.filter(function(d){return d.grp==="seo";});
     var geoDims=allDims.filter(function(d){return d.grp==="geo";});

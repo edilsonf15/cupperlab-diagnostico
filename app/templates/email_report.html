@@ -2,18 +2,26 @@
 {% set c = {'A':'#1f9d6b','B':'#1f9d6b','C':'#d9920a','D':'#F46434','E':'#d0402a'} %}
 {% set gc = c.get(r.grade, '#0f9bc2') %}
 {% set logo = 'https://analisis.cupperlab.com/static/img/cupperlab-logo-color.png' %}
-{% set onp = (r.categories.onpage.score if (r.categories and r.categories.onpage) else none) %}
-{% set geoS = (r.categories.geo.score if (r.categories and r.categories.geo) else none) %}
-{% set tec = (r.categories.tecnico.score if (r.categories and r.categories.tecnico) else none) %}
-{% set mob = (r.psi_full.mobile.performance if (r.psi_full and r.psi_full.mobile) else none) %}
-{% set sec = (r.signals.security.score if (r.signals and r.signals.security) else none) %}
+{# valores desde la fuente ÚNICA de dimensiones (idénticos a la pantalla y al PDF) #}
+{% set D = namespace(m={}) %}
+{% for d in (r.dims or []) %}{% set _ = D.m.update({d.key: d.score}) %}{% endfor %}
+{% set onp = D.m.get('onpage') %}
+{% set geoS = D.m.get('geo') %}
+{% set tec = D.m.get('tech') %}
+{% set mob = D.m.get('perf_mobile') %}
+{% set desk = D.m.get('perf_desktop') %}
+{% set sec = D.m.get('security') %}
+{% set sch = D.m.get('schema') %}
+{% set loc = D.m.get('local') %}
+{% set cnt = D.m.get('content') %}
 {% set aiok = (r.geo_ai and r.geo_ai.available and not r.geo_ai.error) %}
 {% set knows = (r.geo_ai.knows_brand if r.geo_ai else none) %}
 {% set reco = (r.geo_ai.recommended if r.geo_ai else none) %}
 {% set comps = (r.geo_ai.competitors if (r.geo_ai and r.geo_ai.competitors) else []) %}
 {% set compnames = (comps|map(attribute='name')|select|list) if comps else [] %}
 {% set zona = (r.geo_ai.zona or r.geo_ai.country) if r.geo_ai else '' %}
-{% macro zc(v) %}{{ '#1f9d6b' if v>=70 else '#d9920a' if v>=40 else '#d0402a' }}{% endmacro %}
+{% set sc_col = '#1f9d6b' if r.score>85 else ('#d9920a' if r.score>=50 else '#d0402a') %}
+{% macro zc(v) %}{{ '#1f9d6b' if v>85 else '#d9920a' if v>=50 else '#d0402a' }}{% endmacro %}
 {% macro bar(ic, les, len, v) %}{% if v is not none %}
   <tr>
     <td valign="middle" style="padding:10px 0;font-size:13.5px;font-weight:600;color:#283038;line-height:1.3"><span style="font-size:16px">{{ ic }}</span>&nbsp;&nbsp;{{ len if en else les }}</td>
@@ -68,9 +76,9 @@
       <td valign="middle"><span style="display:inline-block;background:#ffffff;border-radius:12px;padding:10px 15px"><img src="{{ logo }}" alt="Cupperlab" height="22" style="display:block;height:22px;width:auto;border:0"></span></td>
       <td align="right" valign="middle" class="mono" style="color:rgba(255,255,255,.85);font-size:10px;letter-spacing:2.5px">{{ 'SEO & GEO DIAGNOSIS' if en else 'DIAGNÓSTICO SEO & GEO' }}</td>
     </tr></table>
-    <div class="sora" style="margin-top:24px;color:#ffffff;font-size:25px;font-weight:800;line-height:1.2;letter-spacing:-.015em;max-width:19ch">{% if en %}How Google and AI see you today{% else %}Cómo te ven hoy Google <span style="white-space:nowrap">y la IA</span>{% endif %}</div>
-    <table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:16px"><tr><td style="background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.34);border-radius:10px;padding:10px 16px">
-      <span style="font-size:15px;vertical-align:middle;line-height:1">🌐</span>&nbsp;&nbsp;<span class="sora" style="color:#ffffff;font-size:15px;font-weight:700;vertical-align:middle">{{ r.domain }}</span>
+    <div class="sora" style="margin-top:24px;color:#ffffff;font-size:26px;font-weight:800;line-height:1.22;letter-spacing:-.015em">{% if en %}How Google and AI<br>see you today{% else %}Cómo te ven hoy<br>Google y la IA{% endif %}</div>
+    <table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:18px"><tr><td bgcolor="#F46434" style="background:#F46434;border-radius:11px;padding:11px 18px;box-shadow:0 6px 16px rgba(244,100,52,.35)">
+      <span style="font-size:15px;vertical-align:middle;line-height:1">🌐</span>&nbsp;&nbsp;<span class="sora" style="color:#ffffff;font-size:16px;font-weight:800;vertical-align:middle;letter-spacing:.01em">{{ r.domain }}</span>
     </td></tr></table>
   </td></tr>
 
@@ -85,7 +93,7 @@
     <table width="100%" cellpadding="0" cellspacing="0" style="border-radius:18px;overflow:hidden"><tr><td bgcolor="#0b1620" style="background:#0b1620;background:linear-gradient(145deg,#132635 0%,#0b1620 60%);padding:24px 26px">
       <table width="100%" cellpadding="0" cellspacing="0"><tr>
         <td class="stack" width="164" valign="middle">
-          <span class="snum sora" style="font-size:70px;font-weight:800;color:{{ gc }};line-height:.86">{{ r.score }}</span><span class="mono" style="font-size:13px;color:#61707e"> /100</span>
+          <span class="snum sora" style="font-size:70px;font-weight:800;color:{{ sc_col }};line-height:.86">{{ r.score }}</span><span class="mono" style="font-size:13px;color:#61707e"> /100</span>
           <div class="mono" style="font-size:9px;letter-spacing:1.6px;color:#61707e;margin-top:5px">{{ 'DIGITAL HEALTH' if en else 'SALUD DIGITAL' }}</div>
         </td>
         <td class="stack" valign="middle" style="padding-left:10px">
@@ -95,7 +103,7 @@
         </td>
       </tr></table>
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:18px;background:#22303d;border-radius:7px"><tr>
-        <td class="grow" style="height:10px;background:{{ gc }};border-radius:7px;width:{{ [r.score,3]|max }}%;font-size:1px;line-height:10px">&nbsp;</td>
+        <td class="grow" style="height:10px;background:{{ sc_col }};border-radius:7px;width:{{ [r.score,3]|max }}%;font-size:1px;line-height:10px">&nbsp;</td>
         <td style="height:10px;font-size:1px;line-height:10px">&nbsp;</td>
       </tr></table>
     </td></tr></table>
@@ -149,11 +157,15 @@
       </td></tr>
       <tr><td style="padding:6px 22px 12px">
         <table width="100%" cellpadding="0" cellspacing="0">
-          {{ bar('🔎','SEO en Google','On-page SEO (Google)', onp) }}
-          {{ bar('🤖','Presencia en la IA','Presence in AI', geoS) }}
           {{ bar('⚡','Velocidad en móvil','Mobile speed', mob) }}
-          {{ bar('🔒','Seguridad','Security', sec) }}
+          {{ bar('🖥️','Velocidad en escritorio','Desktop speed', desk) }}
+          {{ bar('🔎','SEO on-page (Google)','On-page SEO (Google)', onp) }}
+          {{ bar('🤖','Presencia en la IA','Presence in AI', geoS) }}
           {{ bar('🛠️','Salud técnica','Technical health', tec) }}
+          {{ bar('🗂️','Datos estructurados (Schema)','Structured data (Schema)', sch) }}
+          {{ bar('🔒','Seguridad','Security', sec) }}
+          {{ bar('📍','Presencia local','Local presence', loc) }}
+          {{ bar('📄','Contenido y relevancia','Content & relevance', cnt) }}
         </table>
       </td></tr>
     </table>

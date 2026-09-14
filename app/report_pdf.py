@@ -21,7 +21,7 @@ FONTS = BASE / "static" / "assets" / "fonts"
 LOGO = BASE / "static" / "assets" / "cupperlab-logo.png"
 
 CY = "#1cbce4"; CY6 = "#0f9bc2"; OR = "#f46434"; OR7 = "#d94f22"
-INK9 = "#0e1319"; GREEN = "#1f9d6b"; AMBER = "#dfa019"; RED = "#d64343"; NAVY = "#12324a"
+INK9 = "#0e1319"; GREEN = "#1f9d6b"; AMBER = "#d9920a"; RED = "#d0402a"; NAVY = "#12324a"
 
 _FONT_MAP = [
     ("Sora", 400, "sora-400.woff2"), ("Sora", 600, "sora-600.woff2"),
@@ -52,8 +52,8 @@ def _logo_uri() -> str:
 
 
 def _color(s: int) -> str:
-    # Exigente: verde solo desde 80; 60-79 ambar (alerta), 45-59 naranja, <45 rojo.
-    return GREEN if s >= 80 else AMBER if s >= 60 else OR7 if s >= 45 else RED
+    # MISMOS umbrales que la pantalla: >85 verde (óptimo), 50-85 ámbar (mejorable), <50 rojo (crítico).
+    return GREEN if s > 85 else (AMBER if s >= 50 else RED)
 
 
 def _lvl_color(s: int) -> str:
@@ -626,23 +626,12 @@ def _sitemap_comp_block(r: dict) -> str:
 
 
 def _levels(r: dict) -> str:
-    cats = r["categories"]; s = r["signals"]
-    tec = cats.get("tecnico", {}); onp = cats.get("onpage", {}); geo = cats.get("geo", {})
-    ai = r.get("geo_ai") or {}
-    lv = [
-        (L("Fundamentos tecnicos (HTTPS, respuesta, robots)", "Technical fundamentals (HTTPS, response, robots)"), tec.get("score", 0)),
-        (L("On-page (títulos, descripciones, H1)", "On-page (titles, descriptions, H1)"), onp.get("score", 0)),
-        (L("Preparación para la IA (GEO / LLMO)", "AI readiness (GEO / LLMO)"), geo.get("score", 0)),
-        (L("Enlaces y rastreo (404, sitemap)", "Links and crawling (404, sitemap)"), round((100 * (1 - s["broken_ratio"]) + (100 if s["sitemap"] else 0)) / 2)),
-        (L("Datos estructurados (schema)", "Structured data (schema)"), _chk_pct(geo, "schema")),
-        (L("Respuesta del servidor", "Server response"), 100 if s["home_time"] < 1.5 else 60 if s["home_time"] < 3 else 30),
-    ]
-    if ai.get("available") and not ai.get("error"):
-        lv.append((L("Reconocimiento real por la IA", "Real recognition by AI"), ai.get("ai_score", 0)))
+    # Las MISMAS 9 dimensiones que ve el cliente en la pantalla (fuente única: dims.py)
     out = ""
-    for nm, val in lv:
-        col = _lvl_color(val)
-        out += (f'<div class="lv"><div class="top"><span class="nm">{nm}</span>'
+    for d in (r.get("dims") or []):
+        val = d.get("score", 0)
+        col = _color(val)  # mismos umbrales que la web
+        out += (f'<div class="lv"><div class="top"><span class="nm">{_esc(d.get("name",""))}</span>'
                 f'<span class="vl" style="color:{col}">{val}</span></div>'
                 f'<div class="tr"><div class="fl" style="width:{max(2,val)}%;background:{col}"></div></div></div>')
     return out
@@ -1230,10 +1219,16 @@ def _competitors_block(r: dict) -> str:
 def _estado_resumen(r: dict) -> str:
     """Resumen ejecutivo especifico de ESTE sitio: punto fuerte, punto debil y las
     carencias concretas detectadas (para que ningun informe se lea igual a otro)."""
-    cats = r.get("categories", {}); s = r.get("signals", {}); m = r.get("meta", {})
-    named = {L("la salud técnica", "technical health"): cats.get("tecnico", {}).get("score", 0),
-             L("el SEO on-page", "on-page SEO"): cats.get("onpage", {}).get("score", 0),
-             L("la preparación para la IA (GEO)", "AI readiness (GEO)"): cats.get("geo", {}).get("score", 0)}
+    s = r.get("signals", {}); m = r.get("meta", {})
+    # punto fuerte / débil a partir de las MISMAS 9 dimensiones de la pantalla
+    dl = r.get("dims") or []
+    if dl:
+        named = {d["name"].lower(): d["score"] for d in dl}
+    else:
+        cats = r.get("categories", {})
+        named = {L("la salud técnica", "technical health"): cats.get("tecnico", {}).get("score", 0),
+                 L("el SEO on-page", "on-page SEO"): cats.get("onpage", {}).get("score", 0),
+                 L("la preparación para la IA (GEO)", "AI readiness (GEO)"): cats.get("geo", {}).get("score", 0)}
     best = max(named, key=named.get); worst = min(named, key=named.get)
     weak = []
     if not s.get("https"):
@@ -1570,10 +1565,14 @@ def build_report_html(r: dict, contact: dict, name: str = "") -> str:
     lede = (f'{L("Diagnóstico con <b>datos reales comprobados en vivo</b>: revisamos tu web por dentro, página a página.", "Diagnosis with <b>real data checked live</b>: we reviewed your site from the inside, page by page.")}{tec_bit}{ai_bit}{speed_bit} '
             f'{L("Aquí tienes lo que encontramos y el plan para que Google y la IA te encuentren y te recomienden.", "Here is what we found and the plan for Google and AI to find and recommend you.")}')
 
-    # Análisis dinamico para "Cómo está tu web hoy" (en vez de explicar la formula)
-    _areas = [(L("la base técnica", "the technical base"), cats.get("tecnico", {}).get("score", 0)),
-              (L("el SEO on-page", "on-page SEO"), cats.get("onpage", {}).get("score", 0)),
-              (L("la preparación para la IA (GEO)", "AI readiness (GEO)"), cats.get("geo", {}).get("score", 0))]
+    # Análisis dinamico para "Cómo está tu web hoy" — desde las 9 dimensiones reales
+    _dl = r.get("dims") or []
+    if _dl:
+        _areas = [(d["name"].lower(), d["score"]) for d in _dl]
+    else:
+        _areas = [(L("la base técnica", "the technical base"), cats.get("tecnico", {}).get("score", 0)),
+                  (L("el SEO on-page", "on-page SEO"), cats.get("onpage", {}).get("score", 0)),
+                  (L("la preparación para la IA (GEO)", "AI readiness (GEO)"), cats.get("geo", {}).get("score", 0))]
     _best = max(_areas, key=lambda a: a[1]); _worst = min(_areas, key=lambda a: a[1])
     _ai_estado = ""
     if ai.get("available") and not ai.get("error"):

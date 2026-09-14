@@ -37,6 +37,7 @@ import report_pdf  # noqa: E402
 import perf2  # noqa: E402
 import perf as _perf  # noqa: E402
 import onpage as _onpage  # noqa: E402
+import dims  # noqa: E402
 
 BASE = Path(__file__).resolve().parent
 DATA_DIR = Path(os.getenv("DATA_DIR", BASE.parent / "data"))
@@ -316,6 +317,12 @@ async def _run_job(job_id: str, url: str, email: str, name: str, lead: dict, lan
             finalize_score(data)
         except Exception as exc:  # noqa: BLE001
             print(f"[score:ERROR] {exc}")
+
+        # Fuente ÚNICA de las 9 dimensiones (misma para pantalla, PDF y correo)
+        try:
+            data["dims"] = dims.compute(data)
+        except Exception as exc:  # noqa: BLE001
+            print(f"[dims:ERROR] {exc}"); data["dims"] = []
 
         # 5) Resultado LISTO para la pantalla (mismos datos que el correo)
         _set(job_id, 96, "Preparando tu diagnostico...")
