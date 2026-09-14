@@ -1278,11 +1278,11 @@
 
     var dd=r.domain||P("tu web","your site");
     var byScore=dims.slice().sort(function(a,b){return a.score-b.score;});
-    var weak=byScore.filter(function(d){return d.score<70;}).slice(0,3).map(function(d){return d.name.toLowerCase();});
-    var closing=P("Todos estos puntos son clave para que te encuentren en Google y en la IA, y hoy es justo donde pierdes clientes que se van con la competencia.","All of these are key to being found on Google and in AI, and today that's exactly where you lose customers to competitors.");
+    var weak=byScore.filter(function(d){return d.score<75;}).slice(0,3).map(function(d){return d.name.toLowerCase();});
+    var closing=P("Todos estos puntos son clave para que te encuentren en Google y en la IA, y hoy es justo donde pierdes clientes que se van con la competencia.","All of these are key to being found on Google and in AI, and today that's exactly where you lose customers to competitors.");
     var rt;
     if(weak.length)rt=P("En "+dd+", lo que más te está frenando ahora mismo es: "+weak.join(", ")+". ","For "+dd+", what's holding you back right now is: "+weak.join(", ")+". ")+closing;
-    else rt=P("En "+dd+" la base está sólida. Ahora toca afinar los detalles para dominar la visibilidad en Google y en la IA antes que tu competencia.","For "+dd+" the foundation is solid. Now it's about fine-tuning the details to dominate visibility on Google and in AI ahead of your competitors.");
+    else rt=P("En "+dd+" la base está sólida. Ahora toca afinar los detalles para adelantar a tu competencia en Google y en la IA.","For "+dd+" the foundation is solid. Now it's about fine-tuning the details to get ahead of your competitors on Google and in AI.");
     document.getElementById("resTitle").textContent=rt;
     document.getElementById("mailed").innerHTML=P("📬 Este es un vistazo rápido. Te enviamos a tu correo el <b>análisis completo en PDF</b>: cómo te ve la IA, tu competencia real, los hallazgos y el <b>plan de acción</b>. Revisa también la carpeta de spam.","📬 This is a quick look. We're sending the <b>full PDF analysis</b> to your inbox: how AI sees you, your real competitors, the findings and the <b>action plan</b>. Check your spam folder too.");
     submitBtn.disabled=false;submitBtn.textContent=t("submit_btn");
