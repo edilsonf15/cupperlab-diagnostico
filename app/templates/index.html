@@ -222,6 +222,9 @@
   .hcard.op .htag{color:#b07d0a}
   .hcard .hti{margin:8px 0 8px;font-family:var(--disp);font-weight:600;font-size:16px;letter-spacing:-.01em;color:var(--ink)}
   .hcard .hd2{margin:0;font-size:13.5px;line-height:1.6;color:var(--mut)}
+  .hcat{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--cy-t);font-weight:600;margin:26px 0 14px}
+  .hcat .hcn{background:var(--surf2);color:var(--mut2);font-size:10px;border-radius:20px;padding:2px 9px;letter-spacing:.06em}
+  .hcat:first-child{margin-top:0}
   /* rendimiento (perf) */
   .perf{background:var(--surf);border:1px solid var(--line);border-radius:16px;padding:clamp(20px,3vw,28px)}
   .perf-h{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
@@ -604,6 +607,15 @@
   function clsOf(v){return v>=70?"optimo":(v>=40?"mejorable":"critico");}
   function clsColor(v){return v>=70?OK:(v>=40?WARN:CRIT);}
   function clsLabel(v){var c=clsOf(v);return c==="optimo"?t("cls_optimo"):(c==="mejorable"?t("cls_mejorable"):t("cls_critico"));}
+  // Descripción rica: hasta 2 cosas bien + hasta 2 por mejorar, tono "está bien, pero…"
+  function mkDesc(st,GOOD,BAD,okMsg,leadOk){
+    var sep=P(" y "," and ");
+    var g=st.filter(function(p){return p.s==="ok";}).map(function(p){return GOOD[p.k];}).filter(Boolean);
+    var b=st.filter(function(p){return p.s==="bad";}).concat(st.filter(function(p){return p.s==="warn";})).map(function(p){return BAD[p.k];}).filter(Boolean);
+    if(!b.length)return okMsg;
+    var good=g.length?cap(g.slice(0,2).join(sep)):(leadOk||P("La base está bien","The basics are covered"));
+    return good+P(", pero ",", but ")+b.slice(0,2).join(sep)+".";
+  }
   var ICO={ai:'<path d="M12 3l1.8 4.7L18.5 9.5 13.8 11.3 12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/>',geo:'<rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8V4M9 14h.01M15 14h.01"/>',seo:'<circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/>',movil:'<rect x="6" y="2" width="12" height="20" rx="2"/><path d="M12 18h.01"/>',speed:'<path d="M4 14h7l-1 8 9-12h-7l1-8z"/>',shield:'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',tech:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>',content:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h6"/>'};
   function icon(n){return '<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+(ICO[n]||"")+'</svg>';}
   var GEO_NAMES={ai_crawlers:["rastreo de IA","AI crawling"],schema:["datos estructurados (schema)","structured data (schema)"],entity:["entidad de marca","brand entity"],faq:["preguntas frecuentes (FAQ)","FAQ content"],content_ia:["contenido citable","citable content"],headings:["estructura de titulares","heading structure"],contact:["ficha de contacto","contact details"],llms:["guía para IA (llms.txt)","AI guide (llms.txt)"],desc_ia:["descripción citable","citable description"],title_ia:["título descriptivo","descriptive title"]};
@@ -738,27 +750,25 @@
   function exUrls(arr,key){return (arr||[]).map(function(x){return shortU(key?x[key]:x);}).slice(0,3).join(", ");}
   function pg(n){return n+" "+P(n===1?"página":"páginas",n===1?"page":"pages");}
   function onpageDesc(op){
-    var i=op.issues||{},np=(op.totals&&op.totals.pages)||0,lead=null;
-    // problemas graves mandan aunque afecten pocas páginas
-    if((i.noindex||{}).count>0)lead=P(pg(i.noindex.count)+" con 'no indexar' (no saldrán en Google)",pg(i.noindex.count)+" set to noindex (won't show on Google)");
-    else if((i.title_missing||{}).count>0)lead=P(pg(i.title_missing.count)+" sin título",pg(i.title_missing.count)+" with no title");
-    else if((i.h1_missing||{}).count>0)lead=P(pg(i.h1_missing.count)+" sin titular principal (H1)",pg(i.h1_missing.count)+" with no H1");
-    else{
-      // si no hay graves, lidera el problema MÁS extendido
-      var cand=[];
-      if((i.img_no_alt||{}).total>0)cand.push([(i.img_no_alt.pages||0),P("faltan textos ALT en "+i.img_no_alt.total+" imágenes","ALT text missing on "+i.img_no_alt.total+" images")]);
-      if((i.og_missing||{}).count>0)cand.push([i.og_missing.count,P("falta la vista previa al compartir (Open Graph) en "+pg(i.og_missing.count),"social preview (Open Graph) missing on "+pg(i.og_missing.count))]);
-      if((i.desc_missing||{}).count>0)cand.push([i.desc_missing.count,P("falta la meta descripción en "+pg(i.desc_missing.count),"meta description missing on "+pg(i.desc_missing.count))]);
-      if((i.thin||{}).count>0)cand.push([i.thin.count,P(pg(i.thin.count)+" con poco contenido",pg(i.thin.count)+" with thin content")]);
-      if((i.h2_missing||{}).count>0)cand.push([i.h2_missing.count,P(pg(i.h2_missing.count)+" sin subtítulos (H2)",pg(i.h2_missing.count)+" with no H2 subheadings")]);
-      if((i.title_dup||{}).count>0)cand.push([i.title_dup.count,P("hay títulos repetidos entre páginas","duplicate titles across pages")]);
-      if((i.canonical_missing||{}).count>0)cand.push([i.canonical_missing.count,P(pg(i.canonical_missing.count)+" sin canonical",pg(i.canonical_missing.count)+" with no canonical")]);
-      if((i.orphans||{}).count>0)cand.push([i.orphans.count+0.5,P(pg(i.orphans.count)+" sin enlaces internos que las apunten (huérfanas)",pg(i.orphans.count)+" with no internal links pointing to them (orphans)")]);
-      cand.sort(function(a,b){return b[0]-a[0];});
-      if(cand.length)lead=cand[0][1];
-    }
-    if(!lead)return P("On-page sólido en las "+np+" páginas revisadas: títulos, encabezados y estructura bien resueltos.","Solid on-page across the "+np+" pages reviewed: titles, headings and structure are well done.");
-    return P("Revisamos "+np+" páginas a fondo: la base está bien, pero "+lead+".","We reviewed "+np+" pages in depth: the base is fine, but "+lead+".");
+    var i=op.issues||{},np=(op.totals&&op.totals.pages)||0,leads=[];
+    // problemas graves primero
+    if((i.noindex||{}).count>0)leads.push(P(pg(i.noindex.count)+" con 'no indexar' (no saldrán en Google)",pg(i.noindex.count)+" set to noindex"));
+    if((i.title_missing||{}).count>0)leads.push(P(pg(i.title_missing.count)+" sin título",pg(i.title_missing.count)+" with no title"));
+    if((i.h1_missing||{}).count>0)leads.push(P(pg(i.h1_missing.count)+" sin H1",pg(i.h1_missing.count)+" with no H1"));
+    // luego, por prevalencia
+    var cand=[];
+    if((i.img_no_alt||{}).total>0)cand.push([(i.img_no_alt.pages||0),P("faltan textos ALT en "+i.img_no_alt.total+" imágenes","ALT missing on "+i.img_no_alt.total+" images")]);
+    if((i.og_missing||{}).count>0)cand.push([i.og_missing.count,P("falta Open Graph en "+pg(i.og_missing.count),"Open Graph missing on "+pg(i.og_missing.count))]);
+    if((i.desc_missing||{}).count>0)cand.push([i.desc_missing.count,P("falta meta descripción en "+pg(i.desc_missing.count),"meta description missing on "+pg(i.desc_missing.count))]);
+    if((i.thin||{}).count>0)cand.push([i.thin.count,P(pg(i.thin.count)+" con poco contenido",pg(i.thin.count)+" thin")]);
+    if((i.h2_missing||{}).count>0)cand.push([i.h2_missing.count,P(pg(i.h2_missing.count)+" sin subtítulos (H2)",pg(i.h2_missing.count)+" with no H2")]);
+    if((i.orphans||{}).count>0)cand.push([i.orphans.count+0.5,P(pg(i.orphans.count)+" huérfanas","orphans: "+pg(i.orphans.count))]);
+    if((i.canonical_missing||{}).count>0)cand.push([i.canonical_missing.count,P(pg(i.canonical_missing.count)+" sin canonical",pg(i.canonical_missing.count)+" without canonical")]);
+    if(i.breadcrumbs&&i.breadcrumbs.present===false)cand.push([0.3,P("sin migas de pan","no breadcrumbs")]);
+    cand.sort(function(a,b){return b[0]-a[0];});
+    cand.forEach(function(c){leads.push(c[1]);});
+    if(!leads.length)return P("On-page sólido en las "+np+" páginas revisadas: títulos, H1, descripciones y estructura bien resueltos.","Solid on-page across the "+np+" pages reviewed: titles, H1, descriptions and structure well done.");
+    return P("Revisamos "+np+" páginas: títulos y H1 bien, pero "+leads.slice(0,3).join("; ")+".","We reviewed "+np+" pages: titles and H1 are fine, but "+leads.slice(0,3).join("; ")+".");
   }
   function onpageFindings(r){
     var op=r.onpage;if(!op||!op.issues)return [];
@@ -806,11 +816,7 @@
     var score=sw?Math.round(ss/sw):0;
     var GOOD={know:P("la IA ya te reconoce por tu cuenta","AI already recognizes you on its own"),reco:P("la IA te incluye cuando piden tu servicio","AI includes you when your service is requested"),sources:P("la IA te cita desde fuentes externas","AI cites you from external sources"),llms:P("guías a la IA con tu llms.txt","you guide AI with your llms.txt"),citable:P("tienes contenido citable (FAQ)","you have citable content (FAQ)"),entity:P("tu marca está definida como entidad","your brand is defined as an entity"),consistency:P("tus datos de contacto son claros","your contact details are clear"),presence:P("tienes reseñas que la IA puede citar","you have reviews AI can cite")};
     var BAD={know:(rec==="weak"?P("la IA solo te encuentra si le das tu web","AI only finds you if you hand it your site"):P("la IA no te reconoce por tu cuenta","AI doesn't recognize you on its own")),reco:P("no te recomienda cuando piden tu servicio","it doesn't recommend you when your service is requested"),sources:P("no hay fuentes externas que la IA cite sobre ti","there are no external sources AI cites about you"),llms:P("no tienes llms.txt (la guía para la IA)","you have no llms.txt (the guide for AI)"),citable:P("falta contenido citable (FAQ, respuestas claras)","citable content is missing (FAQ, clear answers)"),entity:P("tu marca no está definida como entidad (Schema/perfiles)","your brand isn't defined as an entity (Schema/profiles)"),consistency:P("faltan datos de contacto claros","clear contact details are missing"),presence:P("no tienes reseñas que la IA pueda citar","you have no reviews AI can cite")};
-    var goodK=st.filter(function(p){return p.s==="ok";}),badK=st.filter(function(p){return p.s==="bad";}).concat(st.filter(function(p){return p.s==="warn";}));
-    var good=goodK.length?GOOD[goodK[0].k]:null,bad=badK.length?BAD[badK[0].k]:null,desc;
-    if(good&&bad)desc=cap(good)+P(", pero "+bad+".",", but "+bad+".");
-    else if(bad)desc=cap(bad)+P(". Hay trabajo para que la IA te elija.",". There is work to do so AI picks you.");
-    else desc=P("La IA ya te reconoce y te tiene en cuenta: buena base de visibilidad en IA.","AI already recognizes and considers you: a solid AI-visibility base.");
+    var desc=mkDesc(st,GOOD,BAD,P("La IA ya te reconoce y te tiene en cuenta: buena base de visibilidad en IA.","AI already recognizes and considers you: a solid AI-visibility base."));
     return {score:score,desc:desc,points:st};
   }
   function geoFindings(r){
@@ -855,11 +861,7 @@
     var score=sw?Math.round(ss/sw):0;
     var GOOD={index:P("Google te tiene indexado","Google has you indexed"),sitemap:P("tienes mapa del sitio","you have a sitemap"),robots:P("tu robots.txt está bien","your robots.txt is fine"),broken:P("no hay enlaces rotos","no broken links"),status:P("el servidor responde correctamente","the server responds correctly"),https:P("tu conexión es segura y forzada (HTTPS)","your connection is secure and forced (HTTPS)"),mobile:P("está preparada para móvil","it's mobile-ready"),www:P("www y no-www están unificadas","www and non-www are unified")};
     var BAD={index:((!ix.indexed&&!idx)?P("Google apenas te tiene indexado","Google barely has you indexed"):P("Google indexa menos páginas de las que tienes","Google indexes fewer pages than you have")),sitemap:(!sig.sitemap?P("no tienes mapa del sitio (sitemap)","you have no sitemap"):P("tu sitemap está sucio (etiquetas/fichas en vez de páginas)","your sitemap is messy (tags/files instead of pages)")),robots:(!sig.robots?P("no tienes robots.txt","you have no robots.txt"):P("tu robots.txt no declara el sitemap","your robots.txt doesn't declare the sitemap")),broken:(brkIdx>0?P("Google tiene indexadas páginas rotas (404)","Google has broken pages indexed (404)"):P("hay enlaces rotos (404)","there are broken links (404)")),status:P("el servidor no responde con 200","the server doesn't respond with 200"),https:(sig.https===false?P("tu web no usa HTTPS","your site doesn't use HTTPS"):P("no fuerzas HTTPS (queda contenido inseguro)","you don't force HTTPS (insecure content remains)")),mobile:P("no está declarada como apta para móvil","it isn't declared mobile-ready"),www:(w.duplicate?P("tu web abre con www y sin www a la vez (contenido duplicado)","your site opens with and without www at once (duplicate content)"):P("una versión (www o no-www) da error en vez de redirigir","one version (www or non-www) errors out instead of redirecting"))};
-    var goodK=st.filter(function(p){return p.s==="ok";}),badK=st.filter(function(p){return p.s==="bad";}).concat(st.filter(function(p){return p.s==="warn";}));
-    var good=goodK.length?GOOD[goodK[0].k]:null,bad=badK.length?BAD[badK[0].k]:null,desc;
-    if(good&&bad)desc=cap(good)+P(", pero "+bad+".",", but "+bad+".");
-    else if(bad)desc=cap(bad)+P(". Conviene resolverlo para que Google te rastree e indexe bien.",". Worth fixing so Google crawls and indexes you well.");
-    else desc=P("Base técnica correcta: Google te rastrea e indexa sin problemas.","Technically sound: Google crawls and indexes you without issues.");
+    var desc=mkDesc(st,GOOD,BAD,P("Base técnica correcta: Google te rastrea e indexa sin problemas (HTTPS, sitemap, robots y sin enlaces rotos).","Technically sound: Google crawls and indexes you fine (HTTPS, sitemap, robots and no broken links)."));
     return {score:score,desc:desc,points:st};
   }
   function techFindings(r){
@@ -908,9 +910,12 @@
     var sw=0,ss=0;st.forEach(function(p){sw+=p.w;ss+=(p.ok?100:0)*p.w;});
     var score=sw?Math.round(ss/sw):0;
     var LAB={org:P("los datos de tu empresa (Organization)","your company data (Organization)"),website:P("el sitio + buscador (WebSite/SearchAction)","site + search (WebSite/SearchAction)"),breadcrumb:P("las migas de pan (Breadcrumb)","breadcrumbs (Breadcrumb)"),faq:P("las preguntas frecuentes (FAQ)","FAQ markup"),article:P("los artículos (Article)","articles (Article)"),prodserv:P("tus productos o servicios","your products or services"),review:P("las reseñas y valoraciones (Review)","reviews and ratings (Review)"),valid:P("un marcado sin errores de formato","valid markup with no format errors")};
-    var goodK=st.filter(function(p){return p.ok;}),badK=st.filter(function(p){return !p.ok;}),desc;
-    if(goodK.length&&badK.length)desc=P("Ya marcas "+LAB[goodK[0].k]+", pero falta "+LAB[badK[0].k]+" y otros datos que ayudan a Google y a la IA a entenderte.","You already mark "+LAB[goodK[0].k]+", but "+LAB[badK[0].k]+" and other data that help Google and AI understand you are missing.");
-    else if(!goodK.length)desc=P("No tienes datos estructurados: Google y la IA entienden peor quién eres y qué ofreces.","No structured data: Google and AI understand less about who you are and what you offer.");
+    var sep=P(" y "," and ");
+    var gk=st.filter(function(p){return p.ok;}).map(function(p){return LAB[p.k];}).filter(Boolean);
+    var bk=st.filter(function(p){return !p.ok;}).map(function(p){return LAB[p.k];}).filter(Boolean);
+    var desc;
+    if(bk.length&&gk.length)desc=cap(P("ya marcas "+gk.slice(0,2).join(sep),"you already mark "+gk.slice(0,2).join(sep)))+P(", pero falta "+bk.slice(0,2).join(sep)+".",", but "+bk.slice(0,2).join(sep)+" are missing.");
+    else if(!gk.length)desc=P("No tienes datos estructurados: Google y la IA entienden peor quién eres y qué ofreces.","No structured data: Google and AI understand less about who you are and what you offer.");
     else desc=P("Buen marcado de datos estructurados: Google y la IA te entienden bien.","Good structured-data markup: Google and AI understand you well.");
     return {score:score,desc:desc,points:st};
   }
@@ -945,11 +950,7 @@
     var score=sw?Math.round(ss/sw):0;
     var GOOD={ssl:P("tu certificado SSL es válido","your SSL certificate is valid"),https:P("tu conexión es segura (HTTPS)","your connection is secure (HTTPS)"),headers:P("tienes cabeceras de seguridad","you have security headers"),exposed:P("no hay archivos sensibles expuestos","no sensitive files are exposed"),leaks:P("el servidor no revela su versión","the server doesn't reveal its version"),cookies:P("tus cookies son seguras","your cookies are secure"),favicon:P("tienes favicon","you have a favicon")};
     var BAD={ssl:(ssl.valid===false?P("tu certificado SSL no es válido","your SSL certificate is invalid"):P("tu certificado SSL caduca pronto","your SSL certificate expires soon")),https:(sig.https===false?P("tu web no usa HTTPS","your site doesn't use HTTPS"):(mixed.length?P("cargas contenido inseguro (mixto) en una página segura","you load insecure (mixed) content on a secure page"):P("no fuerzas HTTPS","you don't force HTTPS"))),headers:P("te faltan "+miss.length+" cabeceras de seguridad","you're missing "+miss.length+" security headers"),exposed:P("hay "+exp.length+" archivo(s) sensible(s) expuesto(s)",exp.length+" sensitive file(s) exposed"),leaks:P("el servidor revela su versión","the server reveals its version"),cookies:P("tus cookies no son seguras","your cookies aren't secure"),favicon:P("falta el favicon","the favicon is missing")};
-    var goodK=st.filter(function(p){return p.s==="ok";}),badK=st.filter(function(p){return p.s==="bad";}).concat(st.filter(function(p){return p.s==="warn";}));
-    var good=goodK.length?GOOD[goodK[0].k]:null,bad=badK.length?BAD[badK[0].k]:null,desc;
-    if(good&&bad)desc=cap(good)+P(", pero "+bad+".",", but "+bad+".");
-    else if(bad)desc=cap(bad)+P(". Conviene reforzar la seguridad para proteger a ti y a tus visitantes.",". Worth hardening security to protect you and your visitors.");
-    else desc=P("Buena seguridad: HTTPS, certificado válido y sin archivos expuestos.","Good security: HTTPS, valid certificate and no exposed files.");
+    var desc=mkDesc(st,GOOD,BAD,P("Buena seguridad: HTTPS, certificado válido y sin archivos expuestos.","Good security: HTTPS, valid certificate and no exposed files."));
     return {score:score,desc:desc,points:st};
   }
   function securityFindings(r){
@@ -987,11 +988,7 @@
     var score=sw?Math.round(ss/sw):0;
     var GOOD={gbp:P("tienes ficha de Google Business","you have a Google Business profile"),reviews:P("tienes reseñas ("+rev+")","you have reviews ("+rev+")"),nap:P("tu dirección y teléfono están claros","your address and phone are clear"),map:P("muestras tu ubicación en el mapa","you show your location on a map"),lb:P("marcas tu negocio con datos estructurados","you mark up your business with structured data"),hours:P("publicas tus horarios","you publish your opening hours"),categoria:P("tu ficha tiene categoría definida","your profile has a set category")};
     var BAD={gbp:P("no encontramos tu ficha de Google Business","we couldn't find your Google Business profile"),reviews:(gbp?P("tu ficha no tiene reseñas","your profile has no reviews"):P("no tienes reseñas visibles","you have no visible reviews")),nap:((meta.has_address||meta.has_phone)?P("faltan datos de contacto (dirección o teléfono)","contact details are incomplete (address or phone)"):P("no muestras dirección ni teléfono","you show no address or phone")),map:P("no muestras tu ubicación en un mapa","you don't show your location on a map"),lb:P("no marcas tu negocio con datos estructurados (LocalBusiness)","you don't mark up your business (LocalBusiness)"),hours:P("no publicas tus horarios de atención","you don't publish opening hours"),categoria:P("tu ficha no tiene una categoría clara","your profile has no clear category")};
-    var goodK=st.filter(function(p){return p.s==="ok";}),badK=st.filter(function(p){return p.s==="bad";}).concat(st.filter(function(p){return p.s==="warn";}));
-    var good=goodK.length?GOOD[goodK[0].k]:null,bad=badK.length?BAD[badK[0].k]:null,desc;
-    if(good&&bad)desc=cap(good)+P(", pero "+bad+".",", but "+bad+".");
-    else if(bad)desc=cap(bad)+P(". Reforzarlo te ayuda a que te encuentren cerca y a generar confianza.",". Strengthening it helps people find you nearby and builds trust.");
-    else desc=P("Buena presencia local: ficha, reseñas y ubicación en orden.","Good local presence: profile, reviews and location in order.");
+    var desc=mkDesc(st,GOOD,BAD,P("Buena presencia local: ficha, reseñas y ubicación en orden.","Good local presence: profile, reviews and location in order."));
     return {score:score,desc:desc,points:st};
   }
   function localFindings(r){
@@ -1156,8 +1153,26 @@
     document.getElementById("dimsGrid").innerHTML=dims.map(function(d,i){var c=clsColor(d.score);return '<div class="dcard" style="animation-delay:'+(i*0.05)+'s"><div class="dt"><span class="di">'+icon(d.ic)+'</span><span class="dh"><span class="dn">'+esc(d.name)+'</span><span class="dc" style="color:'+c+'">'+clsLabel(d.score)+'</span></span><span class="ds" style="color:'+c+'">'+d.score+'<small>/100</small></span></div><div class="dbar"><div class="df" style="width:'+d.score+'%;background:'+c+'"></div></div><p class="dd">'+esc(d.desc)+'</p></div>';}).join("");
 
     document.getElementById("hallTitle").textContent=t("hall_title");
-    var f=geoFindings(r).slice(0,5).concat(contentFindings(r).slice(0,4)).concat(localFindings(r).slice(0,3)).concat(perfFindings(r).slice(0,3)).concat(onpageFindings(r).slice(0,5)).concat(techFindings(r).slice(0,4)).concat(schemaFindings(r).slice(0,3)).concat(securityFindings(r).slice(0,4)).slice(0,28);
-    document.getElementById("hallGrid").innerHTML=f.map(function(x){var isC=x.sev==="critico";return '<div class="hcard'+(isC?"":" op")+'"><span class="htag">'+(isC?t("tag_critico"):t("tag_oportunidad"))+'</span><p class="hti">'+esc(x.t)+'</p><p class="hd2">'+esc(x.d)+'</p></div>';}).join("");
+    function hc(x){var isC=x.sev==="critico";return '<div class="hcard'+(isC?"":" op")+'"><span class="htag">'+(isC?t("tag_critico"):t("tag_oportunidad"))+'</span><p class="hti">'+esc(x.t)+'</p><p class="hd2">'+esc(x.d)+'</p></div>';}
+    var hgroups=[
+      {ic:"ai",c:P("Visibilidad en la IA (GEO)","AI visibility (GEO)"),f:geoFindings(r)},
+      {ic:"speed",c:P("Velocidad y rendimiento","Speed & performance"),f:perfFindings(r)},
+      {ic:"seo",c:P("SEO on-page","On-page SEO"),f:onpageFindings(r)},
+      {ic:"content",c:P("Contenido y relevancia","Content & relevance"),f:contentFindings(r)},
+      {ic:"tech",c:P("Salud técnica e indexación","Technical & indexing"),f:techFindings(r)},
+      {ic:"geo",c:P("Datos estructurados (Schema)","Structured data (Schema)"),f:schemaFindings(r)},
+      {ic:"geo",c:P("Presencia local y reputación","Local presence & reputation"),f:localFindings(r)},
+      {ic:"shield",c:P("Seguridad","Security"),f:securityFindings(r)}
+    ];
+    var hh="";
+    hgroups.forEach(function(g){
+      var items=(g.f||[]).slice(0,6);
+      if(!items.length)return;
+      var nc=items.filter(function(x){return x.sev==="critico";}).length;
+      hh+='<div class="hcat"><span class="di" style="width:20px;height:20px;border-radius:6px;background:var(--cyd);color:var(--cy-d);display:inline-flex;align-items:center;justify-content:center">'+icon(g.ic)+'</span>'+esc(g.c)+'<span class="hcn">'+items.length+(nc?" · "+nc+" "+P("crítico"+(nc>1?"s":""),"critical"):"")+'</span></div>';
+      hh+='<div class="dgrid" style="margin-bottom:8px">'+items.map(hc).join("")+'</div>';
+    });
+    var hg=document.getElementById("hallGrid");hg.className="";hg.innerHTML=hh;
 
     var ai=r.geo_ai||{},probs=[];
     if(ai.available&&!ai.error){if(ai.knows_brand===false)probs.push(P("la IA no te conoce por tu cuenta","AI doesn't know you on its own"));if(ai.recommended===false)probs.push(P("no te recomienda cuando piden tu servicio","it doesn't recommend you when your service is requested"));else if(ai.recommended===null)probs.push(P("la IA solo te menciona a veces","AI only mentions you sometimes"));if(ai.gbp===false)probs.push(P("no encontramos tu ficha de Google Business","we couldn't find your Google Business profile"));}
