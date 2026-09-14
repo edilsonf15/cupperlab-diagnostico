@@ -627,7 +627,9 @@
       out.push({ic:"ai",name:P("Reconocimiento por la IA","AI recognition"),score:ai.ai_score,desc:d.trim()});
     }
     if(C.geo){var gf=fails(C.geo,GEO_NAMES);out.push({ic:"geo",name:P("Preparación para la IA (GEO)","AI readiness (GEO)"),score:C.geo.score,desc:gf.length?P("Te faltan señales que la IA usa para entenderte y citarte: ","Missing signals AI uses to understand and cite you: ")+gf.slice(0,4).join(", ")+".":P("Tu web tiene buenas señales para que la IA te entienda.","Your site has good signals for AI to understand you.")});}
-    if(C.onpage){var of=fails(C.onpage,ONP_NAMES);out.push({ic:"seo",name:P("SEO on-page (Google)","On-page SEO (Google)"),score:C.onpage.score,desc:of.length?P("Por mejorar para Google: ","To improve for Google: ")+of.slice(0,4).join(", ")+".":P("On-page sólido: títulos, textos y estructura bien resueltos.","Solid on-page: titles, copy and structure well done.")});}
+    var op=r.onpage;
+    if(op&&op.issues){out.push({ic:"seo",name:P("SEO on-page (Google)","On-page SEO (Google)"),score:(op.score==null?0:op.score),desc:onpageDesc(op)});}
+    else if(C.onpage){var of=fails(C.onpage,ONP_NAMES);out.push({ic:"seo",name:P("SEO on-page (Google)","On-page SEO (Google)"),score:C.onpage.score,desc:of.length?P("Por mejorar para Google: ","To improve for Google: ")+of.slice(0,4).join(", ")+".":P("On-page sólido: títulos, textos y estructura bien resueltos.","Solid on-page: titles, copy and structure well done.")});}
     if(sec&&sec.score!=null){var sb=[];if((sec.headers_missing||[]).length)sb.push(P("faltan "+sec.headers_missing.length+" cabeceras de seguridad","missing "+sec.headers_missing.length+" security headers"));if((sec.exposed||[]).length)sb.push(P("hay archivos sensibles expuestos","sensitive files are exposed"));if((sec.leaks||[]).length)sb.push(P("el servidor revela su versión","the server reveals its version"));out.push({ic:"shield",name:P("Seguridad y tecnología","Security & tech"),score:sec.score,desc:sb.length?cap(sb.join(", "))+".":P("Configuración de seguridad correcta.","Security configuration is correct.")});}
     if(C.tecnico){var tf=fails(C.tecnico,TEC_NAMES);out.push({ic:"tech",name:P("Salud técnica","Technical health"),score:C.tecnico.score,desc:tf.length?P("Por revisar: ","To review: ")+tf.slice(0,4).join(", ")+".":P("Base técnica correcta: HTTPS, sitemap y sin enlaces rotos.","Technically sound: HTTPS, sitemap and no broken links.")});}
     if(meta.word_count!=null){var w=meta.word_count||0,cs=Math.max(0,Math.min(100,Math.round(w/8)));out.push({ic:"content",name:P("Contenido","Content"),score:cs,desc:w<400?P("Poco contenido ("+w+" palabras) para que Google y la IA te citen con autoridad.","Thin content ("+w+" words) for Google and AI to cite you with authority."):P(w+" palabras: base de contenido suficiente para que te citen.",w+" words: enough content to be cited.")});}
@@ -733,6 +735,38 @@
     return out;
   }
 
+  /* ===== SEO ON-PAGE (onpage) ===== */
+  function shortU(u){return (u||"").toString().replace(/^https?:\/\/[^/]+/,"")||"/";}
+  function exUrls(arr,key){return (arr||[]).map(function(x){return shortU(key?x[key]:x);}).slice(0,3).join(", ");}
+  function onpageDesc(op){
+    var i=op.issues||{},np=(op.totals&&op.totals.pages)||0,lead=null;
+    if((i.noindex||{}).count>0)lead=P(i.noindex.count+" página(s) marcadas como 'no indexar'","+ i.noindex.count +" page(s) set to noindex");
+    else if((i.title_missing||{}).count>0)lead=P("hay páginas sin título","some pages have no title");
+    else if((i.h1_missing||{}).count>0)lead=P("hay páginas sin titular principal (H1)","some pages have no H1");
+    else if((i.desc_missing||{}).count>0)lead=P(i.desc_missing.count+" página(s) sin meta descripción",i.desc_missing.count+" page(s) with no meta description");
+    else if((i.thin||{}).count>0)lead=P(i.thin.count+" página(s) con poco contenido",i.thin.count+" thin page(s)");
+    else if((i.img_no_alt||{}).total>0)lead=P("faltan textos ALT en "+i.img_no_alt.total+" imágenes","ALT text missing on "+i.img_no_alt.total+" images");
+    else if((i.title_dup||{}).count>0)lead=P("hay títulos repetidos entre páginas","some titles are duplicated across pages");
+    else if((i.canonical_missing||{}).count>0)lead=P("faltan etiquetas canonical","some canonical tags are missing");
+    if(!lead)return P("On-page sólido en las "+np+" páginas revisadas: títulos, encabezados y estructura bien resueltos.","Solid on-page across the "+np+" pages reviewed: titles, headings and structure are well done.");
+    return P("Revisamos "+np+" páginas: la base está bien, pero "+lead+".","We reviewed "+np+" pages: the base is fine, but "+lead+".");
+  }
+  function onpageFindings(r){
+    var op=r.onpage;if(!op||!op.issues)return [];
+    var i=op.issues,np=(op.totals&&op.totals.pages)||0,out=[];
+    if((i.noindex||{}).count>0)out.push({sev:"critico",t:P("Páginas que Google no puede indexar","Pages Google can't index"),d:P(i.noindex.count+" página(s) tienen 'noindex' y no aparecerán en Google: "+exUrls(i.noindex.examples)+". Revisa que no sea un error.",i.noindex.count+" page(s) have 'noindex' and won't show on Google: "+exUrls(i.noindex.examples)+". Make sure it isn't a mistake.")});
+    if((i.title_missing||{}).count>0)out.push({sev:"critico",t:P("Páginas sin título","Pages with no title"),d:P(i.title_missing.count+" página(s) no tienen etiqueta <title>: "+exUrls(i.title_missing.examples)+". El título es lo primero que lee Google y el usuario en los resultados.",i.title_missing.count+" page(s) have no <title>: "+exUrls(i.title_missing.examples)+". The title is the first thing Google and users read in results.")});
+    if((i.h1_missing||{}).count>0)out.push({sev:"op",t:P("Páginas sin titular principal (H1)","Pages with no main heading (H1)"),d:P(i.h1_missing.count+" página(s) no tienen H1: "+exUrls(i.h1_missing.examples)+". El H1 le dice a Google de qué trata la página.",i.h1_missing.count+" page(s) have no H1: "+exUrls(i.h1_missing.examples)+". The H1 tells Google what the page is about.")});
+    if((i.img_no_alt||{}).total>0)out.push({sev:"op",t:P("Imágenes sin texto ALT","Images without ALT text"),d:P("Encontramos "+i.img_no_alt.total+" de "+i.img_no_alt.total_imgs+" imágenes sin texto alternativo (p. ej. "+exUrls(i.img_no_alt.examples,"url")+"). El ALT ayuda a Google a entender la imagen y mejora la accesibilidad.","We found "+i.img_no_alt.total+" of "+i.img_no_alt.total_imgs+" images without alt text (e.g. "+exUrls(i.img_no_alt.examples,"url")+"). ALT helps Google understand the image and improves accessibility.")});
+    if((i.desc_missing||{}).count>0)out.push({sev:"op",t:P("Páginas sin meta descripción","Pages with no meta description"),d:P(i.desc_missing.count+" página(s) no tienen meta descripción: "+exUrls(i.desc_missing.examples)+". Es el texto que Google muestra bajo el título y sube los clics.",i.desc_missing.count+" page(s) have no meta description: "+exUrls(i.desc_missing.examples)+". It's the snippet Google shows under the title and it lifts clicks.")});
+    if((i.title_dup||{}).count>0)out.push({sev:"op",t:P("Títulos repetidos entre páginas","Duplicate titles across pages"),d:P(i.title_dup.count+" grupo(s) de páginas comparten el mismo título. Google no sabe cuál priorizar y compiten entre sí. Dale a cada página un título único.",i.title_dup.count+" group(s) of pages share the same title. Google can't tell which to prioritize and they compete. Give each page a unique title.")});
+    if((i.desc_dup||{}).count>0)out.push({sev:"op",t:P("Descripciones repetidas","Duplicate meta descriptions"),d:P(i.desc_dup.count+" grupo(s) de páginas usan la misma meta descripción. Conviene una por página, específica de su contenido.",i.desc_dup.count+" group(s) of pages reuse the same meta description. Use one per page, specific to its content.")});
+    if((i.thin||{}).count>0)out.push({sev:"op",t:P("Páginas con poco contenido","Thin content pages"),d:P(i.thin.count+" página(s) tienen poco texto (p. ej. "+exUrls(i.thin.examples,"url")+"). Con poco contenido, Google y la IA tienen menos para entenderte y citarte.",i.thin.count+" page(s) have little text (e.g. "+exUrls(i.thin.examples,"url")+"). With thin content, Google and AI have less to understand and cite you.")});
+    if((i.canonical_missing||{}).count>0)out.push({sev:"op",t:P("Falta la etiqueta canonical","Missing canonical tag"),d:P(i.canonical_missing.count+" página(s) no declaran su URL canónica: "+exUrls(i.canonical_missing.examples)+". Ayuda a evitar contenido duplicado.",i.canonical_missing.count+" page(s) don't declare a canonical URL: "+exUrls(i.canonical_missing.examples)+". It helps avoid duplicate content.")});
+    if((i.url_unfriendly||{}).count>0)out.push({sev:"op",t:P("URLs poco amigables","Unfriendly URLs"),d:P(i.url_unfriendly.count+" URL(s) no son ideales (largas, con parámetros o mayúsculas): "+exUrls(i.url_unfriendly.examples,"url")+". Las URLs limpias posicionan y se comparten mejor.",i.url_unfriendly.count+" URL(s) aren't ideal (long, with params or uppercase): "+exUrls(i.url_unfriendly.examples,"url")+". Clean URLs rank and share better.")});
+    return out;
+  }
+
   /* hero panel is static (sin movimiento) */
 
   /* ===== CONSOLE (never pauses) ===== */
@@ -819,7 +853,7 @@
     document.getElementById("dimsGrid").innerHTML=dims.map(function(d,i){var c=clsColor(d.score);return '<div class="dcard" style="animation-delay:'+(i*0.05)+'s"><div class="dt"><span class="di">'+icon(d.ic)+'</span><span class="dh"><span class="dn">'+esc(d.name)+'</span><span class="dc" style="color:'+c+'">'+clsLabel(d.score)+'</span></span><span class="ds" style="color:'+c+'">'+d.score+'<small>/100</small></span></div><div class="dbar"><div class="df" style="width:'+d.score+'%;background:'+c+'"></div></div><p class="dd">'+esc(d.desc)+'</p></div>';}).join("");
 
     document.getElementById("hallTitle").textContent=t("hall_title");
-    var f=perfFindings(r).slice(0,5).concat(buildFindings(r)).slice(0,8);
+    var f=perfFindings(r).slice(0,3).concat(onpageFindings(r).slice(0,4)).concat(buildFindings(r)).slice(0,10);
     document.getElementById("hallGrid").innerHTML=f.map(function(x){var isC=x.sev==="critico";return '<div class="hcard'+(isC?"":" op")+'"><span class="htag">'+(isC?t("tag_critico"):t("tag_oportunidad"))+'</span><p class="hti">'+esc(x.t)+'</p><p class="hd2">'+esc(x.d)+'</p></div>';}).join("");
 
     var ai=r.geo_ai||{},probs=[];

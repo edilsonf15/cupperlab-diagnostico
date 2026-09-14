@@ -36,6 +36,7 @@ import emailer  # noqa: E402
 import report_pdf  # noqa: E402
 import perf2  # noqa: E402
 import perf as _perf  # noqa: E402
+import onpage as _onpage  # noqa: E402
 
 BASE = Path(__file__).resolve().parent
 DATA_DIR = Path(os.getenv("DATA_DIR", BASE.parent / "data"))
@@ -234,6 +235,8 @@ async def _run_job(job_id: str, url: str, email: str, name: str, lead: dict, lan
         # Motor nuevo perf2 (CWV + auditorias, movil+escritorio) + analitica por dispositivo.
         perf_task = asyncio.create_task(perf2.measure(final_url))
         analytics_task = asyncio.create_task(_perf.measure_device(final_url, mobile=True))
+        # Auditoria SEO on-page AVANZADA (multi-pagina), en paralelo
+        onpage_task = asyncio.create_task(_onpage.audit(final_url))
 
         # 2) Consulta REAL a la IA
         _set(job_id, 40, "Preguntandole a la IA por tu marca y tu servicio...")
@@ -295,6 +298,15 @@ async def _run_job(job_id: str, url: str, email: str, name: str, lead: dict, lan
             apply_analytics(data, analytics)
         except Exception as exc:  # noqa: BLE001
             print(f"[analytics:ERROR] {exc}")
+
+        # Auditoria on-page multi-pagina (ya venia en paralelo)
+        try:
+            op = await onpage_task
+            if isinstance(op, dict):
+                op.pop("pages", None)  # aligera el payload de pantalla (issues/totals/score)
+                data["onpage"] = op
+        except Exception as exc:  # noqa: BLE001
+            print(f"[onpage:ERROR] {exc}"); data["onpage"] = None
 
         # Recalcula el score con la velocidad real ya incorporada
         try:
