@@ -897,11 +897,11 @@
     var breadcrumb=has(/breadcrumblist/)||!!(op.issues&&op.issues.breadcrumbs&&op.issues.breadcrumbs.present);
     var faq=has(/faqpage|qapage/),article=has(/article|blogposting|newsarticle/);
     var prodserv=has(/product|service|offer/),review=has(/review|aggregaterating|rating/);
-    var errs=(op.schema&&op.schema.errors)||0,anySchema=!!((op.schema&&op.schema.pages_with>0)||types.length);
+    var errs=(op.schema&&op.schema.errors)||0,incompl=((op.schema&&op.schema.incomplete)||[]),anySchema=!!((op.schema&&op.schema.pages_with>0)||types.length);
     var st=[],add=function(k,ok,w){st.push({k:k,ok:ok,w:w});};
     add("org",org,22);add("website",(website&&searchaction),10);add("breadcrumb",breadcrumb,12);add("faq",faq,16);
     add("article",article,8);add("prodserv",prodserv,14);add("review",review,14);
-    if(anySchema)add("valid",errs===0,8);
+    if(anySchema)add("valid",(errs===0&&incompl.length===0),8);
     var sw=0,ss=0;st.forEach(function(p){sw+=p.w;ss+=(p.ok?100:0)*p.w;});
     var score=sw?Math.round(ss/sw):0;
     var LAB={org:P("los datos de tu empresa (Organization)","your company data (Organization)"),website:P("el sitio + buscador (WebSite/SearchAction)","site + search (WebSite/SearchAction)"),breadcrumb:P("las migas de pan (Breadcrumb)","breadcrumbs (Breadcrumb)"),faq:P("las preguntas frecuentes (FAQ)","FAQ markup"),article:P("los artículos (Article)","articles (Article)"),prodserv:P("tus productos o servicios","your products or services"),review:P("las reseñas y valoraciones (Review)","reviews and ratings (Review)"),valid:P("un marcado sin errores de formato","valid markup with no format errors")};
@@ -918,8 +918,9 @@
     if(!by.website)out.push({sev:"op",t:P("Falta WebSite + búsqueda del sitio (SearchAction)","Missing WebSite + SearchAction"),d:P("El marcado WebSite con SearchAction permite que Google muestre tu buscador interno en los resultados. Un extra que da imagen de marca sólida.","WebSite markup with SearchAction lets Google show your internal search box in results. An extra that signals a solid brand.")});
     if(!by.prodserv)out.push({sev:"op",t:P("Falta marcar tus productos o servicios","Product/Service markup missing"),d:P("Marcar cada servicio o producto con Schema ayuda a Google y a la IA a saber exactamente qué ofreces y a mostrarte cuando lo buscan.","Marking each service or product with Schema helps Google and AI know exactly what you offer and show you when it's searched.")});
     if(!by.review)out.push({sev:"op",t:P("Falta marcar reseñas y valoraciones (Review)","Missing Review/Rating markup"),d:P("El Schema Review/AggregateRating puede mostrar tus estrellas en Google y es una señal que la IA usa para recomendarte. Márcalo si tienes valoraciones.","Review/AggregateRating Schema can show your stars in Google and is a signal AI uses to recommend you. Mark it up if you have ratings.")});
-    var errs=((r.onpage||{}).schema||{}).errors||0;
-    if(by.valid===false&&errs>0)out.push({sev:"op",t:P("Tus datos estructurados tienen errores de formato","Your structured data has format errors"),d:P("Detectamos "+errs+" bloque(s) de datos estructurados que no son JSON válido, así que Google los ignora. Corrige el formato para que cuenten. (La validación completa se confirma con el Test de Resultados Enriquecidos de Google.)","We found "+errs+" structured-data block(s) that aren't valid JSON, so Google ignores them. Fix the format so they count. (Full validation is confirmed with Google's Rich Results Test.)")});
+    var sch=(r.onpage||{}).schema||{},errs=sch.errors||0,incompl=sch.incomplete||[];
+    if(errs>0)out.push({sev:"op",t:P("Tus datos estructurados tienen errores de formato","Your structured data has format errors"),d:P("Detectamos "+errs+" bloque(s) de datos estructurados que no son JSON válido, así que Google los ignora. Corrige el formato para que cuenten.","We found "+errs+" structured-data block(s) that aren't valid JSON, so Google ignores them. Fix the format so they count.")});
+    if(incompl.length)out.push({sev:"op",t:P("Datos estructurados incompletos (campos obligatorios)","Structured data missing required fields"),d:P("Algunos tipos no traen los campos que Google exige y no darán resultado enriquecido: "+incompl.slice(0,3).map(function(x){return x.type+" (falta "+x.missing.join(", ")+")";}).join("; ")+". Complétalos.","Some types are missing the fields Google requires and won't earn rich results: "+incompl.slice(0,3).map(function(x){return x.type+" (missing "+x.missing.join(", ")+")";}).join("; ")+". Complete them.")});
     return out;
   }
 

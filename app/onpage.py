@@ -49,6 +49,55 @@ def _norm(u: str) -> str:
     return (u or "").split("#")[0].rstrip("/").lower()
 
 
+# Campos obligatorios por tipo (alineado con lo que pide Google para resultados enriquecidos)
+_REQ = {
+    "organization": ["name", "url", "logo"],
+    "localbusiness": ["name", "address", "telephone"],
+    "professionalservice": ["name", "address"],
+    "product": ["name"],
+    "article": ["headline", "image", "datePublished"],
+    "blogposting": ["headline", "image", "datePublished"],
+    "newsarticle": ["headline", "image", "datePublished"],
+    "breadcrumblist": ["itemListElement"],
+    "faqpage": ["mainEntity"],
+    "review": ["reviewRating", "author", "itemReviewed"],
+    "aggregaterating": ["ratingValue", "reviewCount"],
+    "event": ["name", "startDate", "location"],
+    "recipe": ["name", "image", "recipeIngredient"],
+}
+
+
+def _flatten_ld(data) -> list:
+    out = []
+
+    def walk(x):
+        if isinstance(x, dict):
+            if isinstance(x.get("@graph"), list):
+                for n in x["@graph"]:
+                    walk(n)
+            if x.get("@type"):
+                out.append(x)
+        elif isinstance(x, list):
+            for n in x:
+                walk(n)
+    walk(data)
+    return out
+
+
+def _missing_req(node: dict):
+    t = node.get("@type")
+    if isinstance(t, list):
+        t = t[0] if t else ""
+    tl = str(t).lower()
+    req = _REQ.get(tl)
+    if not req:
+        return None
+    missing = [f for f in req if not node.get(f)]
+    if tl == "product" and not any(k in node for k in ("offers", "review", "aggregateRating")):
+        missing.append("offers")
+    return {"type": str(t), "missing": missing[:4]} if missing else None
+
+
 def _valid(u: str, base_net: str) -> bool:
     if not u or urlparse(u).netloc != base_net:
         return False
@@ -124,15 +173,21 @@ def _parse_page(url: str, html: str, status: int, base_net: str) -> dict:
 
     schema_types = []
     schema_bad = 0
+    schema_incomplete = []
     for s in soup.find_all("script", attrs={"type": re.compile("ld\\+json", re.I)}):
         raw = s.get_text() or ""
         for m in re.findall(r'"@type"\s*:\s*"([^"]+)"', raw):
             schema_types.append(m.strip())
         if raw.strip():
             try:
-                json.loads(raw)
+                data = json.loads(raw)
             except Exception:  # noqa: BLE001
                 schema_bad += 1
+            else:
+                for node in _flatten_ld(data):
+                    miss = _missing_req(node)
+                    if miss:
+                        schema_incomplete.append(miss)
 
     # breadcrumbs: schema BreadcrumbList o navegación de migas visible
     schema_low0 = [t.lower() for t in schema_types]
@@ -178,6 +233,7 @@ def _parse_page(url: str, html: str, status: int, base_net: str) -> dict:
         "word_count": word_count,
         "schema_types": sorted(set(t.lower() for t in schema_types)),
         "schema_bad": schema_bad,
+        "schema_incomplete": schema_incomplete,
         "url_issues": url_issues,
         "int_links": len(links),
         "poor_anchor": poor_anchor,
@@ -340,6 +396,7 @@ def _aggregate(pages: list[dict], norm_home: str = "") -> dict:
     schema_all: dict = {}
     pages_with_schema = 0
     schema_errors = 0
+    incomplete: dict = {}
     for p in pages:
         ts = p.get("schema_types") or []
         if ts:
@@ -347,9 +404,12 @@ def _aggregate(pages: list[dict], norm_home: str = "") -> dict:
         for t in ts:
             schema_all[t] = schema_all.get(t, 0) + 1
         schema_errors += p.get("schema_bad", 0)
+        for it in (p.get("schema_incomplete") or []):
+            incomplete.setdefault(it["type"], it["missing"])
     schema_info = {"types": sorted(schema_all.keys()), "counts": schema_all,
                    "pages_with": pages_with_schema, "pages": len(pages),
-                   "errors": schema_errors}
+                   "errors": schema_errors,
+                   "incomplete": [{"type": k, "missing": v} for k, v in incomplete.items()]}
 
     n = len(pages) or 1
     issues = {
