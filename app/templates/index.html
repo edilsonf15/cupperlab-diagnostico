@@ -832,7 +832,7 @@
 
   /* ===== SALUD TÉCNICA / INDEXACIÓN Y RASTREO ===== */
   function techModel(r){
-    var sig=r.signals||{},ix=r.indexation||{},meta=r.meta||{};
+    var sig=r.signals||{},ix=r.indexation||{},meta=r.meta||{},opb=(r.onpage||{}).broken||{};
     if(sig.home_status==null&&!sig.sitemap&&!ix.indexed)return null;
     var st=[],add=function(k,s,w){st.push({k:k,s:s,w:w});};
     var pages=sig.pages_found||0,idx=(ix.indexed_estimate!=null?ix.indexed_estimate:(ix.indexed?(ix.sample_count||0):0));
@@ -841,7 +841,7 @@
     var comp=sig.sitemap_comp||{},dirty=sig.sitemap&&(((comp.etiquetas||0)>(comp.paginas||0))||((comp.fichas||0)>(comp.paginas||0)));
     add("sitemap",!sig.sitemap?"bad":(dirty?"warn":"ok"),14);
     add("robots",!sig.robots?"warn":(!sig.sitemap_in_robots?"warn":"ok"),8);
-    var brk=sig.links_broken||0,brkIdx=(ix.broken_indexed||[]).length;
+    var brk=(opb.count!=null?opb.count:(sig.links_broken||0)),brkIdx=(ix.broken_indexed||[]).length;
     add("broken",brkIdx>0?"bad":(brk>0?"warn":"ok"),18);
     add("status",(sig.home_status>=200&&sig.home_status<300)?"ok":"bad",8);
     add("https",sig.https===false?"bad":(sig.https_forced===false?"warn":"ok"),20);
@@ -870,7 +870,8 @@
     else if(sig.https_forced===false)out.push({sev:"op",t:P("No fuerzas HTTPS","You don't force HTTPS"),d:P("Tu web abre en HTTPS pero no redirige http a https. Configura la redirección 301 para no dividir señales ni servir contenido inseguro.","Your site opens on HTTPS but doesn't redirect http to https. Set the 301 redirect so signals aren't split and no insecure content is served.")});
     var brkIdx=(ix.broken_indexed||[]);
     if(brkIdx.length)out.push({sev:"critico",t:P("Páginas rotas indexadas en Google","Broken pages indexed on Google"),d:P("Google tiene indexadas "+brkIdx.length+" página(s) que ya dan error 404 (p. ej. "+brkIdx.slice(0,2).map(function(b){return shortU(b.url);}).join(", ")+"). Restan confianza y desperdician rastreo; redirígelas con 301.","Google has "+brkIdx.length+" indexed page(s) returning 404 (e.g. "+brkIdx.slice(0,2).map(function(b){return shortU(b.url);}).join(", ")+"). They erode trust and waste crawl budget; 301-redirect them.")});
-    if((sig.links_broken||0)>0)out.push({sev:"op",t:P("Enlaces rotos (404) en el sitio","Broken links (404) on the site"),d:P("Encontramos "+sig.links_broken+" de "+(sig.links_checked||0)+" enlaces que dan error"+((sig.broken_examples||[]).length?" (p. ej. "+sig.broken_examples.slice(0,2).map(function(b){return shortU(b.url);}).join(", ")+")":"")+". Arréglalos o redirígelos: frustran al visitante y a Google.","We found "+sig.links_broken+" of "+(sig.links_checked||0)+" links returning an error"+((sig.broken_examples||[]).length?" (e.g. "+sig.broken_examples.slice(0,2).map(function(b){return shortU(b.url);}).join(", ")+")":"")+". Fix or redirect them: they frustrate visitors and Google.")});
+    var opb=(r.onpage||{}).broken||{},brkN=(opb.count!=null?opb.count:(sig.links_broken||0)),brkChecked=(opb.checked!=null?opb.checked:(sig.links_checked||0)),brkEx=(opb.broken&&opb.broken.length?opb.broken:(sig.broken_examples||[]));
+    if(brkN>0)out.push({sev:(brkN>=5?"critico":"op"),t:P("Enlaces rotos (404) en el sitio","Broken links (404) on the site"),d:P("Comprobamos "+brkChecked+" enlaces del sitio y "+brkN+" dan error"+(brkEx.length?" (p. ej. "+brkEx.slice(0,3).map(function(b){return shortU(b.url);}).join(", ")+")":"")+". Cada enlace roto frustra al visitante y desperdicia rastreo: arréglalos o redirígelos con 301.","We checked "+brkChecked+" links across the site and "+brkN+" return an error"+(brkEx.length?" (e.g. "+brkEx.slice(0,3).map(function(b){return shortU(b.url);}).join(", ")+")":"")+". Every broken link frustrates visitors and wastes crawl budget: fix or 301-redirect them.")});
     if(!sig.sitemap)out.push({sev:"op",t:P("Falta el mapa del sitio (sitemap.xml)","Missing sitemap.xml"),d:P("El sitemap le dice a Google qué páginas rastrear. Sin él, tarda más en descubrir tu contenido. Genera uno y decláralo en robots.txt.","The sitemap tells Google which pages to crawl. Without it, discovery is slower. Generate one and declare it in robots.txt.")});
     else{var comp=sig.sitemap_comp||{};if(((comp.etiquetas||0)>(comp.paginas||0))||((comp.fichas||0)>(comp.paginas||0)))out.push({sev:"op",t:P("Tu sitemap está sucio","Your sitemap is messy"),d:P("El sitemap manda a Google sobre todo a etiquetas o fichas ("+(comp.etiquetas||0)+" etiquetas, "+(comp.fichas||0)+" fichas) en vez de páginas reales ("+(comp.paginas||0)+"). Límpialo para que rastree lo que importa.","The sitemap points Google mostly to tags or files ("+(comp.etiquetas||0)+" tags, "+(comp.fichas||0)+" files) instead of real pages ("+(comp.paginas||0)+"). Clean it so it crawls what matters.")});}
     if(!sig.robots)out.push({sev:"op",t:P("Falta robots.txt","Missing robots.txt"),d:P("Es el archivo que guía a los rastreadores. Añádelo y declara ahí tu sitemap.","It's the file that guides crawlers. Add it and declare your sitemap there.")});

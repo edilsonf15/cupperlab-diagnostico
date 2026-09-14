@@ -27,10 +27,13 @@ _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
        "(KHTML, like Gecko) Chrome/124.0 Safari/537.36")
 _HEADERS = {"User-Agent": _UA, "Accept-Language": "es-ES,es;q=0.9,en;q=0.6"}
 
-MAX_PAGES = 40          # tope de páginas a analizar a fondo
+MAX_PAGES = 40          # tope de páginas a analizar a fondo (contenido)
 CONCURRENCY = 8
 PAGE_TIMEOUT = 10.0
 SITEMAP_CAP = 300       # URLs máximas a leer del sitemap para sembrar
+BROKEN_CAP = 400        # URLs máximas a comprobar por 404 (todo el sitio)
+BROKEN_CONC = 10
+BROKEN_TIMEOUT = 9.0
 
 TITLE_MIN, TITLE_MAX = 25, 65
 DESC_MIN, DESC_MAX = 60, 165
@@ -181,6 +184,44 @@ def _parse_page(url: str, html: str, status: int, base_net: str) -> dict:
         "breadcrumb": breadcrumb,
         "_links": links,
     }
+
+
+async def _status(client, url, sem):
+    """Código HTTP real de una URL. Reintenta una vez; los errores de red se marcan
+    None (NO son 404) para no acusar en falso."""
+    async with sem:
+        for attempt in range(2):
+            try:
+                r = await client.get(url, timeout=BROKEN_TIMEOUT, follow_redirects=True)
+                return (url, r.status_code)
+            except Exception:  # noqa: BLE001
+                if attempt == 0:
+                    await asyncio.sleep(0.4)
+                    continue
+                return (url, None)
+
+
+async def _check_broken(links: list[str]) -> dict:
+    """Comprueba el estado de TODAS las URLs internas descubiertas (de pies a cabeza)."""
+    if not links:
+        return {"checked": 0, "broken": [], "count": 0, "errors": 0}
+    sem = asyncio.Semaphore(BROKEN_CONC)
+    try:
+        async with httpx.AsyncClient(headers=_HEADERS, verify=False, follow_redirects=True,
+                                     limits=httpx.Limits(max_connections=BROKEN_CONC + 2)) as c:
+            res = await asyncio.gather(*(_status(c, u, sem) for u in links))
+    except Exception:  # noqa: BLE001
+        return {"checked": 0, "broken": [], "count": 0, "errors": 0}
+    broken, checked, errors = [], 0, 0
+    for u, st in res:
+        if st is None:
+            errors += 1
+            continue
+        checked += 1
+        if st >= 400:
+            broken.append({"url": u, "status": st})
+    broken.sort(key=lambda b: b["url"])
+    return {"checked": checked, "broken": broken, "count": len(broken), "errors": errors}
 
 
 async def _fetch(client, url, sem, base_net):
@@ -443,12 +484,15 @@ async def audit(url: str, home_html: str | None = None,
     norm_home = _norm(url)
     nodes = {_norm(p["url"]): p for p in pages}
     adj = {k: set() for k in nodes}
+    all_links: dict = {}   # norm -> url original (todos los enlaces internos descubiertos)
     for p in pages:
         src = _norm(p["url"])
         for l in p.get("_links", []):
-            t = _norm(l)
-            if t in nodes and t != src:
-                adj[src].add(t)
+            lu = l.split("#")[0]
+            ln = _norm(lu)
+            all_links.setdefault(ln, lu)
+            if ln in nodes and ln != src:
+                adj[src].add(ln)
     inbound = {k: 0 for k in nodes}
     for src, tgts in adj.items():
         for t in tgts:
@@ -469,7 +513,16 @@ async def audit(url: str, home_html: str | None = None,
         p["depth"] = depth.get(k)
         p.pop("_links", None)
 
+    # ---- 404 de TODO el sitio: comprueba cada enlace interno descubierto que no
+    # sea una página ya rastreada (esas ya devolvieron 200).
+    known_ok = set(nodes.keys())
+    to_check = [u for n, u in all_links.items() if n not in known_ok][:BROKEN_CAP]
+    broken = await _check_broken(to_check)
+    # suma las páginas rastreadas como comprobadas (son 200)
+    broken["checked"] = broken.get("checked", 0) + len(pages)
+
     model = _aggregate(pages, norm_home)
+    model["broken"] = broken
     model["pages"] = pages
     model["engine"] = "onpage"
     return model
