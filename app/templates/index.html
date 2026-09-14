@@ -640,8 +640,8 @@
         if(lcp.value!=null&&lcp.score<80)return P("La carga se puede acelerar (lo principal aparece en "+lcp.display+") y quedan recursos por optimizar.","Load can be faster (main content appears in "+lcp.display+") and some resources still need optimizing.");
         return P("La velocidad funciona, pero tiene margen de mejora.","Speed is fine, but there is room to improve.");
       }
-      if(pf.mobile)out.push({ic:"movil",name:P("Velocidad en móvil","Mobile speed"),score:(pf.mobile.score==null?0:pf.mobile.score),desc:perfDesc(pf.mobile)});
-      if(pf.desktop)out.push({ic:"speed",name:P("Velocidad en escritorio","Desktop speed"),score:(pf.desktop.score==null?0:pf.desktop.score),desc:perfDesc(pf.desktop)});
+      if(pf.mobile)out.push({ic:"movil",grp:"perf",name:P("Velocidad en móvil","Mobile speed"),score:(pf.mobile.score==null?0:pf.mobile.score),desc:perfDesc(pf.mobile)});
+      if(pf.desktop)out.push({ic:"speed",grp:"perf",name:P("Velocidad en escritorio","Desktop speed"),score:(pf.desktop.score==null?0:pf.desktop.score),desc:perfDesc(pf.desktop)});
     }
     return out;
   }
@@ -811,7 +811,10 @@
     document.getElementById("resProg").style.width=score+"%";
     var cur=0,anim=setInterval(function(){cur+=Math.max(1,Math.round(score/28));if(cur>=score){cur=score;clearInterval(anim);}sEl.textContent=cur;},22);
 
-    var dims=buildDims(r).sort(function(a,b){return a.score-b.score;});
+    var allDims=buildDims(r);
+    var perfDims=allDims.filter(function(d){return d.grp==="perf";});
+    var restDims=allDims.filter(function(d){return d.grp!=="perf";}).sort(function(a,b){return a.score-b.score;});
+    var dims=perfDims.concat(restDims);
     document.getElementById("dimsTitle").textContent=P("Las "+dims.length+" dimensiones","The "+dims.length+" dimensions");
     document.getElementById("dimsGrid").innerHTML=dims.map(function(d,i){var c=clsColor(d.score);return '<div class="dcard" style="animation-delay:'+(i*0.05)+'s"><div class="dt"><span class="di">'+icon(d.ic)+'</span><span class="dh"><span class="dn">'+esc(d.name)+'</span><span class="dc" style="color:'+c+'">'+clsLabel(d.score)+'</span></span><span class="ds" style="color:'+c+'">'+d.score+'<small>/100</small></span></div><div class="dbar"><div class="df" style="width:'+d.score+'%;background:'+c+'"></div></div><p class="dd">'+esc(d.desc)+'</p></div>';}).join("");
 
