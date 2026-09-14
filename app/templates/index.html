@@ -625,6 +625,8 @@
     if(tm)out.push({ic:"tech",grp:"tech",name:P("Salud técnica / Indexación y rastreo","Technical health / Indexing & crawling"),score:tm.score,desc:tm.desc});
     var scm=schemaModel(r);
     if(scm)out.push({ic:"geo",grp:"schema",name:P("Datos estructurados (Schema)","Structured data (Schema)"),score:scm.score,desc:scm.desc});
+    var secm=securityModel(r);
+    if(secm)out.push({ic:"shield",grp:"sec",name:P("Seguridad","Security"),score:secm.score,desc:secm.desc});
     var pf=r.perf2;
     if(pf&&(pf.mobile||pf.desktop)){
       function perfDesc(strat){
@@ -924,6 +926,47 @@
     return out;
   }
 
+  /* ===== SEGURIDAD ===== */
+  function securityModel(r){
+    var sig=r.signals||{},sec=sig.security||{},meta=r.meta||{};
+    if(sec.score==null&&sig.https==null)return null;
+    var ssl=sec.ssl||{},mixed=sec.mixed||[],miss=sec.headers_missing||[],exp=sec.exposed||[],leaks=sec.leaks||[],ck=sec.cookie_flags||[];
+    var st=[],add=function(k,s,w){st.push({k:k,s:s,w:w});};
+    var sslState=(ssl.valid===false)?"bad":(ssl.valid===true?((ssl.days_left!=null&&ssl.days_left<15)?"warn":"ok"):(sig.https?"ok":"bad"));
+    add("ssl",sslState,20);
+    add("https",sig.https===false?"bad":((mixed.length||sig.https_forced===false)?"warn":"ok"),16);
+    add("headers",miss.length===0?"ok":(miss.length<=3?"warn":"bad"),16);
+    add("exposed",exp.length?"bad":"ok",18);
+    add("leaks",leaks.length?"warn":"ok",8);
+    add("cookies",ck.length?"warn":"ok",8);
+    add("favicon",meta.favicon?"ok":"warn",4);
+    var val={ok:100,warn:55,bad:0},sw=0,ss=0;st.forEach(function(p){sw+=p.w;ss+=val[p.s]*p.w;});
+    var score=sw?Math.round(ss/sw):0;
+    var GOOD={ssl:P("tu certificado SSL es válido","your SSL certificate is valid"),https:P("tu conexión es segura (HTTPS)","your connection is secure (HTTPS)"),headers:P("tienes cabeceras de seguridad","you have security headers"),exposed:P("no hay archivos sensibles expuestos","no sensitive files are exposed"),leaks:P("el servidor no revela su versión","the server doesn't reveal its version"),cookies:P("tus cookies son seguras","your cookies are secure"),favicon:P("tienes favicon","you have a favicon")};
+    var BAD={ssl:(ssl.valid===false?P("tu certificado SSL no es válido","your SSL certificate is invalid"):P("tu certificado SSL caduca pronto","your SSL certificate expires soon")),https:(sig.https===false?P("tu web no usa HTTPS","your site doesn't use HTTPS"):(mixed.length?P("cargas contenido inseguro (mixto) en una página segura","you load insecure (mixed) content on a secure page"):P("no fuerzas HTTPS","you don't force HTTPS"))),headers:P("te faltan "+miss.length+" cabeceras de seguridad","you're missing "+miss.length+" security headers"),exposed:P("hay "+exp.length+" archivo(s) sensible(s) expuesto(s)",exp.length+" sensitive file(s) exposed"),leaks:P("el servidor revela su versión","the server reveals its version"),cookies:P("tus cookies no son seguras","your cookies aren't secure"),favicon:P("falta el favicon","the favicon is missing")};
+    var goodK=st.filter(function(p){return p.s==="ok";}),badK=st.filter(function(p){return p.s==="bad";}).concat(st.filter(function(p){return p.s==="warn";}));
+    var good=goodK.length?GOOD[goodK[0].k]:null,bad=badK.length?BAD[badK[0].k]:null,desc;
+    if(good&&bad)desc=cap(good)+P(", pero "+bad+".",", but "+bad+".");
+    else if(bad)desc=cap(bad)+P(". Conviene reforzar la seguridad para proteger a ti y a tus visitantes.",". Worth hardening security to protect you and your visitors.");
+    else desc=P("Buena seguridad: HTTPS, certificado válido y sin archivos expuestos.","Good security: HTTPS, valid certificate and no exposed files.");
+    return {score:score,desc:desc,points:st};
+  }
+  function securityFindings(r){
+    var sig=r.signals||{},sec=sig.security||{},meta=r.meta||{},out=[];
+    if(sec.score==null&&sig.https==null)return out;
+    var ssl=sec.ssl||{},mixed=sec.mixed||[],miss=sec.headers_missing||[],exp=sec.exposed||[],leaks=sec.leaks||[],ck=sec.cookie_flags||[];
+    if((exp||[]).length)out.push({sev:"critico",t:P("Archivos sensibles expuestos","Sensitive files exposed"),d:P("Detectamos "+exp.length+" recurso(s) accesibles que deberían estar protegidos (p. ej. "+exp.slice(0,2).map(function(e){return e.path;}).join(", ")+"). Bloquéalos cuanto antes: pueden filtrar datos o credenciales.","We found "+exp.length+" accessible resource(s) that should be protected (e.g. "+exp.slice(0,2).map(function(e){return e.path;}).join(", ")+"). Block them ASAP: they can leak data or credentials.")});
+    if(ssl.valid===false)out.push({sev:"critico",t:P("Tu certificado SSL no es válido","Your SSL certificate is invalid"),d:P("El certificado está caducado, no coincide con el dominio o es autofirmado. Los navegadores muestran una alerta roja de 'sitio no seguro' que espanta a los visitantes. Renuévalo ya.","The certificate is expired, doesn't match the domain or is self-signed. Browsers show a red 'not secure' warning that scares visitors away. Renew it now.")});
+    else if(ssl.valid===true&&ssl.days_left!=null&&ssl.days_left<15)out.push({sev:"op",t:P("Tu certificado SSL caduca pronto","Your SSL certificate expires soon"),d:P("Le quedan "+ssl.days_left+" día(s). Si caduca, tu web sale como 'no segura'. Renuévalo o activa la renovación automática.","It has "+ssl.days_left+" day(s) left. If it expires, your site shows as 'not secure'. Renew it or enable auto-renewal.")});
+    if(sig.https===false)out.push({sev:"critico",t:P("Tu web no usa HTTPS","Your site doesn't use HTTPS"),d:P("Sin conexión segura, los navegadores la marcan como 'no segura' y Google la penaliza. Instala un certificado SSL.","Without a secure connection, browsers flag it as 'not secure' and Google penalizes it. Install an SSL certificate.")});
+    else if(mixed.length)out.push({sev:"op",t:P("Cargas contenido inseguro (mixto)","You load insecure (mixed) content"),d:P("Tu web es HTTPS pero carga "+mixed.length+" recurso(s) por http:// (p. ej. "+mixed.slice(0,2).map(function(u){return u.replace(/^https?:\/\//,"").slice(0,40);}).join(", ")+"). El navegador los bloquea o muestra el candado roto. Cámbialos a https.","Your site is HTTPS but loads "+mixed.length+" resource(s) over http:// (e.g. "+mixed.slice(0,2).map(function(u){return u.replace(/^https?:\/\//,"").slice(0,40);}).join(", ")+"). The browser blocks them or shows a broken padlock. Switch them to https.")});
+    if(miss.length)out.push({sev:"op",t:P("Faltan cabeceras de seguridad","Missing security headers"),d:P("Te faltan "+miss.length+" cabecera(s) que protegen contra ataques comunes: "+miss.slice(0,3).join(", ")+". Son fáciles de añadir en el servidor y suben tu seguridad.","You're missing "+miss.length+" header(s) that protect against common attacks: "+miss.slice(0,3).join(", ")+". They're easy to add on the server and boost your security.")});
+    if(leaks.length)out.push({sev:"op",t:P("El servidor revela su versión","The server reveals its version"),d:P("Tu servidor expone su tecnología y versión ("+leaks.slice(0,2).join(", ")+"). Eso facilita a un atacante buscar vulnerabilidades conocidas. Ocúltalo.","Your server exposes its tech and version ("+leaks.slice(0,2).join(", ")+"). That helps an attacker look up known vulnerabilities. Hide it.")});
+    if(ck.length)out.push({sev:"op",t:P("Tus cookies no son seguras","Your cookies aren't secure"),d:P("Detectamos "+ck.join(", ")+". Las cookies deben llevar los atributos Secure y HttpOnly para que no las roben.","We found "+ck.join(", ")+". Cookies should carry the Secure and HttpOnly attributes so they can't be stolen.")});
+    if(!meta.favicon)out.push({sev:"op",t:P("Falta el favicon","Missing favicon"),d:P("Es el iconito de la pestaña. Sin él tu web se ve menos profesional y confiable en el navegador y en los marcadores.","It's the little tab icon. Without it your site looks less professional and trustworthy in the browser and bookmarks.")});
+    return out;
+  }
+
   /* hero panel is static (sin movimiento) */
 
   /* ===== CONSOLE (never pauses) ===== */
@@ -1008,13 +1051,14 @@
     var geoDims=allDims.filter(function(d){return d.grp==="geo";});
     var techDims=allDims.filter(function(d){return d.grp==="tech";});
     var schemaDims=allDims.filter(function(d){return d.grp==="schema";});
+    var secDims=allDims.filter(function(d){return d.grp==="sec";});
     var restDims=allDims.filter(function(d){return !d.grp;}).sort(function(a,b){return a.score-b.score;});
-    var dims=perfDims.concat(seoDims).concat(geoDims).concat(techDims).concat(schemaDims).concat(restDims);
+    var dims=perfDims.concat(seoDims).concat(geoDims).concat(techDims).concat(schemaDims).concat(secDims).concat(restDims);
     document.getElementById("dimsTitle").textContent=P("Las "+dims.length+" dimensiones","The "+dims.length+" dimensions");
     document.getElementById("dimsGrid").innerHTML=dims.map(function(d,i){var c=clsColor(d.score);return '<div class="dcard" style="animation-delay:'+(i*0.05)+'s"><div class="dt"><span class="di">'+icon(d.ic)+'</span><span class="dh"><span class="dn">'+esc(d.name)+'</span><span class="dc" style="color:'+c+'">'+clsLabel(d.score)+'</span></span><span class="ds" style="color:'+c+'">'+d.score+'<small>/100</small></span></div><div class="dbar"><div class="df" style="width:'+d.score+'%;background:'+c+'"></div></div><p class="dd">'+esc(d.desc)+'</p></div>';}).join("");
 
     document.getElementById("hallTitle").textContent=t("hall_title");
-    var f=geoFindings(r).slice(0,6).concat(perfFindings(r).slice(0,3)).concat(onpageFindings(r).slice(0,6)).concat(techFindings(r).slice(0,5)).concat(schemaFindings(r).slice(0,3)).concat(buildFindings(r)).slice(0,22);
+    var f=geoFindings(r).slice(0,6).concat(perfFindings(r).slice(0,3)).concat(onpageFindings(r).slice(0,6)).concat(techFindings(r).slice(0,5)).concat(schemaFindings(r).slice(0,3)).concat(securityFindings(r).slice(0,5)).slice(0,24);
     document.getElementById("hallGrid").innerHTML=f.map(function(x){var isC=x.sev==="critico";return '<div class="hcard'+(isC?"":" op")+'"><span class="htag">'+(isC?t("tag_critico"):t("tag_oportunidad"))+'</span><p class="hti">'+esc(x.t)+'</p><p class="hd2">'+esc(x.d)+'</p></div>';}).join("");
 
     var ai=r.geo_ai||{},probs=[];

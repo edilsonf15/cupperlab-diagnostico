@@ -579,6 +579,29 @@ _SEC_HEADERS = {
 }
 
 
+def _ssl_cert_sync(host: str) -> dict:
+    """Comprueba el certificado SSL real: válido, quién lo emite y días para caducar."""
+    import socket  # noqa: PLC0415
+    import ssl  # noqa: PLC0415
+    from datetime import datetime  # noqa: PLC0415
+    host = (host or "").split("/")[0].split(":")[0]
+    if not host:
+        return {"valid": None, "error": "sin host"}
+    ctx = ssl.create_default_context()
+    try:
+        with socket.create_connection((host, 443), timeout=7) as sock:
+            with ctx.wrap_socket(sock, server_hostname=host) as ss:
+                cert = ss.getpeercert()
+        exp = datetime.strptime(cert["notAfter"], "%b %d %H:%M:%S %Y %Z")
+        days = (exp - datetime.utcnow()).days
+        issuer = dict(x[0] for x in cert.get("issuer", ())).get("organizationName", "")
+        return {"valid": True, "days_left": days, "issuer": issuer}
+    except ssl.SSLCertVerificationError as exc:  # cert caducado, dominio no coincide, autofirmado
+        return {"valid": False, "error": str(exc)[:140]}
+    except Exception as exc:  # noqa: BLE001
+        return {"valid": None, "error": str(exc)[:140]}
+
+
 async def scan_security(client: httpx.AsyncClient, base_url: str, headers: dict, html: str) -> dict:
     h = {k.lower(): v for k, v in dict(headers or {}).items()}
     root = base_url.rstrip("/")
@@ -637,7 +660,29 @@ async def scan_security(client: httpx.AsyncClient, base_url: str, headers: dict,
         pass
 
     https_ok = root.lower().startswith("https://")
-    penalty = len(exposed) * 45 + len(missing) * 6 + len(leaks) * 5 + len(cookie_flags) * 5 + (0 if https_ok else 25)
+
+    # 5) Certificado SSL real (validez + caducidad)
+    ssl_info = {}
+    try:
+        if https_ok:
+            ssl_info = await asyncio.to_thread(_ssl_cert_sync, urlparse(root).netloc)
+    except Exception:  # noqa: BLE001
+        ssl_info = {}
+
+    # 6) Contenido mixto: recursos http:// cargados en una página https
+    mixed = []
+    if https_ok and html:
+        for m in re.findall(r'(?:src|href)=["\'](http://[^"\']+)', html, re.I):
+            if re.search(r"\.(js|css|png|jpe?g|gif|webp|svg|woff2?|mp4|ico)(\?|$)", m, re.I):
+                if m not in mixed:
+                    mixed.append(m)
+        mixed = mixed[:5]
+
+    cert_bad = ssl_info.get("valid") is False
+    cert_soon = ssl_info.get("valid") is True and isinstance(ssl_info.get("days_left"), int) and ssl_info["days_left"] < 15
+    penalty = (len(exposed) * 45 + len(missing) * 6 + len(leaks) * 5 + len(cookie_flags) * 5
+               + (0 if https_ok else 25) + (30 if cert_bad else 0) + (10 if cert_soon else 0)
+               + (12 if mixed else 0))
     score = max(0, 100 - penalty)
     return {
         "score": score,
@@ -648,6 +693,8 @@ async def scan_security(client: httpx.AsyncClient, base_url: str, headers: dict,
         "cms": cms,
         "cookie_flags": cookie_flags,
         "exposed": exposed,
+        "ssl": ssl_info,
+        "mixed": mixed,
     }
 
 
