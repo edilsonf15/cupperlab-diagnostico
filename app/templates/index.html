@@ -615,18 +615,8 @@
   function buildDims(r){
     var C=r.categories||{},psi=r.psi_full||{},sec=(r.signals||{}).security||{},meta=r.meta||{},ai=r.geo_ai||{};
     var out=[];
-    if(ai.available&&!ai.error&&ai.ai_score!=null){
-      var bits=[];
-      if(ai.knows_brand===false)bits.push(P("la IA no te reconoce por tu cuenta","AI doesn't recognize you on its own"));
-      else if(ai.knows_brand===true)bits.push(P("la IA ya te reconoce","AI already recognizes you"));
-      if(ai.recommended===false)bits.push(P("no te recomienda cuando piden tu servicio","it doesn't recommend you when your service is requested"));
-      else if(ai.recommended===true)bits.push(P("te incluye entre las opciones","it includes you among the options"));
-      else if(ai.recommended===null)bits.push(P("solo te menciona a veces","it only mentions you sometimes"));
-      var d=cap(bits.join("; "))+". ";
-      if(ai.knows_brand===false&&ai.knows_with_web)d+=P("Hoy solo te encuentra si le das tu dominio.","Today it only finds you if you hand it your domain.");
-      out.push({ic:"ai",name:P("Reconocimiento por la IA","AI recognition"),score:ai.ai_score,desc:d.trim()});
-    }
-    if(C.geo){var gf=fails(C.geo,GEO_NAMES);out.push({ic:"geo",name:P("Preparación para la IA (GEO)","AI readiness (GEO)"),score:C.geo.score,desc:gf.length?P("Te faltan señales que la IA usa para entenderte y citarte: ","Missing signals AI uses to understand and cite you: ")+gf.slice(0,4).join(", ")+".":P("Tu web tiene buenas señales para que la IA te entienda.","Your site has good signals for AI to understand you.")});}
+    var gm=geoModel(r);
+    if(gm)out.push({ic:"ai",grp:"geo",name:P("GEO · Visibilidad en la IA","GEO · Visibility in AI"),score:gm.score,desc:gm.desc});
     var op=r.onpage;
     if(op&&op.issues){out.push({ic:"seo",grp:"seo",name:P("SEO on-page (Google)","On-page SEO (Google)"),score:(op.score==null?0:op.score),desc:onpageDesc(op)});}
     else if(C.onpage){var of=fails(C.onpage,ONP_NAMES);out.push({ic:"seo",name:P("SEO on-page (Google)","On-page SEO (Google)"),score:C.onpage.score,desc:of.length?P("Por mejorar para Google: ","To improve for Google: ")+of.slice(0,4).join(", ")+".":P("On-page sólido: títulos, textos y estructura bien resueltos.","Solid on-page: titles, copy and structure well done.")});}
@@ -663,19 +653,10 @@
   function buildFindings(r){
     var C=r.categories||{},psi=r.psi_full||{},sec=(r.signals||{}).security||{},meta=r.meta||{},ai=r.geo_ai||{},sig=r.signals||{},ix=r.indexation||{};
     var crit=[],op=[];
-    var comp=((ai.competitors||[]).map(function(c){return c.name;}).filter(Boolean)).slice(0,3);
-    if(ai.available&&!ai.error){
-      if(ai.knows_brand===false)crit.push({t:P("La IA no sabe quién eres","AI doesn't know who you are"),d:P("Le preguntamos a la IA por tu marca y no tiene información fiable de ti. Cada vez más clientes preguntan a la IA antes de decidir — y hoy no te encuentran.","We asked the AI about your brand and it has no reliable info about you. More and more customers ask AI before deciding — and today they don't find you.")});
-      if(ai.recommended===false)crit.push({t:P("La IA recomienda a tu competencia","AI recommends your competitors"),d:P("Al pedir tu tipo de servicio, la IA nombra a otros antes que a ti"+(comp.length?": "+comp.join(", "):"")+". Pierdes a los clientes que aún no te conocen.","When asked for your type of service, the AI names others before you"+(comp.length?": "+comp.join(", "):"")+". You lose the customers who don't know you yet.")});
-    }
-    var mob=psi.mobile||{};
+    // Nota: los hallazgos de GEO/IA los genera geoFindings(); aquí solo lo técnico no cubierto.
     if(sig.https===false)crit.push({t:P("Tu web no tiene conexión segura (HTTPS)","Your site has no secure connection (HTTPS)"),d:P("Los navegadores marcan tu sitio como 'no seguro' y Google lo penaliza. Es lo primero a corregir.","Browsers flag your site as 'not secure' and Google penalizes it. It's the first thing to fix.")});
     if((sec.exposed||[]).length)crit.push({t:P("Archivos sensibles expuestos","Sensitive files exposed"),d:P("Detectamos "+sec.exposed.length+" archivo(s) accesibles que deberían estar protegidos. Hay que bloquearlos cuanto antes.","We found "+sec.exposed.length+" accessible file(s) that should be protected. They must be blocked as soon as possible.")});
     if(ix&&(ix.broken_indexed||[]).length)crit.push({t:P("Páginas rotas indexadas en Google","Broken pages indexed on Google"),d:P("Google tiene indexadas "+ix.broken_indexed.length+" página(s) que ya dan error 404. Restan confianza y desperdician rastreo.","Google has "+ix.broken_indexed.length+" indexed page(s) that already return 404. They erode trust and waste crawl budget.")});
-    if(meta.has_faq===false)op.push({t:P("Añadir preguntas frecuentes (FAQ)","Add a FAQ section"),d:P("Una sección de FAQ con datos estructurados hace que la IA cite respuestas directas de tu web cuando alguien pregunta por tu servicio.","An FAQ section with structured data lets AI quote direct answers from your site when someone asks about your service.")});
-    if(ai.gbp===false)op.push({t:P("Crear tu ficha de Google Business","Create your Google Business profile"),d:P("No encontramos una ficha activa. Es clave para el mapa, las búsquedas locales y la IA local — y aporta reseñas que la IA puede citar.","We couldn't find an active profile. It's key for the map, local searches and local AI — and it brings reviews the AI can cite.")});
-    if(!(meta.schema_raw_types&&meta.schema_raw_types.length))op.push({t:P("Añadir datos estructurados (schema)","Add structured data (schema)"),d:P("Son etiquetas invisibles que ayudan a Google y a la IA a entender qué haces y a mostrarte mejor.","Invisible tags that help Google and AI understand what you do and show you better.")});
-    op.push({t:P("Una página por servicio para la IA","One page per service for AI"),d:P("Crear una página por cada servicio, con el vocabulario de tu cliente y señales de autoridad, para que la IA te mencione junto a tu competencia.","Create a page for each service, with your customer's vocabulary and authority signals, so AI mentions you alongside your competitors.")});
     var all=crit.map(function(x){x.sev="critico";return x;}).concat(op.map(function(x){x.sev="op";return x;}));
     return all;
   }
@@ -796,6 +777,59 @@
     return out;
   }
 
+  /* ===== GEO / VISIBILIDAD EN LA IA (profundo) ===== */
+  function geoModel(r){
+    var ai=r.geo_ai||{},sig=r.signals||{},meta=r.meta||{};
+    if(!ai.available)return null;
+    var st=[],add=function(k,s,w){st.push({k:k,s:s,w:w});};
+    var rec=ai.recognition;
+    add("know",rec==="strong"?"ok":rec==="weak"?"warn":"bad",20);
+    add("reco",ai.recommended===true?"ok":ai.recommended===null?"warn":"bad",20);
+    var srcs=ai.sources||[],ext=srcs.filter(function(s){return !s.own;});
+    add("sources",ext.length>0?"ok":srcs.length>0?"warn":"bad",10);
+    var lq=sig.llms_quality;
+    add("llms",lq==="good"?"ok":lq==="thin"?"warn":"bad",10);
+    var sch=meta.schema_types||[];
+    var citable=meta.has_faq||sch.some(function(t){return /faqpage|qapage|article|howto/.test(t);});
+    add("citable",citable?"ok":"warn",12);
+    var org=sch.some(function(t){return /organization|localbusiness|professionalservice/.test(t);});
+    add("entity",(org&&meta.has_sameas)?"ok":(org||meta.has_sameas)?"warn":"bad",12);
+    add("consistency",meta.has_contact?"ok":"warn",6);
+    add("presence",(ai.gbp&&(ai.gbp_reviews_n||0)>0)?"ok":ai.gbp?"warn":"bad",10);
+    var val={ok:100,warn:55,bad:0},sw=0,ss=0;
+    st.forEach(function(p){sw+=p.w;ss+=val[p.s]*p.w;});
+    var score=sw?Math.round(ss/sw):0;
+    var GOOD={know:P("la IA ya te reconoce por tu cuenta","AI already recognizes you on its own"),reco:P("la IA te incluye cuando piden tu servicio","AI includes you when your service is requested"),sources:P("la IA te cita desde fuentes externas","AI cites you from external sources"),llms:P("guías a la IA con tu llms.txt","you guide AI with your llms.txt"),citable:P("tienes contenido citable (FAQ)","you have citable content (FAQ)"),entity:P("tu marca está definida como entidad","your brand is defined as an entity"),consistency:P("tus datos de contacto son claros","your contact details are clear"),presence:P("tienes reseñas que la IA puede citar","you have reviews AI can cite")};
+    var BAD={know:(rec==="weak"?P("la IA solo te encuentra si le das tu web","AI only finds you if you hand it your site"):P("la IA no te reconoce por tu cuenta","AI doesn't recognize you on its own")),reco:P("no te recomienda cuando piden tu servicio","it doesn't recommend you when your service is requested"),sources:P("no hay fuentes externas que la IA cite sobre ti","there are no external sources AI cites about you"),llms:P("no tienes llms.txt (la guía para la IA)","you have no llms.txt (the guide for AI)"),citable:P("falta contenido citable (FAQ, respuestas claras)","citable content is missing (FAQ, clear answers)"),entity:P("tu marca no está definida como entidad (Schema/perfiles)","your brand isn't defined as an entity (Schema/profiles)"),consistency:P("faltan datos de contacto claros","clear contact details are missing"),presence:P("no tienes reseñas que la IA pueda citar","you have no reviews AI can cite")};
+    var goodK=st.filter(function(p){return p.s==="ok";}),badK=st.filter(function(p){return p.s==="bad";}).concat(st.filter(function(p){return p.s==="warn";}));
+    var good=goodK.length?GOOD[goodK[0].k]:null,bad=badK.length?BAD[badK[0].k]:null,desc;
+    if(good&&bad)desc=cap(good)+P(", pero "+bad+".",", but "+bad+".");
+    else if(bad)desc=cap(bad)+P(". Hay trabajo para que la IA te elija.",". There is work to do so AI picks you.");
+    else desc=P("La IA ya te reconoce y te tiene en cuenta: buena base de visibilidad en IA.","AI already recognizes and considers you: a solid AI-visibility base.");
+    return {score:score,desc:desc,points:st};
+  }
+  function geoFindings(r){
+    var ai=r.geo_ai||{},sig=r.signals||{},meta=r.meta||{},out=[];
+    if(!ai.available)return out;
+    var rec=ai.recognition,comp=((ai.competitors||[]).map(function(c){return c.name;}).filter(Boolean)).slice(0,3);
+    if(rec==="none")out.push({sev:"critico",t:P("La IA no sabe quién eres","AI doesn't know who you are"),d:P("Le preguntamos por tu marca (con búsqueda web) y no te reconoce. Cada vez más clientes preguntan a la IA antes de decidir y hoy no apareces. Se corrige con entidad de marca (Schema Organization + perfiles), contenido citable y presencia en fuentes que la IA lee.","We asked about your brand (with web search) and it doesn't recognize you. More customers ask AI before deciding and today you don't appear. Fix it with brand entity (Organization Schema + profiles), citable content and presence in sources AI reads.")});
+    else if(rec==="weak")out.push({sev:"op",t:P("La IA solo te encuentra si le das tu web","AI only finds you if you hand it your site"),d:P("Por su cuenta no te reconoce; solo te describe si visita tu dominio. Falta autoridad de entidad para que te tenga 'de memoria'.","On its own it doesn't recognize you; it only describes you if it visits your domain. You lack entity authority for it to know you 'by heart'.")});
+    if(ai.recommended===false)out.push({sev:"critico",t:P("La IA recomienda a tu competencia","AI recommends your competitors"),d:P("Cuando piden tu tipo de servicio, la IA nombra a otros antes que a ti"+(comp.length?": "+comp.join(", "):"")+". Pierdes a los clientes que aún no te conocen. Necesitas una página por servicio con vocabulario de cliente y señales de autoridad.","When your type of service is requested, AI names others before you"+(comp.length?": "+comp.join(", "):"")+". You lose customers who don't know you yet. You need a page per service with customer vocabulary and authority signals.")});
+    else if(ai.recommended===null)out.push({sev:"op",t:P("La IA te menciona solo a veces","AI mentions you only sometimes"),d:P("Apareces de forma inconsistente cuando piden tu servicio. Reforzar contenido por servicio y señales de autoridad te hará aparecer siempre.","You appear inconsistently when your service is requested. Strengthening per-service content and authority signals will make you appear consistently.")});
+    var srcs=ai.sources||[],ext=srcs.filter(function(s){return !s.own;});
+    if(ext.length>0)out.push({sev:"op",t:P("Fuentes con las que la IA te cita","Sources AI cites you from"),d:P("La IA se apoyó en: "+ext.slice(0,5).map(function(s){return s.domain;}).join(", ")+". Consigue más menciones en sitios así (prensa, directorios, reseñas) para que te cite con más fuerza.","AI relied on: "+ext.slice(0,5).map(function(s){return s.domain;}).join(", ")+". Get more mentions on sites like these (press, directories, reviews) so it cites you more strongly.")});
+    else out.push({sev:"op",t:P("La IA no cita fuentes que hablen de ti","AI cites no sources about you"),d:P("Al describirte, la IA no se apoya en fuentes externas (prensa, directorios, reseñas). Esas menciones son las que te dan autoridad ante la IA.","When describing you, AI relies on no external sources (press, directories, reviews). Those mentions are what give you authority with AI.")});
+    if(sig.llms_quality==="none")out.push({sev:"op",t:P("Falta el llms.txt (guía para la IA)","Missing llms.txt (guide for AI)"),d:P("Es un archivo que le dice a los buscadores con IA qué páginas tuyas son clave y cómo entenderte. No lo tienes; añadirlo ayuda a que te citen bien.","It's a file that tells AI search engines which of your pages are key and how to understand you. You don't have it; adding it helps them cite you correctly.")});
+    else if(sig.llms_quality==="thin")out.push({sev:"op",t:P("Tu llms.txt está incompleto","Your llms.txt is thin"),d:P("Tienes llms.txt pero le faltan secciones y enlaces a tus páginas clave. Complétalo para guiar mejor a la IA.","You have llms.txt but it lacks sections and links to your key pages. Complete it to guide AI better.")});
+    var sch=meta.schema_types||[];
+    if(!(meta.has_faq||sch.some(function(t){return /faqpage|qapage/.test(t);})))out.push({sev:"op",t:P("Falta contenido citable (FAQ)","Missing citable content (FAQ)"),d:P("La IA cita respuestas cortas y claras. Una sección de preguntas frecuentes con datos estructurados hace que la IA tome respuestas directas de tu web.","AI quotes short, clear answers. An FAQ section with structured data lets AI take direct answers from your site.")});
+    var org=sch.some(function(t){return /organization|localbusiness|professionalservice/.test(t);});
+    if(!(org&&meta.has_sameas))out.push({sev:"op",t:P("Tu marca no está definida como entidad","Your brand isn't defined as an entity"),d:P("Para que la IA te reconozca 'de memoria' necesitas Schema Organization con tus perfiles oficiales (sameAs a LinkedIn, Instagram, etc.) y presencia en directorios. Hoy "+(org?"tienes schema pero sin perfiles enlazados":"no declaras entidad de marca")+".","For AI to recognize you 'by heart' you need Organization Schema with your official profiles (sameAs to LinkedIn, Instagram, etc.) and directory presence. Today "+(org?"you have schema but no linked profiles":"you don't declare a brand entity")+".")});
+    if(ai.gbp&&(ai.gbp_reviews_n||0)===0)out.push({sev:"op",t:P("Tu ficha de Google no tiene reseñas","Your Google profile has no reviews"),d:P("Las reseñas son de las fuentes que la IA más lee para recomendar. Pide reseñas a tus clientes para ganar peso ante la IA y en el mapa.","Reviews are among the sources AI reads most to recommend. Ask your customers for reviews to gain weight with AI and on the map.")});
+    else if(ai.gbp===false)out.push({sev:"op",t:P("No encontramos tu ficha de Google Business","We couldn't find your Google Business profile"),d:P("Sin ficha no apareces en el mapa ni en la IA local, y pierdes las reseñas que la IA cita. Créala y complétala.","Without a profile you don't appear on the map or in local AI, and you lose the reviews AI cites. Create and complete it.")});
+    return out;
+  }
+
   /* hero panel is static (sin movimiento) */
 
   /* ===== CONSOLE (never pauses) ===== */
@@ -877,13 +911,14 @@
     var allDims=buildDims(r);
     var perfDims=allDims.filter(function(d){return d.grp==="perf";});
     var seoDims=allDims.filter(function(d){return d.grp==="seo";});
-    var restDims=allDims.filter(function(d){return d.grp!=="perf"&&d.grp!=="seo";}).sort(function(a,b){return a.score-b.score;});
-    var dims=perfDims.concat(seoDims).concat(restDims);
+    var geoDims=allDims.filter(function(d){return d.grp==="geo";});
+    var restDims=allDims.filter(function(d){return !d.grp;}).sort(function(a,b){return a.score-b.score;});
+    var dims=perfDims.concat(seoDims).concat(geoDims).concat(restDims);
     document.getElementById("dimsTitle").textContent=P("Las "+dims.length+" dimensiones","The "+dims.length+" dimensions");
     document.getElementById("dimsGrid").innerHTML=dims.map(function(d,i){var c=clsColor(d.score);return '<div class="dcard" style="animation-delay:'+(i*0.05)+'s"><div class="dt"><span class="di">'+icon(d.ic)+'</span><span class="dh"><span class="dn">'+esc(d.name)+'</span><span class="dc" style="color:'+c+'">'+clsLabel(d.score)+'</span></span><span class="ds" style="color:'+c+'">'+d.score+'<small>/100</small></span></div><div class="dbar"><div class="df" style="width:'+d.score+'%;background:'+c+'"></div></div><p class="dd">'+esc(d.desc)+'</p></div>';}).join("");
 
     document.getElementById("hallTitle").textContent=t("hall_title");
-    var f=perfFindings(r).slice(0,3).concat(onpageFindings(r).slice(0,10)).concat(buildFindings(r)).slice(0,16);
+    var f=geoFindings(r).slice(0,6).concat(perfFindings(r).slice(0,3)).concat(onpageFindings(r).slice(0,8)).concat(buildFindings(r)).slice(0,18);
     document.getElementById("hallGrid").innerHTML=f.map(function(x){var isC=x.sev==="critico";return '<div class="hcard'+(isC?"":" op")+'"><span class="htag">'+(isC?t("tag_critico"):t("tag_oportunidad"))+'</span><p class="hti">'+esc(x.t)+'</p><p class="hd2">'+esc(x.d)+'</p></div>';}).join("");
 
     var ai=r.geo_ai||{},probs=[];

@@ -71,7 +71,10 @@ def derive_service(meta: dict) -> str:
 
 
 async def _ask(client: httpx.AsyncClient, provider: str, key: str, model: str,
-               prompt: str, max_tokens: int = 700, grounded: bool = False) -> str:
+               prompt: str, max_tokens: int = 700, grounded: bool = False,
+               sink: list | None = None) -> str:
+    """Si `sink` es una lista y la llamada usa búsqueda web, se le añaden las URLs de
+    las FUENTES que la IA citó (para 'con qué fuentes te cita')."""
     if provider == "gemini":
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
@@ -90,6 +93,15 @@ async def _ask(client: httpx.AsyncClient, provider: str, key: str, model: str,
             r = await _call(False)
         r.raise_for_status()
         data = r.json()
+        if sink is not None:
+            try:
+                gm = (data.get("candidates", [{}])[0] or {}).get("groundingMetadata", {}) or {}
+                for ch in (gm.get("groundingChunks") or []):
+                    w = ch.get("web") or {}
+                    if w.get("uri"):
+                        sink.append({"url": w.get("uri"), "title": w.get("title") or ""})
+            except Exception:  # noqa: BLE001
+                pass
         parts = data.get("candidates", [{}])[0].get("content", {}).get("parts", [])
         return "".join(p.get("text", "") for p in parts).strip()
 
@@ -107,6 +119,11 @@ async def _ask(client: httpx.AsyncClient, provider: str, key: str, model: str,
                 for c in (o.get("content") or []):
                     if c.get("type") == "output_text":
                         txt += c.get("text", "")
+                    if sink is not None:
+                        for a in (c.get("annotations") or []):
+                            u = a.get("url") or (a.get("url_citation") or {}).get("url")
+                            if u:
+                                sink.append({"url": u, "title": a.get("title") or ""})
             return txt.strip()
         r = await client.post("https://api.openai.com/v1/chat/completions", headers=headers,
                               json={"model": model, "messages": [{"role": "user", "content": prompt}],
@@ -534,11 +551,12 @@ async def run_ai_geo(domain: str, meta: dict) -> dict | None:
                 f"If you can't find the site, reply only NO_ENCONTRADO.")
 
             # Ronda 1: briefing + reconocimiento (sin y con web) + gap
+            ai_sources: list = []   # fuentes que la IA cita al describir la marca
             r_brief, r_know, r_gap, r_kw = await asyncio.gather(
                 _ask(client, prov, key, strong, q_brief, max_tokens=320, grounded=True),
                 _ask(client, prov, key, model, q_know, max_tokens=500, grounded=False),
                 _ask(client, prov, key, strong, q_gap, max_tokens=300, grounded=True),
-                _ask(client, prov, key, strong, q_know_web, max_tokens=300, grounded=True),
+                _ask(client, prov, key, strong, q_know_web, max_tokens=300, grounded=True, sink=ai_sources),
                 return_exceptions=True,
             )
             brief_txt = "" if isinstance(r_brief, Exception) else (r_brief or "")
@@ -719,6 +737,23 @@ async def run_ai_geo(domain: str, meta: dict) -> dict | None:
     # Lo que la IA MENCIONA de ti (lo que de verdad "sabe"): su descripción real
     mentions = know_raw if knows_brand else (web_desc if knows_with_web else "")
 
+    # Fuentes que la IA citó al describir la marca (con qué fuentes te cita)
+    _own = (domain or "").split("/")[0].replace("www.", "").lower()
+    sources_out = []
+    _seen_src = set()
+    for _s in (ai_sources if "ai_sources" in dir() else []):
+        _u = _s.get("url") if isinstance(_s, dict) else _s
+        _m = re.search(r"https?://([^/]+)", _u or "")
+        _h = _m.group(1).replace("www.", "").lower() if _m else ""
+        if not _h or _h in _seen_src or "vertexaisearch" in _h or "googleusercontent" in _h:
+            continue
+        _seen_src.add(_h)
+        sources_out.append({"domain": _h,
+                            "own": bool(_own and (_h == _own or _h.endswith("." + _own))),
+                            "title": (_s.get("title") if isinstance(_s, dict) else "") or ""})
+        if len(sources_out) >= 8:
+            break
+
     return {
         "available": True,
         "brand": brand,
@@ -743,5 +778,6 @@ async def run_ai_geo(domain: str, meta: dict) -> dict | None:
         "gap": gap,
         "category_queries": cat_queries,
         "gl": gl,
+        "sources": sources_out,
         "ai_score": score,
     }
