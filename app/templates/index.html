@@ -222,9 +222,22 @@
   .hcard.op .htag{color:#b07d0a}
   .hcard .hti{margin:8px 0 8px;font-family:var(--disp);font-weight:600;font-size:16px;letter-spacing:-.01em;color:var(--ink)}
   .hcard .hd2{margin:0;font-size:13.5px;line-height:1.6;color:var(--mut)}
-  .hcat{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--cy-t);font-weight:600;margin:26px 0 14px}
-  .hcat .hcn{background:var(--surf2);color:var(--mut2);font-size:10px;border-radius:20px;padding:2px 9px;letter-spacing:.06em}
+  .hcat{display:flex;align-items:center;gap:11px;font-family:var(--disp);font-size:16px;font-weight:700;letter-spacing:-.01em;color:var(--ink);margin:30px 0 15px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+  .hcat .di{flex:none}
+  .hcat .hcn{margin-left:auto;background:var(--surf2);color:var(--mut2);font-family:var(--mono);font-size:10.5px;font-weight:500;border-radius:20px;padding:3px 10px;letter-spacing:.04em}
   .hcat:first-child{margin-top:0}
+  /* cabecera del resultado */
+  .res-head-top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+  .res-done{display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ok);font-weight:600}
+  .res-done .b{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 8px rgba(31,157,107,.5)}
+  .res-dom{display:inline-flex;align-items:center;gap:7px;background:var(--surf);border:1px solid var(--line3);border-radius:999px;padding:7px 15px;font-family:var(--mono);font-size:13px;color:var(--ink);font-weight:500}
+  .res-dom svg{color:var(--cy-d);flex:none}
+  .res-score{display:flex;align-items:flex-end;gap:14px;margin:0 0 16px}
+  .res-score .score{font-family:var(--disp);font-weight:800;font-size:clamp(58px,10vw,80px);line-height:.82;letter-spacing:-.045em}
+  .res-score-r{display:flex;flex-direction:column;gap:3px;padding-bottom:9px}
+  .res-score-r .a{font-family:var(--mono);font-size:13px;color:var(--mut2)}
+  .res-score-r .z{font-family:var(--disp);font-weight:700;font-size:17px}
+  #resTitle{margin:24px 0 0;font-size:15.5px;line-height:1.65;color:var(--ink2);max-width:66ch}
   /* rendimiento (perf) */
   .perf{background:var(--surf);border:1px solid var(--line);border-radius:16px;padding:clamp(20px,3vw,28px)}
   .perf-h{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
@@ -445,10 +458,15 @@
 
     <!-- RESULTS -->
     <div id="results" class="hidden">
-      <div class="top"><span class="live"><span class="b" style="animation:none"></span><span class="t" data-i18n="res_done">Diagnóstico completado</span></span><span class="dom" id="resDom"></span></div>
-      <div class="scorewrap"><div class="score" id="scoreNum">0</div><div class="score-r"><div class="a">/ 100</div><div class="z" id="scoreZone"></div></div></div>
-      <div class="prog"><div class="f zone" id="resProg"></div></div>
-      <p id="resTitle" style="margin:26px 0 0;font-size:15.5px;line-height:1.6;color:var(--ink2);max-width:64ch"></p>
+      <div class="res-head">
+        <div class="res-head-top">
+          <span class="res-done"><span class="b"></span><span data-i18n="res_done">Diagnóstico completado</span></span>
+          <span class="res-dom"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg><span id="resDom"></span></span>
+        </div>
+        <div class="res-score"><div class="score" id="scoreNum">0</div><div class="res-score-r"><span class="a">/ 100</span><span class="z" id="scoreZone"></span></div></div>
+        <div class="prog"><div class="f zone" id="resProg"></div></div>
+        <p id="resTitle"></p>
+      </div>
 
       <div style="margin-top:36px">
         <div style="display:flex;justify-content:space-between;align-items:baseline;gap:16px;flex-wrap:wrap;margin-bottom:20px">
@@ -1174,12 +1192,13 @@
     });
     var hg=document.getElementById("hallGrid");hg.className="";hg.innerHTML=hh;
 
-    var ai=r.geo_ai||{},probs=[];
-    if(ai.available&&!ai.error){if(ai.knows_brand===false)probs.push(P("la IA no te conoce por tu cuenta","AI doesn't know you on its own"));if(ai.recommended===false)probs.push(P("no te recomienda cuando piden tu servicio","it doesn't recommend you when your service is requested"));else if(ai.recommended===null)probs.push(P("la IA solo te menciona a veces","AI only mentions you sometimes"));if(ai.gbp===false)probs.push(P("no encontramos tu ficha de Google Business","we couldn't find your Google Business profile"));}
-    var worst=dims[0];if(worst&&worst.score<55)probs.push(worst.name.toLowerCase()+" "+worst.score+"/100");
+    var dd=r.domain||P("tu web","your site");
+    var byScore=dims.slice().sort(function(a,b){return a.score-b.score;});
+    var weak=byScore.filter(function(d){return d.score<70;}).slice(0,3).map(function(d){return d.name.toLowerCase();});
+    var closing=P("Todos estos puntos son clave para que te encuentren en Google y en la IA, y hoy es justo donde pierdes clientes que se van con la competencia.","All of these are key to being found on Google and in AI, and today that's exactly where you lose customers to competitors.");
     var rt;
-    if(probs.length)rt=P("Lo más urgente para "+(r.domain||"tu web")+": ","Most urgent for "+(r.domain||"your site")+": ")+probs.slice(0,3).join("; ")+P(". Ahí es donde pierdes clientes que hoy se van con la competencia.",". That's where you lose customers who today go to your competitors.");
-    else rt=score>=70?P("Tu base está bien; lo que falta es ganar la capa de IA antes que la competencia. El plan va en el informe.","Your foundation is solid; what's left is winning the AI layer before your competitors. The plan is in the report."):P("Hay puntos claros que corregir para que Google y la IA te prioricen. El detalle va en el informe.","There are clear things to fix so Google and AI prioritize you. The detail is in the report.");
+    if(weak.length)rt=P("En "+dd+", lo que más te está frenando ahora mismo es: "+weak.join(", ")+". ","For "+dd+", what's holding you back right now is: "+weak.join(", ")+". ")+closing;
+    else rt=P("En "+dd+" la base está sólida. Ahora toca afinar los detalles para dominar la visibilidad en Google y en la IA antes que tu competencia.","For "+dd+" the foundation is solid. Now it's about fine-tuning the details to dominate visibility on Google and in AI ahead of your competitors.");
     document.getElementById("resTitle").textContent=rt;
     document.getElementById("mailed").innerHTML=P("📬 Este es un vistazo rápido. Te enviamos a tu correo el <b>análisis completo en PDF</b>: cómo te ve la IA, tu competencia real, los hallazgos y el <b>plan de acción</b>. Revisa también la carpeta de spam.","📬 This is a quick look. We're sending the <b>full PDF analysis</b> to your inbox: how AI sees you, your real competitors, the findings and the <b>action plan</b>. Check your spam folder too.");
     submitBtn.disabled=false;submitBtn.textContent=t("submit_btn");
