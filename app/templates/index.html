@@ -627,6 +627,8 @@
     if(scm)out.push({ic:"geo",grp:"schema",name:P("Datos estructurados (Schema)","Structured data (Schema)"),score:scm.score,desc:scm.desc});
     var secm=securityModel(r);
     if(secm)out.push({ic:"shield",grp:"sec",name:P("Seguridad","Security"),score:secm.score,desc:secm.desc});
+    var lcm=localModel(r);
+    if(lcm)out.push({ic:"geo",grp:"local",name:P("Presencia local y reputación","Local presence & reputation"),score:lcm.score,desc:lcm.desc});
     var pf=r.perf2;
     if(pf&&(pf.mobile||pf.desktop)){
       function perfDesc(strat){
@@ -797,7 +799,6 @@
     var org=sch.some(function(t){return /organization|localbusiness|professionalservice/.test(t);});
     add("entity",(org&&meta.has_sameas)?"ok":(org||meta.has_sameas)?"warn":"bad",12);
     add("consistency",meta.has_contact?"ok":"warn",6);
-    add("presence",(ai.gbp&&(ai.gbp_reviews_n||0)>0)?"ok":ai.gbp?"warn":"bad",10);
     var val={ok:100,warn:55,bad:0},sw=0,ss=0;
     st.forEach(function(p){sw+=p.w;ss+=val[p.s]*p.w;});
     var score=sw?Math.round(ss/sw):0;
@@ -827,8 +828,6 @@
     if(!(meta.has_faq||sch.some(function(t){return /faqpage|qapage/.test(t);})))out.push({sev:"op",t:P("Falta contenido citable (FAQ)","Missing citable content (FAQ)"),d:P("La IA cita respuestas cortas y claras. Una sección de preguntas frecuentes con datos estructurados hace que la IA tome respuestas directas de tu web.","AI quotes short, clear answers. An FAQ section with structured data lets AI take direct answers from your site.")});
     var org=sch.some(function(t){return /organization|localbusiness|professionalservice/.test(t);});
     if(!(org&&meta.has_sameas))out.push({sev:"op",t:P("Tu marca no está definida como entidad","Your brand isn't defined as an entity"),d:P("Para que la IA te reconozca 'de memoria' necesitas Schema Organization con tus perfiles oficiales (sameAs a LinkedIn, Instagram, etc.) y presencia en directorios. Hoy "+(org?"tienes schema pero sin perfiles enlazados":"no declaras entidad de marca")+".","For AI to recognize you 'by heart' you need Organization Schema with your official profiles (sameAs to LinkedIn, Instagram, etc.) and directory presence. Today "+(org?"you have schema but no linked profiles":"you don't declare a brand entity")+".")});
-    if(ai.gbp&&(ai.gbp_reviews_n||0)===0)out.push({sev:"op",t:P("Tu ficha de Google no tiene reseñas","Your Google profile has no reviews"),d:P("Las reseñas son de las fuentes que la IA más lee para recomendar. Pide reseñas a tus clientes para ganar peso ante la IA y en el mapa.","Reviews are among the sources AI reads most to recommend. Ask your customers for reviews to gain weight with AI and on the map.")});
-    else if(ai.gbp===false)out.push({sev:"op",t:P("No encontramos tu ficha de Google Business","We couldn't find your Google Business profile"),d:P("Sin ficha no apareces en el mapa ni en la IA local, y pierdes las reseñas que la IA cita. Créala y complétala.","Without a profile you don't appear on the map or in local AI, and you lose the reviews AI cites. Create and complete it.")});
     return out;
   }
 
@@ -967,6 +966,45 @@
     return out;
   }
 
+  /* ===== PRESENCIA LOCAL Y REPUTACIÓN ===== */
+  function localModel(r){
+    var ai=r.geo_ai||{},meta=r.meta||{},op=r.onpage||{};
+    if(!ai.available&&meta.has_address==null&&meta.has_phone==null)return null;
+    var types=(op.schema&&op.schema.types)||meta.schema_types||[];
+    var lb=types.some(function(t){return /localbusiness|professionalservice/.test(t);});
+    var gbp=ai.gbp,rev=ai.gbp_reviews_n||0;
+    var st=[],add=function(k,s,w){st.push({k:k,s:s,w:w});};
+    add("gbp",gbp===true?"ok":(gbp===false?"bad":"warn"),24);
+    add("reviews",(gbp&&rev>0)?"ok":(gbp?"warn":"bad"),22);
+    add("nap",(meta.has_address&&meta.has_phone)?"ok":((meta.has_address||meta.has_phone)?"warn":"bad"),16);
+    add("map",(meta.has_map||meta.has_geo)?"ok":"warn",12);
+    add("lb",lb?"ok":"warn",16);
+    add("hours",meta.has_hours?"ok":"warn",10);
+    var val={ok:100,warn:55,bad:0},sw=0,ss=0;st.forEach(function(p){sw+=p.w;ss+=val[p.s]*p.w;});
+    var score=sw?Math.round(ss/sw):0;
+    var GOOD={gbp:P("tienes ficha de Google Business","you have a Google Business profile"),reviews:P("tienes reseñas ("+rev+")","you have reviews ("+rev+")"),nap:P("tu dirección y teléfono están claros","your address and phone are clear"),map:P("muestras tu ubicación en el mapa","you show your location on a map"),lb:P("marcas tu negocio con datos estructurados","you mark up your business with structured data"),hours:P("publicas tus horarios","you publish your opening hours")};
+    var BAD={gbp:P("no encontramos tu ficha de Google Business","we couldn't find your Google Business profile"),reviews:(gbp?P("tu ficha no tiene reseñas","your profile has no reviews"):P("no tienes reseñas visibles","you have no visible reviews")),nap:((meta.has_address||meta.has_phone)?P("faltan datos de contacto (dirección o teléfono)","contact details are incomplete (address or phone)"):P("no muestras dirección ni teléfono","you show no address or phone")),map:P("no muestras tu ubicación en un mapa","you don't show your location on a map"),lb:P("no marcas tu negocio con datos estructurados (LocalBusiness)","you don't mark up your business (LocalBusiness)"),hours:P("no publicas tus horarios de atención","you don't publish opening hours")};
+    var goodK=st.filter(function(p){return p.s==="ok";}),badK=st.filter(function(p){return p.s==="bad";}).concat(st.filter(function(p){return p.s==="warn";}));
+    var good=goodK.length?GOOD[goodK[0].k]:null,bad=badK.length?BAD[badK[0].k]:null,desc;
+    if(good&&bad)desc=cap(good)+P(", pero "+bad+".",", but "+bad+".");
+    else if(bad)desc=cap(bad)+P(". Reforzarlo te ayuda a que te encuentren cerca y a generar confianza.",". Strengthening it helps people find you nearby and builds trust.");
+    else desc=P("Buena presencia local: ficha, reseñas y ubicación en orden.","Good local presence: profile, reviews and location in order.");
+    return {score:score,desc:desc,points:st};
+  }
+  function localFindings(r){
+    var ai=r.geo_ai||{},meta=r.meta||{},op=r.onpage||{},out=[];
+    if(!ai.available&&meta.has_address==null&&meta.has_phone==null)return out;
+    var types=(op.schema&&op.schema.types)||meta.schema_types||[];
+    var lb=types.some(function(t){return /localbusiness|professionalservice/.test(t);});
+    var rev=ai.gbp_reviews_n||0;
+    if(ai.gbp===false)out.push({sev:"critico",t:P("No encontramos tu ficha de Google Business","We couldn't find your Google Business profile"),d:P("Sin ficha no apareces en el mapa ni en las búsquedas locales, y pierdes las reseñas que Google y la IA usan para recomendarte. Créala gratis y complétala (categoría, dirección, teléfono, horario, fotos).","Without a profile you don't appear on the map or in local searches, and you lose the reviews Google and AI use to recommend you. Create it for free and complete it (category, address, phone, hours, photos).")});
+    else if(ai.gbp===true&&rev===0)out.push({sev:"op",t:P("Tu ficha de Google no tiene reseñas","Your Google profile has no reviews"),d:P("Las reseñas son de lo que más miran los clientes y la IA para elegir. Pide reseñas a tus clientes contentos: suben tu posición local y tu confianza.","Reviews are one of the things customers and AI look at most when choosing. Ask your happy customers for reviews: they boost your local ranking and trust.")});
+    if(!(meta.has_address&&meta.has_phone))out.push({sev:"op",t:P("Faltan datos de contacto claros (NAP)","Missing clear contact details (NAP)"),d:P("No mostramos "+(!meta.has_address?P("tu dirección","your address"):P("tu teléfono","your phone"))+" de forma clara. El nombre, la dirección y el teléfono (NAP) deben aparecer iguales en la web y en tu ficha para que Google y la IA confíen en ti.","We couldn't clearly find "+(!meta.has_address?P("your address","your address"):P("your phone","your phone"))+". Your name, address and phone (NAP) should appear the same on the site and your profile so Google and AI trust you.")});
+    if(!(meta.has_map||meta.has_geo))out.push({sev:"op",t:P("No muestras tu ubicación en un mapa","You don't show your location on a map"),d:P("Incrustar un mapa de Google en la página de contacto ayuda a los clientes a llegar y refuerza la señal de negocio local ante Google.","Embedding a Google map on your contact page helps customers reach you and reinforces the local-business signal to Google.")});
+    if(!lb)out.push({sev:"op",t:P("Falta marcar tu negocio (LocalBusiness)","Missing LocalBusiness markup"),d:P("El Schema LocalBusiness con dirección, teléfono, horario y geolocalización le dice a Google exactamente qué eres y dónde, y te ayuda a salir en el mapa y en la IA local.","LocalBusiness Schema with address, phone, hours and geolocation tells Google exactly what and where you are, helping you appear on the map and in local AI.")});
+    return out;
+  }
+
   /* hero panel is static (sin movimiento) */
 
   /* ===== CONSOLE (never pauses) ===== */
@@ -1052,13 +1090,14 @@
     var techDims=allDims.filter(function(d){return d.grp==="tech";});
     var schemaDims=allDims.filter(function(d){return d.grp==="schema";});
     var secDims=allDims.filter(function(d){return d.grp==="sec";});
+    var localDims=allDims.filter(function(d){return d.grp==="local";});
     var restDims=allDims.filter(function(d){return !d.grp;}).sort(function(a,b){return a.score-b.score;});
-    var dims=perfDims.concat(seoDims).concat(geoDims).concat(techDims).concat(schemaDims).concat(secDims).concat(restDims);
+    var dims=perfDims.concat(seoDims).concat(geoDims).concat(techDims).concat(schemaDims).concat(secDims).concat(localDims).concat(restDims);
     document.getElementById("dimsTitle").textContent=P("Las "+dims.length+" dimensiones","The "+dims.length+" dimensions");
     document.getElementById("dimsGrid").innerHTML=dims.map(function(d,i){var c=clsColor(d.score);return '<div class="dcard" style="animation-delay:'+(i*0.05)+'s"><div class="dt"><span class="di">'+icon(d.ic)+'</span><span class="dh"><span class="dn">'+esc(d.name)+'</span><span class="dc" style="color:'+c+'">'+clsLabel(d.score)+'</span></span><span class="ds" style="color:'+c+'">'+d.score+'<small>/100</small></span></div><div class="dbar"><div class="df" style="width:'+d.score+'%;background:'+c+'"></div></div><p class="dd">'+esc(d.desc)+'</p></div>';}).join("");
 
     document.getElementById("hallTitle").textContent=t("hall_title");
-    var f=geoFindings(r).slice(0,6).concat(perfFindings(r).slice(0,3)).concat(onpageFindings(r).slice(0,6)).concat(techFindings(r).slice(0,5)).concat(schemaFindings(r).slice(0,3)).concat(securityFindings(r).slice(0,5)).slice(0,24);
+    var f=geoFindings(r).slice(0,5).concat(localFindings(r).slice(0,4)).concat(perfFindings(r).slice(0,3)).concat(onpageFindings(r).slice(0,5)).concat(techFindings(r).slice(0,4)).concat(schemaFindings(r).slice(0,3)).concat(securityFindings(r).slice(0,4)).slice(0,26);
     document.getElementById("hallGrid").innerHTML=f.map(function(x){var isC=x.sev==="critico";return '<div class="hcard'+(isC?"":" op")+'"><span class="htag">'+(isC?t("tag_critico"):t("tag_oportunidad"))+'</span><p class="hti">'+esc(x.t)+'</p><p class="hd2">'+esc(x.d)+'</p></div>';}).join("");
 
     var ai=r.geo_ai||{},probs=[];

@@ -190,11 +190,19 @@ def parse_home(html: str, base_url: str) -> dict:
     q_headings = sum(1 for t in heading_texts if t.endswith("?"))
     has_faq = ("faqpage" in schema_low) or ("qapage" in schema_low) or q_headings >= 2
     # Ficha de contacto (NAP): tel: link, schema de contacto/direccion o telefono real en texto
-    has_contact = (
-        bool(soup.find("a", href=re.compile(r"^tel:", re.I)))
-        or any(x in schema_low for x in ("contactpoint", "postaladdress", "localbusiness"))
-        or bool(re.search(r"(?:\+|\b00)\s?\d[\d\s().\-]{6,}\d", text))
-    )
+    has_phone = (bool(soup.find("a", href=re.compile(r"^tel:", re.I)))
+                 or bool(re.search(r"(?:\+|\b00)\s?\d[\d\s().\-]{6,}\d", text)))
+    has_contact = (has_phone
+                   or any(x in schema_low for x in ("contactpoint", "postaladdress", "localbusiness")))
+    # Señales locales (para "Presencia local y reputación") — sin APIs nuevas
+    html_low = (html or "").lower()
+    has_address = (any(x in schema_low for x in ("postaladdress", "localbusiness")) or
+                   '"streetaddress"' in html_low or "streetaddress" in html_low or
+                   bool(soup.find(attrs={"itemprop": re.compile("streetAddress", re.I)})))
+    has_map = (bool(soup.find("iframe", src=re.compile(r"google\.[a-z.]+/maps|maps\.google|/maps/embed", re.I)))
+               or "google.com/maps" in html_low or "maps.google" in html_low)
+    has_hours = ("openinghours" in html_low or "opening_hours" in html_low)
+    has_geo = ("geocoordinates" in schema_low or '"latitude"' in html_low)
 
     return {
         "title": title,
@@ -224,6 +232,11 @@ def parse_home(html: str, base_url: str) -> dict:
         "word_count": word_count,
         "has_faq": has_faq,
         "has_contact": has_contact,
+        "has_phone": has_phone,
+        "has_address": has_address,
+        "has_map": has_map,
+        "has_hours": has_hours,
+        "has_geo": has_geo,
     }
 
 
@@ -236,7 +249,8 @@ def _merge_meta(a: dict, b: dict) -> dict:
     out["schema_types"] = sorted(set(a.get("schema_types", [])) | set(b.get("schema_types", [])))
     out["schema_raw_types"] = sorted(set(a.get("schema_raw_types", [])) | set(b.get("schema_raw_types", [])))
     out["hreflangs"] = sorted(set(a.get("hreflangs", [])) | set(b.get("hreflangs", [])))
-    for k in ("has_faq", "has_contact", "has_sameas", "canonical", "favicon", "viewport", "twitter"):
+    for k in ("has_faq", "has_contact", "has_sameas", "canonical", "favicon", "viewport", "twitter",
+              "has_phone", "has_address", "has_map", "has_hours", "has_geo"):
         out[k] = bool(a.get(k)) or bool(b.get(k))
     for k in ("word_count", "h1_count", "h2_count", "h3_count", "img_total", "img_alt"):
         out[k] = max(a.get(k, 0) or 0, b.get(k, 0) or 0)
