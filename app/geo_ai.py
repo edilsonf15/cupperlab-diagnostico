@@ -246,29 +246,22 @@ def _gemini_engine() -> dict | None:
 
 
 async def _pick_working_engine() -> dict | None:
-    """Elige un motor de IA que REALMENTE funcione: prueba OpenAI (preferido) con una
-    llamada barata; si la clave está caduca/ausente, cae a Gemini. Evita que GEO y la
-    capa de contenido se rompan por una clave mala."""
+    """Motor de IA: GEMINI es el motor oficial (de pago). Solo cae a OpenAI si algún
+    día se configura y Gemini no está. No gasta búsquedas: solo lista modelos (gratis)."""
+    ge = _gemini_engine()
+    if ge:
+        return ge   # Gemini directo (es el que se paga y se usa)
     oe = _openai_engine()
-    async with httpx.AsyncClient() as c:
-        if oe:
-            try:
+    if oe:
+        try:
+            async with httpx.AsyncClient() as c:
                 r = await c.get("https://api.openai.com/v1/models",
                                 headers={"Authorization": f"Bearer {oe['key']}"}, timeout=8)
                 if r.status_code == 200:
                     return oe
-            except Exception:  # noqa: BLE001
-                pass
-        ge = _gemini_engine()
-        if ge:
-            try:
-                r = await c.get("https://generativelanguage.googleapis.com/v1beta/models",
-                                params={"key": ge["key"]}, timeout=8)
-                if r.status_code == 200:
-                    return ge
-            except Exception:  # noqa: BLE001
-                pass
-    return oe or _gemini_engine()
+        except Exception:  # noqa: BLE001
+            pass
+    return oe
 
 
 def _strip_cites(s: str) -> str:
