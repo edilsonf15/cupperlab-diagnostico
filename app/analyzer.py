@@ -879,11 +879,21 @@ async def analyze(raw_url: str) -> Result:
             if sitemap_text:
                 locs, is_index = parse_sitemap_locs(sitemap_text)
                 if is_index and locs:
-                    child_status, child_text = await fetch_text(client, locs[0])
-                    if child_text:
-                        child_locs, _ = parse_sitemap_locs(child_text)
-                        sitemap_total = len(child_locs) or len(locs)
-                        locs = child_locs or locs
+                    # Suma TODOS los sub-sitemaps (hasta 15) para contar las páginas
+                    # reales de verdad, no solo el primero.
+                    children = locs[:15]
+                    child_results = await asyncio.gather(
+                        *(fetch_text(client, c) for c in children), return_exceptions=True)
+                    all_child_locs = []
+                    for cr in child_results:
+                        if isinstance(cr, tuple) and cr[1]:
+                            cl, _ = parse_sitemap_locs(cr[1])
+                            all_child_locs += cl
+                    if all_child_locs:
+                        sitemap_total = len(all_child_locs)
+                        locs = all_child_locs
+                    else:
+                        sitemap_total = len(locs)
                 else:
                     sitemap_total = len(locs)
                 if locs:
