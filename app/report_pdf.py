@@ -930,12 +930,10 @@ def _ai_matrix(r: dict) -> str:
     for e in engines:
         rows += (f'<tr><td style="padding:7px 10px;border-top:1px solid #e7ebf0;font-weight:700;color:{INK9};font-size:11px">{_esc(e.get("name",""))}</td>'
                  f'<td style="{dcell}">{chip(rec_cell(e))}</td>'
-                 f'<td style="{dcell}">{chip(reco_cell(e))}</td>'
-                 f'<td style="{dcell}">{chip(cite_cell(e))}</td></tr>')
+                 f'<td style="{dcell}">{chip(reco_cell(e))}</td></tr>')
     legend = (f'<div style="font-size:8.5px;color:#7b8694;margin-top:7px;line-height:1.55">'
               f'<b>{L("¿Te reconoce?","Knows you?")}</b> {L("si la IA sabe quién eres al preguntar por tu marca (Sí / a medias, solo con tu web / no).","whether the AI knows who you are when asked about your brand (Yes / partly, only with your site / no).")} '
-              f'<b>{L("¿Te recomienda?","Recommends you?")}</b> {L("si te incluye cuando un cliente pide tu servicio SIN nombrarte; el (X/N) es en cuántas búsquedas reales apareces.","whether it includes you when a customer asks for your service WITHOUT naming you; (X/N) is in how many real searches you appear.")} '
-              f'<b>{L("¿Te cita?","Cites you?")}</b> {L("cuántas fuentes externas (sitios web) usa la IA al hablar de ti: más fuentes = más autoridad.","how many external sources (websites) the AI relies on to talk about you: more sources = more authority.")}</div>')
+              f'<b>{L("¿Te recomienda?","Recommends you?")}</b> {L("si te incluye cuando un cliente pide tu servicio SIN nombrarte; el (X/N) es en cuántas búsquedas reales apareces.","whether it includes you when a customer asks for your service WITHOUT naming you; (X/N) is in how many real searches you appear.")}</div>')
     srcrows = ""
     for e in engines:
         proof = (e.get("proof") or "").strip()
@@ -960,7 +958,6 @@ def _ai_matrix(r: dict) -> str:
             f'<td class="mono" style="{hcell}">IA</td>'
             f'<td class="mono" style="{hcell};text-align:center">{L("¿TE RECONOCE?","KNOWS YOU?")}</td>'
             f'<td class="mono" style="{hcell};text-align:center">{L("¿TE RECOMIENDA?","RECOMMENDS YOU?")}</td>'
-            f'<td class="mono" style="{hcell};text-align:center">{L("¿TE CITA?","CITES YOU?")}</td>'
             f'</tr>{rows}</table>{legend}{srcblock}')
 
 
@@ -1075,7 +1072,12 @@ def _local_section(r: dict) -> str:
     """Presencia local y reputación: ficha de Google, reseñas, NAP, mapa. Es lo que
     te hace salir en el mapa y en 'cerca de mi', y de lo que más mira la IA local."""
     ai = r.get("geo_ai") or {}; m = r.get("meta") or {}
-    gbp = ai.get("gbp"); gn = ai.get("gbp_reviews_n"); grev = ai.get("gbp_reviews") or ""
+    gbp = ai.get("gbp"); gn = ai.get("gbp_reviews_n")
+    _rat = ai.get("gbp_rating")
+    grev = ai.get("gbp_reviews") or ""
+    if not grev and (gn or _rat is not None):   # arma "4,9★ · 12 reseñas" con el dato del script
+        grev = ((f"{str(_rat).replace('.', ',')}★ · " if _rat is not None else "")
+                + (f"{gn} " + L("reseñas", "reviews") if gn else L("sin reseñas", "no reviews")))
     has_phone = m.get("has_phone"); has_addr = m.get("has_address")
     has_map = m.get("has_map"); has_hours = m.get("has_hours")
     # Si no hay ninguna señal local medida, no forzamos la sección
