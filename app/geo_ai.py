@@ -1373,6 +1373,7 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
         "competitors": comps, "gap": "; ".join(content["gaps"])[:400],
         "category_queries": cat_queries, "gl": gl, "sources": src_out,
         "ai_score": score, "content": content, "engine": eng["name"],
+        "debug_engines": _tried,   # motores que fallaron en la ronda 1 (diagnóstico)
         # Si el grounding falló por cuota/límite y no obtuvimos datos, marcamos
         # 'limited' para NO decir en falso que "la IA no te reconoce".
         "limited": bool(_LAST_GROUNDING.get("fell_back")
