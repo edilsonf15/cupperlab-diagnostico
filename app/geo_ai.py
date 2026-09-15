@@ -960,14 +960,24 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
     mem_c = _strip_cites(mem).strip()
     knows_brand = bool(mem_c) and "no_lo_se" not in mem_c.lower() and len(mem_c) > 15
     reco_raw = _f("RECOMIENDA", mega).upper()
-    recommended = (True if reco_raw.startswith("SI")
-                   else (None if ("AVECES" in reco_raw or "A VECES" in reco_raw)
-                         else (False if reco_raw.startswith("NO") else None)))
     knows_with_web = bool(_f("SECTOR", mega) or _f("CONTENIDO", mega))
     recognition = "strong" if knows_brand else ("weak" if knows_with_web else "none")
 
     comps = [{"name": c.strip()} for c in _f("COMPETENCIA", mega).split("|")
              if c.strip() and not _looks_generic(c.strip())][:6]
+    # 'recommended' VERÍDICO: verdadero solo si la IA te nombra a TI cuando le piden el
+    # servicio. Si nombró a otros (competidores) y no a ti, es NO (no un vago "a veces").
+    _bl = re.sub(r"\s+", "", (brand or "").lower())
+    _listed = any(_bl and _bl in re.sub(r"\s+", "", (c.get("name") or "").lower()) for c in comps)
+    if reco_raw.startswith("SI") or _listed:
+        recommended = True
+    elif recognition == "none":
+        recommended = False   # si ni te reconoce, no puede recomendarte
+    elif reco_raw.startswith("NO"):
+        recommended = False
+    else:
+        # 'AVECES' u otro: solo lo damos por bueno si de verdad apareces; si no, es NO
+        recommended = None if (recognition == "strong" and _listed) else False
     cat_queries = [q.strip(' -•"') for q in _f("BUSQUEDAS", mega).split("|") if q.strip()][:3]
     sector = _f("SECTOR", mega)[:60]
     zona = _clean_zona(_f("ZONA", mega))
