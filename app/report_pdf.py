@@ -759,27 +759,25 @@ def _ai_section(r: dict) -> str:
     mentions = (ai.get("mentions") or ai.get("web_description") or ai.get("brand_description") or "").strip()
     comps = _comp_names(ai) or L("otras firmas de tu sector", "other firms in your industry")
 
-    # Tarjeta 1: lo que la IA MENCIONA de ti (verde/ambar/rojo según reconocimiento)
-    rec_tag = {"strong": L("TE RECONOCE", "RECOGNIZES YOU"), "weak": L("SOLO CON TU WEB", "ONLY WITH YOUR SITE"), "none": L("NO TE RECONOCE", "DOES NOT RECOGNIZE YOU")}[recg]
+    # Tarjeta 1: ¿la IA sabe quién eres? Mensaje claro y directo para el cliente.
+    rec_tag = {"strong": L("SÍ TE CONOCE", "KNOWS YOU"), "weak": L("SOLO SI LE DAS TU WEB", "ONLY IF GIVEN YOUR SITE"), "none": L("NO TE CONOCE", "DOESN'T KNOW YOU")}[recg]
     rec_v = {"strong": "yes", "weak": "", "none": "no"}[recg]
-    _men = _esc(mentions[:210]).strip()
     if recg == "strong":
-        m_line = (f'{L("Esto es lo que la IA sabe de ti:", "This is what AI knows about you:")} "{_men}"' if _men
-                  else L("La IA te reconoce por tu cuenta, sin necesidad de darle tu web.", "AI recognizes you on its own, without being handed your site."))
-        m_src = L("La IA te reconoce por su cuenta: vas por delante de la mayoria.", "AI recognizes you on its own: you are ahead of most.")
+        m_line = L("<b>Sí te conoce por su cuenta.</b> La IA sabe quién eres sin que le pases tu web, así que puede recomendarte cuando alguien pregunta por tu sector. Vas por delante de la mayoría.",
+                   "<b>It knows you on its own.</b> AI knows who you are without being given your site, so it can recommend you when someone asks about your sector. You're ahead of most.")
+        m_src = L("Reconocimiento por su cuenta (de memoria)", "Recognized on its own (from memory)")
     elif recg == "weak":
-        _p2 = (f'{L("entonces sí te lee y te describe así:", "then it does read you and describes you like this:")} "{_men}".' if _men
-               else L("entonces sí te lee, pero por su cuenta (solo con tu nombre) no sabe quién eres.", "then it does read you, but on its own (with just your name) it doesn't know who you are."))
-        m_line = (f'{L("Hicimos dos pruebas. <b>1) Sin pistas</b>, preguntando solo por tu nombre: la IA <b>no sabe quién eres</b> (no te tiene en su memoria). <b>2) Dándole tu dirección web</b>:", "We ran two tests. <b>1) With no hints</b>, asking only by your name: AI <b>does not know who you are</b> (you are not in its memory). <b>2) Giving it your website address</b>:")} {_p2} '
-                  f'{L("En claro: la IA <b>solo</b> te conoce si ya tiene tu web delante; cuando un cliente pregunta sin conocerte, no apareces.", "In short: AI <b>only</b> knows you if it already has your site in front of it; when a customer asks without knowing you, you do not show up.")}')
-        m_src = L("Objetivo: que la IA te reconozca por tu nombre, sin tener que darle tu web.", "Goal: for AI to recognize you by name, without being handed your site.")
+        m_line = L("<b>La IA no te conoce por su cuenta.</b> Solo sabe de ti si le das tu página web; por tu nombre no te tiene en memoria. Resultado: cuando un cliente le pregunta por tu servicio sin conocerte, <b>no apareces</b>. La meta es que te reconozca por tu nombre, sin darle la web.",
+                   "<b>AI doesn't know you on its own.</b> It only knows you if you hand it your website; by name it doesn't have you in memory. So when a customer asks about your service without knowing you, <b>you don't show up</b>. The goal is for it to recognize you by name.")
+        m_src = L("Solo te reconoce con tu web delante", "Only recognized with your site in front of it")
     else:
-        m_line = L("Ni dandole tu web la IA encuentra información fiable de tu marca.", "Even when given your site, AI finds no reliable information about your brand.")
-        m_src = L("La IA no te encuentra: hoy no existes para quien pregunta a la IA antes de comprar.", "AI cannot find you: today you do not exist for those who ask AI before buying.")
+        m_line = L("<b>La IA no sabe quién eres.</b> Ni por tu nombre ni dándole tu web encuentra información fiable de tu marca. Hoy, para quien pregunta a la IA antes de comprar, es como si no existieras.",
+                   "<b>AI doesn't know who you are.</b> Neither by name nor when given your site does it find reliable information about your brand. Today, for anyone who asks AI before buying, it's as if you didn't exist.")
+        m_src = L("Sin rastro de tu marca en la IA", "No trace of your brand in AI")
     card1 = f"""
     <div class="aiq">
       <div class="q"><div class="ico">IA</div><div>
-        <div class="ask">{L("Le preguntamos a la IA por tu marca", "We asked AI about your brand")} "{_esc(brand)}" ({_esc(r.get('domain',''))}):</div>
+        <div class="ask">{L("¿La IA sabe quién es", "Does AI know who")} "{_esc(brand)}"{L("?", " is?")}</div>
         <div class="qt">{m_line}</div></div></div>
       <div class="src"><span>{m_src}</span><span class="v {rec_v}">{rec_tag}</span></div>
     </div>"""
@@ -861,11 +859,11 @@ def _ai_section(r: dict) -> str:
                     "<b>AI can't find you.</b> Not even with your name does it recognize you: today you don't exist "
                     "for anyone who asks AI before buying.")
         vcol = "r"
-        verdict = f'{L("La IA no sabe quien eres y recomienda a", "AI does not know who you are and recommends")} {comps}: {L("hoy no apareces cuando preguntan por tu servicio.", "today you do not show up when people ask for your service.")}'
+        verdict = f'{L("La IA no sabe quién eres y recomienda a", "AI does not know who you are and recommends")} {comps}: {L("hoy no apareces cuando preguntan por tu servicio.", "today you do not show up when people ask for your service.")}'
     else:
         topnote = L("<b>La IA te lee, pero no te tiene de memoria.</b> Si le pasas tu web, te describe bien; pero cuando "
                     "un cliente pregunta por tu servicio sin conocerte, la IA no te menciona y nombra a la competencia. "
-                    "Ahi es donde hoy se te escapan clientes.",
+                    "Ahí es donde hoy se te escapan clientes.",
                     "<b>AI can read you, but does not remember you.</b> If you give it your site, it describes you well; but "
                     "when a customer asks for your service without knowing you, AI does not mention you and names competitors "
                     "instead. That is where you lose customers today.")
