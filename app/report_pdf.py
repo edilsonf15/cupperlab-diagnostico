@@ -1365,6 +1365,45 @@ def _growth_chart(score: int) -> str:
     </td></tr></table>"""
 
 
+def _all_findings_section(r: dict) -> str:
+    """Todos los hallazgos del diagnóstico, agrupados por área — LOS MISMOS que ve el
+    cliente en la pantalla (fuente única: findings.compute). Críticos primero."""
+    groups = r.get("findings") or []
+    if not groups:
+        return ""
+    n_total = sum(len(g.get("items") or []) for g in groups)
+    n_crit = sum(1 for g in groups for it in (g.get("items") or []) if it.get("sev") == "critico")
+    blocks = ""
+    for g in groups:
+        items = g.get("items") or []
+        if not items:
+            continue
+        cards = ""
+        for it in items:
+            crit = it.get("sev") == "critico"
+            col = RED if crit else AMBER
+            tag = L("CRÍTICO", "CRITICAL") if crit else L("OPORTUNIDAD", "OPPORTUNITY")
+            cards += (
+                f'<tr><td style="padding:0 0 8px 0"><table role="presentation" width="100%" '
+                f'style="border-collapse:separate;border:1px solid #e7ebf0;border-left:3px solid {col};'
+                f'border-radius:8px"><tr><td style="padding:9px 12px">'
+                f'<div class="mono" style="font-size:8px;letter-spacing:.08em;color:{col};margin-bottom:3px">{tag}</div>'
+                f'<div style="font-size:11px;font-weight:700;color:{INK9};margin-bottom:3px">{_esc(it.get("t",""))}</div>'
+                f'<div style="font-size:9.5px;line-height:1.45;color:#5a6572">{_esc(it.get("d",""))}</div>'
+                f'</td></tr></table></td></tr>')
+        blocks += (
+            f'<div class="keep" style="margin-top:12px">'
+            f'<div class="sectic">{_esc(g.get("cat",""))} · {len(items)}</div>'
+            f'<table role="presentation" width="100%" style="border-collapse:collapse">{cards}</table></div>')
+    return (
+        f'<div class="keep"><div class="eyebrow"><span class="bar"></span>'
+        f'{L("Hallazgos de tu sitio", "Findings on your site")}</div>'
+        f'<h2 class="sec">{L("Todo lo que encontramos, del más crítico al medio", "Everything we found, from most critical to softest")}</h2>'
+        f'<p class="sub">{L("Estos son todos los hallazgos del análisis, agrupados por área. En rojo lo crítico, en ámbar las oportunidades. Son los mismos que ves en pantalla.", "These are all the findings from the analysis, grouped by area. Critical in red, opportunities in amber. The same you see on screen.")} '
+        f'<b>{n_total}</b> {L("hallazgos", "findings")}, <b>{n_crit}</b> {L("críticos", "critical")}.</p></div>'
+        f'{blocks}')
+
+
 def build_report_html(r: dict, contact: dict, name: str = "") -> str:
     score = r.get("score", 0); grade = r.get("grade", "")
     cats = r.get("categories", {}); m = r.get("meta", {}); s = r.get("signals", {})
@@ -1688,6 +1727,10 @@ def build_report_html(r: dict, contact: dict, name: str = "") -> str:
 {(f'''<section class="pg">
   {_google_section(r)}
 </section>''') if _google_section(r) else ''}
+
+{(f'''<section class="pg">
+  {_all_findings_section(r)}
+</section>''') if _all_findings_section(r) else ''}
 
 <section class="pg">
   <div class="keep">

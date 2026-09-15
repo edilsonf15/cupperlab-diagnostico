@@ -363,6 +363,13 @@ async def _run_job(job_id: str, url: str, email: str, name: str, lead: dict, lan
         except Exception as exc:  # noqa: BLE001
             print(f"[dims:ERROR] {exc}"); data["dims"] = []
 
+        # Fuente ÚNICA de los HALLAZGOS agrupados (mismos en pantalla, PDF y correo)
+        try:
+            import findings as _findings  # noqa: PLC0415
+            data["findings"] = _findings.compute(data, lang)
+        except Exception as exc:  # noqa: BLE001
+            print(f"[findings:ERROR] {exc}"); data["findings"] = []
+
         # 5) Resultado LISTO para la pantalla (mismos datos que el correo)
         _tick.cancel()
         _set(job_id, 98, "Preparando tu diagnostico...")
