@@ -58,32 +58,58 @@ def _scrape(brand: str, place: str, domain: str) -> dict:
                 except Exception:  # noqa: BLE001
                     name = ""
                 match = (is_place and (bnorm and bnorm in _norm(name))) or (dom and dom in low)
-                # también acepta una lista donde el 1er resultado coincide por nombre
-                if not match:
+                # si es una LISTA con un 1er resultado que coincide, entra en su ficha
+                if not is_place:
                     try:
-                        art = page.query_selector('[role="feed"] a[aria-label], [role="article"]')
+                        art = page.query_selector('[role="feed"] a[aria-label]') or page.query_selector('a[href*="/maps/place/"]')
                         al = (art.get_attribute("aria-label") if art else "") or ""
-                        if bnorm and bnorm in _norm(al):
-                            name = name or al
-                            match = True
+                        if art and (not bnorm or bnorm in _norm(al) or True):
+                            art.click()
+                            page.wait_for_timeout(2600)
+                            cur = page.url
+                            is_place = "/maps/place/" in cur
+                            h1b = page.query_selector("h1")
+                            name = (h1b.inner_text() if h1b else "") or name or al
+                            low = page.content().lower()
+                            match = match or (is_place and (bnorm and bnorm in _norm(name))) or (dom and dom in low)
                     except Exception:  # noqa: BLE001
                         pass
                 if not match:
                     continue
-                # valoración + nº de reseñas del texto renderizado
-                txt = page.inner_text("body")[:6000] if True else ""
+                # valoración + nº de reseñas: primero del panel de la ficha (fiable)
                 rating = None
                 reviews = 0
-                mr = re.search(r"\b([0-5][.,]\d)\b\s*(?:\((\d[\d.,]*)\)|·?\s*(\d[\d.,]*)\s*(?:rese|review))", txt, re.I)
-                if mr:
-                    rating = mr.group(1).replace(",", ".")
-                    rv = mr.group(2) or mr.group(3) or ""
-                    reviews = int(re.sub(r"[^\d]", "", rv)) if rv else 0
+                try:
+                    rel = page.query_selector('[role="img"][aria-label*="estrella"], [role="img"][aria-label*="star"]')
+                    ral = (rel.get_attribute("aria-label") if rel else "") or ""
+                    mrt = re.search(r"([0-5][.,]\d)", ral)
+                    if mrt:
+                        rating = mrt.group(1).replace(",", ".")
+                except Exception:  # noqa: BLE001
+                    pass
+                try:
+                    rvb = (page.query_selector('button[aria-label*="reseñ" i]')
+                           or page.query_selector('button[aria-label*="review" i]')
+                           or page.query_selector('[aria-label*="reseñ" i]'))
+                    ral2 = (rvb.get_attribute("aria-label") if rvb else "") or ""
+                    mv = re.search(r"(\d[\d.,]*)", ral2)
+                    if mv:
+                        reviews = int(re.sub(r"[^\d]", "", mv.group(1)))
+                except Exception:  # noqa: BLE001
+                    pass
+                txt = page.inner_text("body")[:8000]
                 if not reviews:
-                    mr2 = re.search(r"(\d[\d.,]*)\s*rese", txt, re.I)
-                    if mr2:
-                        reviews = int(re.sub(r"[^\d]", "", mr2.group(1)))
-                # categoría: suele ir bajo el nombre (botón de categoría)
+                    mrev = (re.search(r"(\d[\d.,]*)\s*(?:rese|review|opinion)", txt, re.I)
+                            or re.search(r"[0-5][.,]\d\s*\((\d[\d.,]*)\)", txt))
+                    if mrev:
+                        reviews = int(re.sub(r"[^\d]", "", mrev.group(1)))
+                if rating is None:
+                    mr = re.search(r"\b([0-5][.,]\d)\b\s*(?:\((\d[\d.,]*)\)|★|estrella|star)", txt, re.I)
+                    if mr:
+                        rating = mr.group(1).replace(",", ".")
+                        if not reviews and mr.group(2):
+                            reviews = int(re.sub(r"[^\d]", "", mr.group(2)))
+                # categoría: botón de categoría del panel
                 category = ""
                 try:
                     cat_el = page.query_selector('button[jsaction*="category"]')
