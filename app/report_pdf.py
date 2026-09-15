@@ -1313,7 +1313,7 @@ def _fortalezas_block(r: dict) -> str:
     if ai.get("gbp") and (ai.get("gbp_reviews_n") is None or (isinstance(ai.get("gbp_reviews_n"), int) and ai["gbp_reviews_n"] < 15)):
         wins.append(L("Pedir reseñas en tu ficha de Google de forma sistemática.", "Ask for reviews on your Google listing systematically."))
     if not m.get("has_faq"):
-        wins.append(L("Anadir una sección de preguntas frecuentes (FAQ).", "Add a Frequently Asked Questions (FAQ) section."))
+        wins.append(L("Añadir una sección de preguntas frecuentes (FAQ).", "Add a Frequently Asked Questions (FAQ) section."))
     if not forts and not wins:
         return ""
     forts = forts[:4] or [L("Base digital operativa.", "Operational digital base.")]
