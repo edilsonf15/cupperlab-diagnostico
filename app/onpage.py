@@ -45,6 +45,14 @@ _SKIP_RE = re.compile(
     r"/(wp-admin|wp-login|admin|login|signin|sign-in|logout|cart|checkout|"
     r"my-account|mi-cuenta|carrito|wp-json)(/|\.|$)", re.I)
 _ASSET_RE = re.compile(r"\.(jpg|jpeg|png|gif|webp|svg|pdf|zip|css|js|xml|ico|mp4|woff2?|avif)$", re.I)
+# Navegación por facetas/filtros, orden, paginación de tienda y parámetros de
+# seguimiento: NO son páginas reales ni "enlaces rotos". Google no debería
+# rastrearlas y nosotros tampoco las contamos como 404.
+_FACETED_RE = re.compile(
+    r"[?&](filter_|filtering|min_price|max_price|orderby|product_orderby|per_page|"
+    r"add[-_]to[-_](cart|wishlist)|remove_item|wc-ajax|query_type_|rating_filter|"
+    r"product-page|added-to-cart|swoof|really_curr_tax|utm_|fbclid|gclid|mc_[a-z]+|"
+    r"_ga|srsltid|replytocom)", re.I)
 
 
 def _norm(u: str) -> str:
@@ -143,7 +151,7 @@ def _valid(u: str, base_net: str) -> bool:
         return False
     if _ASSET_RE.search(u) or _SKIP_RE.search(u):
         return False
-    if re.search(r"[?&](add-to-cart|replytocom)=", u, re.I):
+    if _FACETED_RE.search(u):
         return False
     return True
 
@@ -746,7 +754,8 @@ async def audit(url: str, home_html: str | None = None,
     # ---- 404 de TODO el sitio: comprueba cada enlace interno descubierto que no
     # sea una página ya rastreada (esas ya devolvieron 200).
     known_ok = set(nodes.keys())
-    to_check = [u for n, u in all_links.items() if n not in known_ok][:BROKEN_CAP]
+    to_check = [u for n, u in all_links.items()
+                if n not in known_ok and not _FACETED_RE.search(u)][:BROKEN_CAP]
     broken = await _check_broken(to_check)
     # suma las páginas rastreadas como comprobadas (son 200)
     broken["checked"] = broken.get("checked", 0) + len(pages)
