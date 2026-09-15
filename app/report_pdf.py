@@ -938,15 +938,22 @@ def _ai_matrix(r: dict) -> str:
               f'<b>{L("¿Te cita?","Cites you?")}</b> {L("cuántas fuentes externas (sitios web) usa la IA al hablar de ti: más fuentes = más autoridad.","how many external sources (websites) the AI relies on to talk about you: more sources = more authority.")}</div>')
     srcrows = ""
     for e in engines:
+        proof = (e.get("proof") or "").strip()
         ss = [s for s in (e.get("sources") or []) if isinstance(s, dict) and s.get("domain")][:8]
+        if not proof and not ss:
+            continue
+        blk = f'<div style="margin-top:6px"><b style="font-size:9px;color:{INK9}">{_esc(e.get("name",""))}</b>'
+        if proof:
+            blk += f' <span style="font-size:9px;color:#39434f">— "{_esc(proof)}"</span>'
         if ss:
-            links = ", ".join(
+            links = " · ".join(
                 f'<a href="{_esc(s.get("url") or ("https://" + s["domain"]))}" style="color:#0f9bc2;text-decoration:underline">{_esc(s["domain"])}</a>'
                 for s in ss)
-            srcrows += (f'<div style="font-size:8.5px;color:#5a6572;margin-top:3px">'
-                        f'<b style="color:{INK9}">{_esc(e.get("name",""))}</b> · {e.get("cites") or 0} {L("fuentes","sources")}: {links}</div>')
-    srcblock = (f'<div style="margin-top:9px">'
-                f'<div class="mono" style="font-size:7.5px;letter-spacing:.06em;color:#9aa4b0;margin-bottom:2px">{L("FUENTES EXTERNAS QUE CITA CADA IA SOBRE TI · HAZ CLIC EN CADA UNA PARA COMPROBARLA","EXTERNAL SOURCES EACH AI CITES ABOUT YOU · CLICK ANY TO VERIFY")}</div>{srcrows}</div>') if srcrows else ""
+            blk += (f'<div style="font-size:8px;color:#7b8694;margin-top:1px">{L("fuentes","sources")} ({e.get("cites") or 0}): {links}</div>')
+        blk += "</div>"
+        srcrows += blk
+    srcblock = (f'<div style="margin-top:10px">'
+                f'<div class="mono" style="font-size:7.5px;letter-spacing:.06em;color:#9aa4b0;margin-bottom:1px">{L("PRUEBA REAL · LO QUE DICE CADA IA DE TI Y LAS FUENTES QUE USA (HAZ CLIC PARA COMPROBAR)","REAL PROOF · WHAT EACH AI SAYS ABOUT YOU AND THE SOURCES IT USES (CLICK TO VERIFY)")}</div>{srcrows}</div>') if srcrows else ""
     return (f'<div class="sectic" style="margin-top:10px">{L("Cómo te ven las distintas IA (medido en vivo)", "How the different AIs see you (measured live)")}</div>'
             f'<table role="presentation" width="100%" style="border-collapse:collapse;border:1px solid #e7ebf0">'
             f'<tr style="background:#f7f9fb">'

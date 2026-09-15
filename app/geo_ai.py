@@ -997,27 +997,33 @@ def _measure_appearances(combo: str, cat_queries: list, brand: str, domain: str)
     return questions, appears, valid, comps
 
 
-async def _engine_probe(client, eng, brand, domain, q_mem, cat_prompt, cat_queries):
-    """Sonda un motor de IA (reconocimiento + medición de aparición en búsquedas de
-    cliente) para la matriz multi-IA. Devuelve una fila de la matriz."""
+async def _engine_probe(client, eng, brand, domain, q_mem, q_brand, cat_prompt, cat_queries):
+    """Sonda un motor de IA para la matriz multi-IA:
+      - q_mem (de memoria, sin buscar salvo Perplexity): ¿te reconoce por tu cuenta?
+      - q_brand (con búsqueda en vivo): PRUEBA REAL de cómo te cita — qué dice de TU marca
+        y en qué fuentes se apoya (esas son las 'fuentes' que mostramos, sobre ti).
+      - cat_prompt (con búsqueda): ¿apareces cuando piden tu servicio? (X/N)
+    """
     prov, key = eng["provider"], eng["key"]
     strong = eng.get("strong") or eng["model"]
     model = eng["model"]
-    srcs: list = []
+    srcs: list = []   # fuentes de la consulta de MARCA (sobre ti), no de la categoría
     rec_grounded = bool(eng.get("always_web"))   # Perplexity siempre busca en la web
     try:
-        mem, combo = await asyncio.gather(
+        mem, brand_ans, combo = await asyncio.gather(
             _ask(client, prov, key, model, q_mem, max_tokens=140, grounded=rec_grounded),
-            _ask(client, prov, key, strong, cat_prompt, max_tokens=900, grounded=True, sink=srcs),
+            _ask(client, prov, key, strong, q_brand, max_tokens=240, grounded=True, sink=srcs),
+            _ask(client, prov, key, strong, cat_prompt, max_tokens=900, grounded=True),
             return_exceptions=True)
     except Exception:  # noqa: BLE001
-        mem, combo = Exception("err"), Exception("err")
-    # si AMBAS llamadas fallaron (clave inválida, etc.), el motor no responde: se
-    # descarta de la matriz para no decir en falso "no te reconoce".
-    if isinstance(mem, Exception) and isinstance(combo, Exception):
+        mem, brand_ans, combo = Exception("e"), Exception("e"), Exception("e")
+    if isinstance(mem, Exception) and isinstance(brand_ans, Exception) and isinstance(combo, Exception):
         return {"name": eng["name"], "provider": prov, "failed": True}
     mem = _strip_cites(mem).strip() if isinstance(mem, str) else ""
-    knows = bool(mem) and "no_lo_se" not in mem.lower() and len(mem) > 15
+    knows_mem = bool(mem) and "no_lo_se" not in mem.lower() and len(mem) > 15
+    brand_ans = _strip_cites(brand_ans).strip() if isinstance(brand_ans, str) else ""
+    knows_web = bool(brand_ans) and "no_lo_se" not in brand_ans.lower() and len(brand_ans) > 15
+    recognition = "strong" if knows_mem else ("weak" if knows_web else "none")
     combo = combo if isinstance(combo, str) else ""
     questions, appears, valid, comps = _measure_appearances(combo, cat_queries, brand, domain)
     _own = (domain or "").split("/")[0].replace("www.", "").lower()
@@ -1034,8 +1040,9 @@ async def _engine_probe(client, eng, brand, domain, q_mem, cat_prompt, cat_queri
     if valid:
         recommended = True if appears >= max(2, valid // 2 + 1) else (False if appears == 0 else None)
     return {"name": eng["name"], "provider": prov, "web_only": rec_grounded,
-            "knows": knows, "recommended": recommended, "reco_hits": appears,
-            "reco_total": valid, "cites": cites, "sources": _srcs[:8],
+            "knows": knows_mem or knows_web, "recognition": recognition,
+            "recommended": recommended, "reco_hits": appears, "reco_total": valid,
+            "cites": cites, "sources": _srcs[:8], "proof": (brand_ans[:240] if knows_web else ""),
             "competitors": comps, "questions": questions}
 
 
@@ -1122,11 +1129,23 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
         q_mem = (f'En una frase, ¿qué es "{brand}" y a qué se dedica? Empieza por el nombre. '
                  f"Si NO tienes información fiable de esa marca, responde solo NO_LO_SE.")
 
+    # Consulta de MARCA con búsqueda en vivo: sirve de PRUEBA REAL de cómo te cita cada
+    # IA (qué dice de ti y en qué fuentes se apoya). Distinta de q_mem (que es de memoria).
+    q_brand = L(
+        f'Usa búsqueda web. En 2-3 frases, ¿qué es "{brand}" ({domain}) y a qué se dedica? '
+        f"Básate SOLO en lo que encuentres en la web sobre ESA empresa; no inventes. Si no "
+        f"encuentras información fiable de esa empresa, responde solo NO_LO_SE.",
+        f'Use web search. In 2-3 sentences, what is "{brand}" ({domain}) and what does it do? '
+        f"Base it ONLY on what you find on the web about THAT company; do not make it up. If you "
+        f"cannot find reliable information about that company, reply only NO_LO_SE.")
+
     sources: list = []
     cat_results: list = []
     cat_queries: list = []
     gbp_lines: list = []
     gbp_line = ""
+    _brand_srcs: list = []
+    primary_brand_ans = ""
     _tried = []
     mega = mem = ""
     try:
@@ -1212,11 +1231,14 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
             _gbp_order = sorted(_engines, key=lambda e: 0 if e["provider"] == "gemini" else 1)
             _gbp_tasks = [_ask(client, e["provider"], e["key"], e.get("strong") or e["model"],
                                q_gbp, max_tokens=120, grounded=True) for e in _gbp_order]
+            _brand_srcs: list = []   # fuentes de la consulta de MARCA del primario (sobre ti)
             _res = await asyncio.gather(
                 _ask(client, prov, key, strong, q_cat, max_tokens=900, grounded=True),
+                _ask(client, prov, key, strong, q_brand, max_tokens=240, grounded=True, sink=_brand_srcs),
                 *_gbp_tasks, return_exceptions=True)
             combo = _res[0] if isinstance(_res[0], str) else ""
-            gbp_lines = [_strip_cites(x) if isinstance(x, str) else "" for x in _res[1:]]
+            primary_brand_ans = _strip_cites(_res[1]).strip() if isinstance(_res[1], str) else ""
+            gbp_lines = [_strip_cites(x) if isinstance(x, str) else "" for x in _res[2:]]
             gbp_line = next((g for g in gbp_lines if g.strip()), "")  # compat
             # Reparte la respuesta en bloques por marcador @@n@@, alineados a cat_queries
             cat_results = [""] * len(cat_queries)
@@ -1349,29 +1371,40 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
             break
 
     # ---- MATRIZ MULTI-IA: fila del motor primario + sondeo de los demás en paralelo ----
-    _prim = [{"domain": x["domain"], "url": x.get("url") or ("https://" + x["domain"])}
-             for x in src_out if not x.get("own") and x.get("domain")]
+    # Fuentes del primario = las de su consulta de MARCA (sobre ti), no del briefing.
+    _prim, _ps = [], set()
+    for s in _brand_srcs:
+        u = s.get("url") or ""
+        m = re.search(r"([a-z0-9.\-]+\.[a-z]{2,})", u.lower())
+        h = m.group(1).replace("www.", "") if m else ""
+        if h and _own not in h and "vertexaisearch" not in h and "googleusercontent" not in h and h not in _ps:
+            _ps.add(h)
+            _prim.append({"domain": h, "url": u})
+    _prim_proof = (primary_brand_ans[:240]
+                   if primary_brand_ans and "no_lo_se" not in primary_brand_ans.lower() and len(primary_brand_ans) > 15
+                   else "")
     engines_out = [{
         "name": eng["name"], "provider": prov, "web_only": bool(eng.get("always_web")),
         "knows": bool(knows_brand or knows_with_web), "recognition": recognition,
         "recommended": recommended, "reco_hits": reco_hits, "reco_total": reco_total,
-        "cites": len(_prim), "sources": _prim[:8],
+        "cites": len(_prim), "sources": _prim[:8], "proof": _prim_proof,
     }]
     _others = list(_engines[1:])
     if _others:
         try:
             async with httpx.AsyncClient(headers={"User-Agent": "Mozilla/5.0"}) as _c2:
                 _probes = await asyncio.gather(
-                    *[_engine_probe(_c2, e, brand, domain, q_mem, q_cat, cat_queries) for e in _others],
+                    *[_engine_probe(_c2, e, brand, domain, q_mem, q_brand, q_cat, cat_queries) for e in _others],
                     return_exceptions=True)
             for p in _probes:
                 if not isinstance(p, dict) or p.get("failed"):
                     continue
                 engines_out.append({
                     "name": p["name"], "provider": p["provider"], "web_only": p.get("web_only"),
-                    "knows": p["knows"], "recommended": p["recommended"],
+                    "knows": p["knows"], "recognition": p.get("recognition"),
+                    "recommended": p["recommended"],
                     "reco_hits": p["reco_hits"], "reco_total": p["reco_total"], "cites": p["cites"],
-                    "sources": p.get("sources") or [],
+                    "sources": p.get("sources") or [], "proof": p.get("proof") or "",
                 })
                 _have = {(x.get("name") or "").lower() for x in comps}
                 for c in (p.get("competitors") or []):
