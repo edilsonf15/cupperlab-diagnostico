@@ -240,11 +240,33 @@ def _parse_page(url: str, html: str, status: int, base_net: str) -> dict:
 
     page_date = _page_date(soup, raw_ld)
 
+    # --- Señales locales / contacto (NAP + mapa + horario), en TODA la página ---
+    html_low0 = (html or "").lower()
+    l_phone = (bool(soup.find("a", href=re.compile(r"^tel:", re.I)))
+               or bool(re.search(r"(?:\+|\b00)\s?\d[\d\s().\-]{6,}\d", html_low0)))
+    l_map = (bool(soup.find("iframe", src=re.compile(r"google\.[a-z.]+/maps|maps\.google|/maps/embed", re.I)))
+             or "google.com/maps" in html_low0 or "maps.google" in html_low0
+             or "www.google.com/maps/embed" in html_low0)
+    l_hours = ("openinghours" in html_low0 or "opening_hours" in html_low0)
+    l_geo = ("geocoordinates" in schema_low0 or '"latitude"' in html_low0)
+    l_addr = (any(x in schema_low0 for x in ("postaladdress", "localbusiness", "professionalservice")) or
+              "streetaddress" in html_low0 or
+              bool(soup.find(attrs={"itemprop": re.compile("streetAddress", re.I)})))
+
     # --- Texto visible (ahora sí elimina scripts/estilos) ---
     for tag in soup(["script", "style", "noscript"]):
         tag.decompose()
     text = re.sub(r"\s+", " ", soup.get_text(" ", strip=True))
     word_count = len(text.split())
+    # Dirección en texto plano: código postal + calle/vía (ES/LatAm), sin depender de schema
+    if not l_addr:
+        _tl = text.lower()
+        _street = bool(re.search(r"\b(c/|calle|avda?|avenida|av|carrera|cra|cll|"
+                                 r"pol[íi]gono|p\.?\s?i\.?|carrer|r[úu]a|jr|jir[óo]n|"
+                                 r"street|st|road|rd|avenue|ave)\b", _tl))
+        _cp = bool(re.search(r"\b\d{4,6}\b", text))
+        if _street and _cp:
+            l_addr = True
 
     lang = ""
     htmltag = soup.find("html")
@@ -286,6 +308,8 @@ def _parse_page(url: str, html: str, status: int, base_net: str) -> dict:
         "int_links": len(links),
         "poor_anchor": poor_anchor,
         "breadcrumb": breadcrumb,
+        "l_phone": l_phone, "l_addr": l_addr, "l_map": l_map,
+        "l_hours": l_hours, "l_geo": l_geo,
         "_links": links,
     }
 
@@ -511,6 +535,15 @@ def _aggregate(pages: list[dict], norm_home: str = "") -> dict:
         score -= 5                               # sin breadcrumbs en todo el sitio
     score = max(0, min(100, round(score)))
 
+    # Señales locales/contacto agregadas en TODAS las páginas rastreadas (no solo la home)
+    local = {
+        "has_phone": any(p.get("l_phone") for p in pages),
+        "has_address": any(p.get("l_addr") for p in pages),
+        "has_map": any(p.get("l_map") for p in pages),
+        "has_hours": any(p.get("l_hours") for p in pages),
+        "has_geo": any(p.get("l_geo") for p in pages),
+    }
+
     return {
         "issues": issues,
         "totals": {
@@ -523,6 +556,7 @@ def _aggregate(pages: list[dict], norm_home: str = "") -> dict:
             "orphans": len(orphans),
         },
         "schema": schema_info,
+        "local": local,
         "score": score,
     }
 

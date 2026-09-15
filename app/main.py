@@ -325,6 +325,13 @@ async def _run_job(job_id: str, url: str, email: str, name: str, lead: dict, lan
             if isinstance(op, dict):
                 op.pop("pages", None)  # aligera el payload de pantalla (issues/totals/score)
                 data["onpage"] = op
+                # Señales locales/contacto de TODO el sitio (no solo la home): la home
+                # a veces no lleva la dirección/mapa, que sí están en /contacto.
+                _loc = op.get("local") or {}
+                _m = data.get("meta") or {}
+                for _k in ("has_phone", "has_address", "has_map", "has_hours", "has_geo"):
+                    _m[_k] = bool(_m.get(_k)) or bool(_loc.get(_k))
+                data["meta"] = _m
         except Exception as exc:  # noqa: BLE001
             print(f"[onpage:ERROR] {exc}"); data["onpage"] = None
 
