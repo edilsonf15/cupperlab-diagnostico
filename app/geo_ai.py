@@ -899,8 +899,18 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
     brand = derive_brand(meta or {}, domain) or domain
     service = derive_service(meta or {}) or (derive_sector(meta or {}) or "")
     cc = _country_from_domain(domain)
-    country = cc[0] if cc else ""
-    gl = cc[1] if cc else "es"
+    # País base: 1) detección multiseñal del sitio (meta: teléfono/moneda/idioma-región/
+    # menciones), 2) ccTLD. NUNCA forzar España por defecto (bug histórico con .app/.com).
+    _mc = (meta or {}).get("country") or ""
+    _mg = (meta or {}).get("gl") or ""
+    if _mc or _mg:
+        country = _mc or (cc[0] if cc else "")
+        gl = _mg or (cc[1] if cc else "")
+    elif cc:
+        country, gl = cc
+    else:
+        country, gl = "", ""
+    country_hint = country or "ninguna señal clara"
     full = domain if str(domain).startswith("http") else f"https://{domain}"
 
     if lang == "en":
@@ -908,7 +918,10 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
             f"Use web search and open {full}. Act as an SEO and GEO analyst. Analyze the company "
             f'"{brand}". Reply EXACTLY in this format, plain text, no markdown, no links, each field on ONE line:\n'
             f"SECTOR: <specific sector>\n"
-            f"ZONA: <city and country it serves; if no city, only country>\n"
+            f"ZONA: <city and COUNTRY where it operates. Infer the country from the address, the phone "
+            f"country code (+57 Colombia, +34 Spain, +52 Mexico, +54 Argentina, +56 Chile, +51 Peru...), "
+            f"currency, language-region and explicit mentions on the site. Prior signal detected: "
+            f"{country_hint}; confirm or correct it by reading the site. NEVER assume Spain by default>\n"
             f"RECOMIENDA: <SI, NO or AVECES> if someone asks for that service in that area WITHOUT naming the brand, "
             f"would you recommend it?\n"
             f"COMPETENCIA: <ALWAYS give 3-5 REAL companies (real names) that compete for that service IN THE "
@@ -932,7 +945,10 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
             f'"{brand}". Responde EXACTAMENTE en este formato, en texto plano, sin markdown y sin enlaces, '
             f"cada campo en UNA línea:\n"
             f"SECTOR: <sector concreto>\n"
-            f"ZONA: <ciudad y país donde opera; si no hay ciudad, solo país>\n"
+            f"ZONA: <ciudad y PAÍS donde opera. Deduce el país por la dirección, el prefijo telefónico "
+            f"(+57 Colombia, +34 España, +52 México, +54 Argentina, +56 Chile, +51 Perú...), la moneda, "
+            f"el idioma-región y las menciones del sitio. Señal previa detectada: {country_hint}; "
+            f"confírmala o corrígela leyendo el sitio. NUNCA asumas España por defecto>\n"
             f"RECOMIENDA: <SI, NO o AVECES> si alguien pide ese tipo de servicio en esa zona SIN nombrar la "
             f"marca, ¿la recomendarías?\n"
             f"COMPETENCIA: <SIEMPRE da 3-5 empresas REALES (nombre real) que compitan por ese servicio EN EL "
