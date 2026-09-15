@@ -969,15 +969,20 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
     # servicio. Si nombró a otros (competidores) y no a ti, es NO (no un vago "a veces").
     _bl = re.sub(r"\s+", "", (brand or "").lower())
     _listed = any(_bl and _bl in re.sub(r"\s+", "", (c.get("name") or "").lower()) for c in comps)
+    _reco_clean = reco_raw.replace(" ", "")
     if reco_raw.startswith("SI") or _listed:
         recommended = True
-    elif recognition == "none":
-        recommended = False   # si ni te reconoce, no puede recomendarte
     elif reco_raw.startswith("NO"):
         recommended = False
+    elif _reco_clean.startswith("AVECES"):
+        # 'A veces': solo lo damos por bueno si de verdad apareces; si no, neutral
+        recommended = None if (recognition == "strong" and _listed) else None
+    elif recognition == "none" and reco_raw:
+        recommended = False   # si ni te reconoce (y hubo respuesta), no puede recomendarte
     else:
-        # 'AVECES' u otro: solo lo damos por bueno si de verdad apareces; si no, es NO
-        recommended = None if (recognition == "strong" and _listed) else False
+        # RECOMIENDA sin respuesta clara: NO afirmamos que recomienda a la competencia.
+        # Preferimos neutro (desconocido) antes que un falso negativo.
+        recommended = None
     cat_queries = [q.strip(' -•"') for q in _f("BUSQUEDAS", mega).split("|") if q.strip()][:3]
     sector = _f("SECTOR", mega)[:60]
     zona = _clean_zona(_f("ZONA", mega))
