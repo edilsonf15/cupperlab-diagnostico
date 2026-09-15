@@ -145,6 +145,25 @@ async def _ask(client: httpx.AsyncClient, provider: str, key: str, model: str,
                                     "max_tokens": max_tokens, "temperature": 0.3}, timeout=AI_BUDGET)
         r.raise_for_status()
         return r.json()["choices"][0]["message"]["content"].strip()
+
+    if provider == "perplexity":
+        # Perplexity (sonar) SIEMPRE busca en la web en vivo y devuelve citas: es un
+        # buscador con IA real, ideal para medir visibilidad GEO. `grounded` se ignora.
+        headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+        r = await client.post("https://api.perplexity.ai/chat/completions", headers=headers,
+                              json={"model": model, "messages": [{"role": "user", "content": prompt}],
+                                    "max_tokens": max_tokens, "temperature": 0.2}, timeout=AI_BUDGET)
+        r.raise_for_status()
+        data = r.json()
+        if sink is not None:
+            for u in (data.get("citations") or []):
+                if u:
+                    sink.append({"url": u, "title": ""})
+            for sr in (data.get("search_results") or []):
+                if sr.get("url"):
+                    sink.append({"url": sr["url"], "title": sr.get("title", "")})
+        return ((data.get("choices") or [{}])[0].get("message", {}).get("content") or "").strip()
+
     # anthropic
     headers = {"x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json"}
     body = {"model": model, "max_tokens": max_tokens,
@@ -161,6 +180,8 @@ async def _ask(client: httpx.AsyncClient, provider: str, key: str, model: str,
 # 'gpt-4o' en Dokploy (más caro). Ambos se pueden sobreescribir por env.
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 OPENAI_MODEL_STRONG = os.getenv("OPENAI_MODEL_STRONG", "gpt-4o-mini")
+# Perplexity (buscador con IA real, con citas). sonar / sonar-pro / sonar-reasoning.
+PERPLEXITY_MODEL = os.getenv("PERPLEXITY_MODEL", "sonar")
 
 # Sectores para enfocar la competencia (belleza vs abogados vs marketing...).
 _SECTOR_HINTS = [
@@ -252,6 +273,38 @@ def _gemini_engine() -> dict | None:
         return None
     return {"name": "Gemini", "provider": "gemini", "key": gk,
             "model": GEMINI_MODEL, "strong": GEMINI_MODEL, "grounded": True}
+
+
+def _perplexity_engine() -> dict | None:
+    pk = os.getenv("PERPLEXITY_API_KEY", "").strip()
+    if not pk:
+        return None
+    return {"name": "Perplexity", "provider": "perplexity", "key": pk,
+            "model": PERPLEXITY_MODEL, "strong": PERPLEXITY_MODEL, "grounded": True,
+            "always_web": True}
+
+
+_ENGINE_BUILDERS = {"openai": _openai_engine, "gemini": _gemini_engine, "perplexity": _perplexity_engine}
+
+
+def _pick_engines() -> list[dict]:
+    """Lista de motores de IA activos para la matriz multi-IA, en orden (el 1º es el
+    'primario' que hace el briefing). Se controla con AI_ENGINES (coma), p. ej.
+    'openai,perplexity,gemini'. Si no está, usa AI_PROVIDER o todos los que tengan clave."""
+    names = [n.strip().lower() for n in os.getenv("AI_ENGINES", "").split(",") if n.strip()]
+    if not names:
+        pref = os.getenv("AI_PROVIDER", "").strip().lower()
+        names = [pref] if pref and pref not in ("multi", "auto") else ["openai", "perplexity", "gemini"]
+    out, seen = [], set()
+    for n in names:
+        b = _ENGINE_BUILDERS.get(n)
+        if not b or n in seen:
+            continue
+        eng = b()
+        if eng:
+            out.append(eng)
+            seen.add(n)
+    return out
 
 
 async def _pick_working_engine() -> dict | None:
@@ -885,12 +938,99 @@ def _f(label: str, txt: str) -> str:
     return m.group(1).strip() if m else ""
 
 
+def _measure_appearances(combo: str, cat_queries: list, brand: str, domain: str):
+    """Parsea la respuesta combinada de las búsquedas de cliente (bloques @@n@@) y mide
+    en cuántas aparece la marca. Devuelve (questions, appears, valid, competitors)."""
+    combo = combo if isinstance(combo, str) else ""
+    cat_results = [""] * len(cat_queries)
+    if combo.strip():
+        parts = re.split(r"@@\s*(\d+)\s*@@", combo)
+        for _k in range(1, len(parts) - 1, 2):
+            try:
+                _idx = int(parts[_k]) - 1
+            except Exception:  # noqa: BLE001
+                continue
+            if 0 <= _idx < len(cat_results):
+                cat_results[_idx] = parts[_k + 1]
+        if not any(cat_results):
+            cat_results[0] = combo
+    brand_l = brand.lower().strip()
+    dom_root = (domain or "").lower().split("/")[0].replace("www.", "")
+    questions, comps, seen = [], [], set()
+    appears = valid = 0
+    for i, search in enumerate(cat_queries):
+        txt = cat_results[i] if i < len(cat_results) else ""
+        if not txt.strip():
+            questions.append({"q": search, "appears": None, "named": [], "answer": ""})
+            continue
+        valid += 1
+        body = re.split(r"\bINCLUIDA:", txt, 1)[0]
+        rows = _parse_companies(body)
+        here = any(_is_brand_row(c, brand_l, dom_root) for c in rows)
+        if here:
+            appears += 1
+        _sl = re.sub(r"\s+", " ", (search or "").lower()).strip()
+        named = []
+        for c in rows:
+            if _is_brand_row(c, brand_l, dom_root):
+                continue
+            nm = (c.get("name") or "").strip()
+            if not nm or _looks_generic(nm):
+                continue
+            nml = nm.lower()
+            if nml == _sl or (len(_sl) > 8 and (_sl in nml or nml in _sl)):
+                continue
+            if not c.get("domain"):
+                _wc = len(nml.split())
+                if (" en " in f" {nml} ") or _wc >= 5 or (not any(ch.isupper() for ch in nm) and _wc >= 3):
+                    continue
+            named.append(nm)
+            if nml not in seen:
+                seen.add(nml)
+                comps.append(c)
+        questions.append({"q": search, "appears": here, "named": named[:4],
+                          "answer": re.sub(r"[*_`]+", "", _strip_cites(body))[:300]})
+    return questions, appears, valid, comps
+
+
+async def _engine_probe(client, eng, brand, domain, q_mem, cat_prompt, cat_queries):
+    """Sonda un motor de IA (reconocimiento + medición de aparición en búsquedas de
+    cliente) para la matriz multi-IA. Devuelve una fila de la matriz."""
+    prov, key = eng["provider"], eng["key"]
+    strong = eng.get("strong") or eng["model"]
+    model = eng["model"]
+    srcs: list = []
+    rec_grounded = bool(eng.get("always_web"))   # Perplexity siempre busca en la web
+    try:
+        mem, combo = await asyncio.gather(
+            _ask(client, prov, key, model, q_mem, max_tokens=140, grounded=rec_grounded),
+            _ask(client, prov, key, strong, cat_prompt, max_tokens=900, grounded=True, sink=srcs),
+            return_exceptions=True)
+    except Exception:  # noqa: BLE001
+        mem, combo = "", ""
+    mem = _strip_cites(mem).strip() if isinstance(mem, str) else ""
+    knows = bool(mem) and "no_lo_se" not in mem.lower() and len(mem) > 15
+    combo = combo if isinstance(combo, str) else ""
+    questions, appears, valid, comps = _measure_appearances(combo, cat_queries, brand, domain)
+    _own = (domain or "").split("/")[0].replace("www.", "").lower()
+    cites = len({(s.get("url") or "").lower() for s in srcs
+                 if (s.get("url") and _own not in (s.get("url") or "").lower()
+                     and "vertexaisearch" not in (s.get("url") or "").lower())})
+    recommended = None
+    if valid:
+        recommended = True if appears >= max(2, valid // 2 + 1) else (False if appears == 0 else None)
+    return {"name": eng["name"], "provider": prov, "web_only": rec_grounded,
+            "knows": knows, "recommended": recommended, "reco_hits": appears,
+            "reco_total": valid, "cites": cites, "competitors": comps, "questions": questions}
+
+
 async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | None:
     """GEO en 1 búsqueda en vivo: reconocimiento, recomendación, competencia, fuentes,
     ficha/reseñas y evaluación de contenido, en una sola llamada grounded + una barata
     sin búsqueda para el reconocimiento 'de memoria'. Devuelve el mismo shape que
     run_ai_geo (+ 'content'). None si no hay motor de IA."""
-    eng = await _pick_working_engine()
+    _engines = _pick_engines()
+    eng = _engines[0] if _engines else await _pick_working_engine()
     if not eng:
         return None
     prov, key = eng["provider"], eng["key"]
@@ -1156,6 +1296,39 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
         if len(src_out) >= 8:
             break
 
+    # ---- MATRIZ MULTI-IA: fila del motor primario + sondeo de los demás en paralelo ----
+    prim_cites = len([1 for x in src_out if not x.get("own")])
+    engines_out = [{
+        "name": eng["name"], "provider": prov, "web_only": bool(eng.get("always_web")),
+        "knows": bool(knows_brand or knows_with_web), "recognition": recognition,
+        "recommended": recommended, "reco_hits": reco_hits, "reco_total": reco_total,
+        "cites": prim_cites,
+    }]
+    _others = list(_engines[1:])
+    if _others:
+        try:
+            async with httpx.AsyncClient(headers={"User-Agent": "Mozilla/5.0"}) as _c2:
+                _probes = await asyncio.gather(
+                    *[_engine_probe(_c2, e, brand, domain, q_mem, q_cat, cat_queries) for e in _others],
+                    return_exceptions=True)
+            for p in _probes:
+                if not isinstance(p, dict):
+                    continue
+                engines_out.append({
+                    "name": p["name"], "provider": p["provider"], "web_only": p.get("web_only"),
+                    "knows": p["knows"], "recommended": p["recommended"],
+                    "reco_hits": p["reco_hits"], "reco_total": p["reco_total"], "cites": p["cites"],
+                })
+                _have = {(x.get("name") or "").lower() for x in comps}
+                for c in (p.get("competitors") or []):
+                    nm = (c.get("name") or "").strip()
+                    if nm and nm.lower() not in _have and len(comps) < 8:
+                        comps.append(c)
+                        _have.add(nm.lower())
+        except Exception as _e:  # noqa: BLE001
+            print(f"[ai:probe:ERROR] {_e}")
+    engine_names = [e["name"] for e in engines_out]
+
     reco_frac = (appears / valid) if valid else (1.0 if recommended is True else (0.5 if recommended is None else 0.0))
     score = round(100 * (0.5 * (1 if knows_brand else 0) + 0.5 * reco_frac))
     content = {"topics": entities_ai, "keywords": kw_ai, "entities": entities_ai,
@@ -1164,7 +1337,8 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
 
     return {
         "available": True, "brand": brand, "service": service, "sector": sector,
-        "zona": zona, "country": country, "engine_names": [eng["name"]], "answered_names": [eng["name"]],
+        "zona": zona, "country": country, "engine_names": engine_names, "answered_names": engine_names,
+        "engines": engines_out,
         "gbp_category": gbp_category, "keywords": kw_ai, "entities": entities_ai,
         "knows_brand": knows_brand, "brand_description": mem_c[:400] if knows_brand else "",
         "knows_with_web": knows_with_web, "recognition": recognition,

@@ -879,11 +879,67 @@ def _ai_section(r: dict) -> str:
     <div class="keep">
     <div class="eyebrow"><span class="bar"></span>04 · {L('Cómo te ve la inteligencia artificial', 'How artificial intelligence sees you')}</div>
     <h2 class="sec">{L('Cómo te ve la IA cuando preguntan por ti', 'How AI sees you when people ask about you')}</h2>
-    <p class="sub">{L('Le preguntamos a la IA, en vivo: por tu marca, por tu servicio y con búsquedas reales de cliente en', 'We asked AI, live: about your brand, your service and with real customer searches in')} {_esc(zona or L('tu zona','your area'))}. {L('Cada vez más gente busca así antes de decidir.', 'More and more people search this way before deciding.')}</p>
+    <p class="sub">{L('Le preguntamos EN VIVO a varias IA (ChatGPT, Perplexity y Gemini): por tu marca, por tu servicio y con búsquedas reales de cliente en', 'We asked several AIs LIVE (ChatGPT, Perplexity and Gemini): about your brand, your service and with real customer searches in')} {_esc(zona or L('tu zona','your area'))}. {L('Cada vez más gente busca así antes de decidir.', 'More and more people search this way before deciding.')}</p>
+    {_ai_matrix(r)}
     <div class="block callout {vcol}">{topnote}</div>
     </div>
     {cards}{q_block}
     <div class="block callout {vcol}"><b>{L('Veredicto IA.', 'AI verdict.')}</b> {verdict}</div>"""
+
+
+def _ai_matrix(r: dict) -> str:
+    """Matriz multi-IA (ChatGPT / Perplexity / Gemini): ¿te reconoce? ¿te recomienda?
+    ¿te cita? — medido en vivo en cada motor. Estilo nativo del PDF (tabla)."""
+    ai = r.get("geo_ai") or {}
+    engines = ai.get("engines") or []
+    if not engines:
+        return ""
+
+    def rec_cell(e):
+        rg = e.get("recognition")
+        if rg == "strong":
+            return GREEN, L("Sí", "Yes")
+        if rg == "weak":
+            return AMBER, L("A medias", "Partly")
+        if rg == "none":
+            return RED, "No"
+        return (GREEN, L("Sí", "Yes")) if e.get("knows") else (RED, "No")
+
+    def reco_cell(e):
+        rc = e.get("recommended")
+        h, t = e.get("reco_hits"), e.get("reco_total")
+        cnt = f" ({h}/{t})" if isinstance(h, int) and isinstance(t, int) and t else ""
+        if rc is True:
+            return GREEN, L("Sí", "Yes") + cnt
+        if rc is False:
+            return RED, "No" + cnt
+        return AMBER, L("A veces", "Sometimes") + cnt
+
+    def cite_cell(e):
+        n = e.get("cites") or 0
+        col = GREEN if n >= 2 else (AMBER if n == 1 else RED)
+        txt = (f"{n} " + L("fuentes", "sources")) if n != 1 else ("1 " + L("fuente", "source"))
+        return col, txt
+
+    def chip(cv):
+        return f'<span style="color:{cv[0]};font-weight:700">{_esc(cv[1])}</span>'
+
+    hcell = 'padding:6px 10px;font-size:8px;letter-spacing:.06em;color:#7b8694'
+    dcell = 'padding:7px 10px;border-top:1px solid #e7ebf0;text-align:center;font-size:10.5px'
+    rows = ""
+    for e in engines:
+        rows += (f'<tr><td style="padding:7px 10px;border-top:1px solid #e7ebf0;font-weight:700;color:{INK9};font-size:11px">{_esc(e.get("name",""))}</td>'
+                 f'<td style="{dcell}">{chip(rec_cell(e))}</td>'
+                 f'<td style="{dcell}">{chip(reco_cell(e))}</td>'
+                 f'<td style="{dcell}">{chip(cite_cell(e))}</td></tr>')
+    return (f'<div class="sectic" style="margin-top:10px">{L("Cómo te ven las distintas IA (medido en vivo)", "How the different AIs see you (measured live)")}</div>'
+            f'<table role="presentation" width="100%" style="border-collapse:collapse;border:1px solid #e7ebf0">'
+            f'<tr style="background:#f7f9fb">'
+            f'<td class="mono" style="{hcell}">IA</td>'
+            f'<td class="mono" style="{hcell};text-align:center">{L("¿TE RECONOCE?","KNOWS YOU?")}</td>'
+            f'<td class="mono" style="{hcell};text-align:center">{L("¿TE RECOMIENDA?","RECOMMENDS YOU?")}</td>'
+            f'<td class="mono" style="{hcell};text-align:center">{L("¿TE CITA?","CITES YOU?")}</td>'
+            f'</tr>{rows}</table>')
 
 
 def _crawl_structure_block(r: dict) -> str:
