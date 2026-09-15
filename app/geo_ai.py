@@ -1226,9 +1226,10 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
                 f"listing (with address, phone, category, hours, reviews or rating) that belongs to THIS "
                 f"business, reply on one line 'SI | <category> | <number of reviews or the rating>'. Reply 'NO' "
                 f"ONLY if after really searching none exists. Do not reply DUDOSO.")
-            # Ficha de Google en los 2 motores buenos para Maps (Gemini + Perplexity); si
-            # cualquiera la encuentra, existe. Más fiable que 1 y más barato que 3.
-            _gbp_engs = [e for e in _engines if e["provider"] in ("gemini", "perplexity")][:2] or [_engines[0]]
+            # Ficha de Google en TODOS los motores (va en la misma ronda paralela, apenas
+            # suma tiempo): si CUALQUIERA la encuentra, existe. Máxima fiabilidad (evita
+            # los falsos "SIN FICHA", que es lo que más molesta al cliente).
+            _gbp_engs = list(_engines)
             # La consulta de marca del primario ya se hizo en la ronda 1: respuesta 'mem',
             # fuentes '_brand_srcs'.
             primary_brand_ans = _strip_cites(mem).strip() if isinstance(mem, str) else ""
