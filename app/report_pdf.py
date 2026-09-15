@@ -843,8 +843,11 @@ def _ai_section(r: dict) -> str:
       <div class="src"><span>{L('Búsqueda de categoría', 'Category search')}{(' · ' + _esc(country)) if country else ''}</span>
         <span class="v {vc}">{vt}</span></div>
     </div>"""
-    q_block = (f'<div class="sectic" style="margin-top:12px">{L("Las 3 búsquedas reales de un cliente", "The 3 real customer searches")}'
-               f'{(L(" en ", " in ") + _esc(country)) if country else ""} · {L("¿sales tu?", "do you show up?")}</div>{q_cards}') if q_cards else ""
+    _hits = ai.get("reco_hits"); _tot = ai.get("reco_total")
+    _hits_txt = (f' · {L("apareces en", "you appear in")} {_hits}/{_tot}'
+                 if isinstance(_hits, int) and isinstance(_tot, int) and _tot else f' · {L("¿sales tú?", "do you show up?")}')
+    q_block = (f'<div class="sectic" style="margin-top:12px">{L("Las búsquedas reales de un cliente", "The real customer searches")}'
+               f'{(L(" en ", " in ") + _esc(country)) if country else ""}{_hits_txt}</div>{q_cards}') if q_cards else ""
 
     # Veredicto según reconocimiento + recomendacion (verde/ambar/rojo)
     if recg == "strong" and reco:

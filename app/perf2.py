@@ -84,7 +84,7 @@ async def _psi(client: httpx.AsyncClient, url: str, strategy: str) -> dict | Non
         return None
     params = {"url": url, "strategy": strategy, "key": key, "category": "performance"}
     try:
-        r = await client.get(PSI_API, params=params, timeout=90)
+        r = await client.get(PSI_API, params=params, timeout=55)
         if r.status_code != 200:
             return None
         return r.json()
@@ -289,8 +289,8 @@ async def measure(url: str) -> dict | None:
     """Modelo completo de rendimiento (movil + escritorio + infra). None si PSI
     no está disponible (sin API key o caído)."""
     m_raw, d_raw, infra = await asyncio.gather(
-        _psi_retry(url, "mobile", tries=5),
-        _psi_retry(url, "desktop", tries=3),
+        _psi_retry(url, "mobile", tries=4),
+        _psi_retry(url, "desktop", tries=2),
         _headers_probe(url),
         return_exceptions=True,
     )

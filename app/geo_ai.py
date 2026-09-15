@@ -21,7 +21,7 @@ from i18n import L, is_en  # idioma del analisis (ES/EN)
 ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
 ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
-AI_BUDGET = float(os.getenv("AI_GEO_BUDGET", "40"))  # grounded (búsqueda web) necesita margen; 22s se quedaba corto
+AI_BUDGET = float(os.getenv("AI_GEO_BUDGET", "30"))  # grounded necesita margen, pero son 2 rondas: 30s equilibra veracidad y <2min
 _LAST_GROUNDING: dict = {}  # debug temporal: estado del último grounding
 
 
@@ -943,49 +943,109 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
                  f"Si NO tienes información fiable de esa marca, responde solo NO_LO_SE.")
 
     sources: list = []
+    cat_results: list = []
+    cat_queries: list = []
     try:
         async with httpx.AsyncClient(headers={"User-Agent": "Mozilla/5.0"}) as client:
+            # RONDA 1: briefing (grounded) + reconocimiento "de memoria" (sin búsqueda)
             mega, mem = await asyncio.gather(
                 _ask(client, prov, key, strong, q_mega, max_tokens=600, grounded=True, sink=sources),
                 _ask(client, prov, key, model, q_mem, max_tokens=140, grounded=False),
                 return_exceptions=True,
             )
+            mega = _strip_cites(mega) if isinstance(mega, str) else ""
+            mem = mem if isinstance(mem, str) else ""
+            if not mega.strip() and not mem.strip():
+                return {"available": True, "brand": brand, "error": "sin respuesta de la IA"}
+
+            sector = _f("SECTOR", mega)[:60]
+            zona = _clean_zona(_f("ZONA", mega))
+            cat_queries = [q.strip(' -•"') for q in _f("BUSQUEDAS", mega).split("|") if q.strip()][:3]
+            # la ZONA que leyó la IA en el sitio manda para el país/gl
+            if zona:
+                zc = zona.split(",")[-1].strip()
+                if len(zc) >= 3:
+                    country = zc[:40]
+                    _zg = _gl_from_name(country)
+                    if _zg:
+                        gl = _zg
+            place = zona or country or ""
+            sec_txt = sector or service or "este tipo de servicio"
+            if not cat_queries:
+                cat_queries = [f"{sec_txt} en {place}".strip()]
+
+            # RONDA 2 — MEDICIÓN REAL Y VERIFICABLE: por cada búsqueda típica de cliente
+            # (SIN nombrar la marca) le pedimos a la IA a quién recomienda y comprobamos
+            # NOSOTROS si la marca aparece en su lista. Nada de autocalificación.
+            def _q_cat(search: str) -> str:
+                return L(
+                    f"Usa búsqueda web. Un cliente en {place} busca en un asistente de IA: \"{search}\". "
+                    f"Respóndele EXACTAMENTE como lo harías de verdad: recomienda 4-5 EMPRESAS o profesionales "
+                    f"REALES de {sec_txt} en {place}, cada una en una línea con el formato 'Nombre real | dominio.com'. "
+                    f"Reglas: (1) solo negocios REALES con web propia; (2) el 'Nombre' es la empresa, NO una "
+                    f"categoría, servicio ni ciudad; (3) si no encuentras 4-5 reales, pon solo las reales. "
+                    f"Sin explicaciones ni conclusión.",
+                    f"Use web search. A customer in {place} asks an AI assistant: \"{search}\". "
+                    f"Answer EXACTLY as you really would: recommend 4-5 REAL companies or professionals of "
+                    f"{sec_txt} in {place}, each on one line as 'Real name | domain.com'. Rules: (1) only REAL "
+                    f"businesses with their own site; (2) the Name is the company, NOT a category, service or city; "
+                    f"(3) if fewer than 4-5 real ones, list only the real ones. No explanations or conclusion.")
+            cat_results = await asyncio.gather(
+                *[_ask(client, prov, key, strong, _q_cat(s), max_tokens=600, grounded=True)
+                  for s in cat_queries],
+                return_exceptions=True)
     except Exception as exc:  # noqa: BLE001
         return {"available": True, "error": str(exc), "brand": brand}
-    mega = _strip_cites(mega) if isinstance(mega, str) else ""
-    mem = mem if isinstance(mem, str) else ""
-    if not mega.strip() and not mem.strip():
-        return {"available": True, "brand": brand, "error": "sin respuesta de la IA"}
 
     mem_c = _strip_cites(mem).strip()
     knows_brand = bool(mem_c) and "no_lo_se" not in mem_c.lower() and len(mem_c) > 15
-    reco_raw = _f("RECOMIENDA", mega).upper()
     knows_with_web = bool(_f("SECTOR", mega) or _f("CONTENIDO", mega))
     recognition = "strong" if knows_brand else ("weak" if knows_with_web else "none")
 
-    comps = [{"name": c.strip()} for c in _f("COMPETENCIA", mega).split("|")
-             if c.strip() and not _looks_generic(c.strip())][:6]
-    # 'recommended' VERÍDICO: verdadero solo si la IA te nombra a TI cuando le piden el
-    # servicio. Si nombró a otros (competidores) y no a ti, es NO (no un vago "a veces").
-    _bl = re.sub(r"\s+", "", (brand or "").lower())
-    _listed = any(_bl and _bl in re.sub(r"\s+", "", (c.get("name") or "").lower()) for c in comps)
-    _reco_clean = reco_raw.replace(" ", "")
-    if reco_raw.startswith("SI") or _listed:
-        recommended = True
-    elif reco_raw.startswith("NO"):
-        recommended = False
-    elif _reco_clean.startswith("AVECES"):
-        # 'A veces': solo lo damos por bueno si de verdad apareces; si no, neutral
-        recommended = None if (recognition == "strong" and _listed) else None
-    elif recognition == "none" and reco_raw:
-        recommended = False   # si ni te reconoce (y hubo respuesta), no puede recomendarte
+    # ---- Medición de aparición en las búsquedas reales de cliente ----
+    brand_l = brand.lower().strip()
+    dom_root = (domain or "").lower().split("/")[0].replace("www.", "")
+    questions, comps, seen = [], [], set()
+    appears = valid = 0
+    for i, search in enumerate(cat_queries):
+        res = cat_results[i] if i < len(cat_results) else None
+        txt = "" if (res is None or isinstance(res, Exception)) else (res or "")
+        if not txt.strip():
+            questions.append({"q": search, "appears": None, "named": [], "answer": ""})
+            continue
+        valid += 1
+        body = re.split(r"\bINCLUIDA:", txt, 1)[0]
+        rows = _parse_companies(body)
+        here = any(_is_brand_row(c, brand_l, dom_root) for c in rows)
+        if here:
+            appears += 1
+        named = []
+        for c in rows:
+            if _is_brand_row(c, brand_l, dom_root):
+                continue
+            nm = (c.get("name") or "").strip()
+            if not nm or _looks_generic(nm):
+                continue
+            named.append(nm)
+            if nm.lower() not in seen:
+                seen.add(nm.lower())
+                comps.append(c)
+        questions.append({"q": search, "appears": here, "named": named[:4],
+                          "answer": re.sub(r"[*_`]+", "", _strip_cites(body))[:300]})
+    # Si la medición no dio competidores, usamos los que nombró el briefing (mega)
+    if not comps:
+        comps = [{"name": c.strip()} for c in _f("COMPETENCIA", mega).split("|")
+                 if c.strip() and not _looks_generic(c.strip())][:6]
+
+    # 'recommended' MEDIBLE: apareces en X de N búsquedas reales de cliente
+    reco_hits, reco_total = appears, valid
+    if valid:
+        recommended = True if appears >= 2 else (False if appears == 0 else None)
+    elif recognition == "none":
+        recommended = False   # ni te reconoce y no se pudo medir
     else:
-        # RECOMIENDA sin respuesta clara: NO afirmamos que recomienda a la competencia.
-        # Preferimos neutro (desconocido) antes que un falso negativo.
-        recommended = None
-    cat_queries = [q.strip(' -•"') for q in _f("BUSQUEDAS", mega).split("|") if q.strip()][:3]
-    sector = _f("SECTOR", mega)[:60]
-    zona = _clean_zona(_f("ZONA", mega))
+        recommended = None    # no se pudo medir (grounding limitado)
+
     gbp = _f("FICHA_GOOGLE", mega).upper().startswith("SI")
     gbp_category = _f("CATEGORIA", mega)[:80]
     _rev = re.search(r"\d[\d.,]*", _f("RESENAS", mega))
@@ -1007,7 +1067,7 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
         if len(src_out) >= 8:
             break
 
-    reco_frac = 1.0 if recommended is True else (0.5 if recommended is None else 0.0)
+    reco_frac = (appears / valid) if valid else (1.0 if recommended is True else (0.5 if recommended is None else 0.0))
     score = round(100 * (0.5 * (1 if knows_brand else 0) + 0.5 * reco_frac))
     content = {"topics": entities_ai, "keywords": kw_ai, "entities": entities_ai,
                "assessment": re.sub(r"\s+", " ", _f("CONTENIDO", mega)).strip()[:300],
@@ -1021,6 +1081,7 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
         "knows_with_web": knows_with_web, "recognition": recognition,
         "mentions": (mem_c if knows_brand else "")[:400],
         "recommended": recommended, "gbp": gbp, "gbp_reviews_n": gbp_reviews_n,
+        "reco_hits": reco_hits, "reco_total": reco_total, "questions": questions,
         "competitors": comps, "gap": "; ".join(content["gaps"])[:400],
         "category_queries": cat_queries, "gl": gl, "sources": src_out,
         "ai_score": score, "content": content, "engine": eng["name"],

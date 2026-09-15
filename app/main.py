@@ -167,29 +167,33 @@ def _set(job_id: str, progress: int, stage: str) -> None:
         j["stage"] = stage
 
 
-async def _progress_ticker(job_id: str, expected: float = 105.0, cap: float = 98.0) -> None:
-    """Mueve la barra ACORDE a la duración real del análisis: en vez de un paso fijo
-    (que se clava si el trabajo dura más), calcula el objetivo por TIEMPO transcurrido
-    contra una duración esperada, con una curva de desaceleración (ease-out) para el
-    tramo final. Así la carga de 0 a ~98 va pareja al tiempo real y no se queda pegada
-    en 95/99. Los hitos reales (_set) pueden adelantarla; al terminar, salta a 100."""
+async def _progress_ticker(job_id: str, expected: float = 90.0, cap: float = 99.4) -> None:
+    """Mueve la barra ACORDE a la duración real del análisis y NUNCA la deja parada.
+    En vez de un paso fijo (que se clava si el trabajo dura más), calcula el objetivo
+    por TIEMPO transcurrido contra una duración esperada, con curva de desaceleración
+    (ease-out). Si el análisis se pasa del tiempo esperado, sigue subiendo de forma
+    asintótica (pasos cada vez más pequeños pero SIEMPRE > 0) hacia el tope, así el
+    cliente ve movimiento constante y no abandona. Los hitos reales (_set) la adelantan;
+    al terminar, salta a 100."""
     start = time.monotonic()
     try:
         while True:
-            await asyncio.sleep(0.7)
+            await asyncio.sleep(0.6)
             j = _jobs.get(job_id)
             if not j or j.get("done"):
                 return
+            p = float(j.get("progress", 0) or 0)
             el = time.monotonic() - start
-            frac = min(1.0, el / max(20.0, expected))
-            # ease-out: rápido al principio, más lento cerca del final
-            eased = 1.0 - (1.0 - frac) ** 1.7
-            target = 5.0 + (cap - 5.0) * eased
-            # si el análisis se pasa del tiempo esperado, sigue reptando muy despacio
-            if frac >= 1.0:
-                target = min(cap, float(j.get("progress", 0) or 0) + 0.15)
-            if target > float(j.get("progress", 0) or 0):
-                j["progress"] = round(target, 1)
+            frac = el / max(20.0, expected)
+            if frac < 1.0:
+                # ease-out: rápido al principio, más lento cerca del final esperado
+                eased = 1.0 - (1.0 - frac) ** 1.7
+                target = 5.0 + (0.92 * cap - 5.0) * eased
+            else:
+                # pasado el tiempo esperado: acércate al tope sin llegar nunca (nunca se para)
+                target = p + (cap - p) * 0.06
+            if target > p:
+                j["progress"] = round(min(target, cap), 2)
     except asyncio.CancelledError:  # noqa: PERF203
         return
 
