@@ -1021,15 +1021,20 @@ async def _engine_probe(client, eng, brand, domain, q_mem, cat_prompt, cat_queri
     combo = combo if isinstance(combo, str) else ""
     questions, appears, valid, comps = _measure_appearances(combo, cat_queries, brand, domain)
     _own = (domain or "").split("/")[0].replace("www.", "").lower()
-    cites = len({(s.get("url") or "").lower() for s in srcs
-                 if (s.get("url") and _own not in (s.get("url") or "").lower()
-                     and "vertexaisearch" not in (s.get("url") or "").lower())})
+    _doms = []
+    for s in srcs:
+        m = re.search(r"([a-z0-9.\-]+\.[a-z]{2,})", (s.get("url") or "").lower())
+        h = m.group(1).replace("www.", "") if m else ""
+        if h and _own not in h and "vertexaisearch" not in h and "googleusercontent" not in h and h not in _doms:
+            _doms.append(h)
+    cites = len(_doms)
     recommended = None
     if valid:
         recommended = True if appears >= max(2, valid // 2 + 1) else (False if appears == 0 else None)
     return {"name": eng["name"], "provider": prov, "web_only": rec_grounded,
             "knows": knows, "recommended": recommended, "reco_hits": appears,
-            "reco_total": valid, "cites": cites, "competitors": comps, "questions": questions}
+            "reco_total": valid, "cites": cites, "sources": _doms[:8],
+            "competitors": comps, "questions": questions}
 
 
 async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | None:
@@ -1118,6 +1123,8 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
     sources: list = []
     cat_results: list = []
     cat_queries: list = []
+    gbp_lines: list = []
+    gbp_line = ""
     _tried = []
     mega = mem = ""
     try:
@@ -1197,12 +1204,18 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
                 f"listing (with address, phone, category, hours, reviews or rating) that belongs to THIS "
                 f"business, reply on one line 'SI | <category> | <number of reviews or the rating>'. Reply 'NO' "
                 f"ONLY if after really searching none exists. Do not reply DUDOSO.")
-            combo, gbp_line = await asyncio.gather(
+            # La ficha de Google se busca en TODOS los motores (Gemini/Google es el mejor
+            # para Maps): si CUALQUIERA la encuentra con evidencia, la ficha existe. Así se
+            # evitan los falsos "SIN FICHA" cuando el primario (p. ej. ChatGPT) no ve Maps.
+            _gbp_order = sorted(_engines, key=lambda e: 0 if e["provider"] == "gemini" else 1)
+            _gbp_tasks = [_ask(client, e["provider"], e["key"], e.get("strong") or e["model"],
+                               q_gbp, max_tokens=120, grounded=True) for e in _gbp_order]
+            _res = await asyncio.gather(
                 _ask(client, prov, key, strong, q_cat, max_tokens=900, grounded=True),
-                _ask(client, prov, key, strong, q_gbp, max_tokens=120, grounded=True),
-                return_exceptions=True)
-            combo = combo if isinstance(combo, str) else ""
-            gbp_line = _strip_cites(gbp_line) if isinstance(gbp_line, str) else ""
+                *_gbp_tasks, return_exceptions=True)
+            combo = _res[0] if isinstance(_res[0], str) else ""
+            gbp_lines = [_strip_cites(x) if isinstance(x, str) else "" for x in _res[1:]]
+            gbp_line = next((g for g in gbp_lines if g.strip()), "")  # compat
             # Reparte la respuesta en bloques por marcador @@n@@, alineados a cat_queries
             cat_results = [""] * len(cat_queries)
             if combo.strip():
@@ -1280,28 +1293,39 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
     else:
         recommended = None    # no se pudo medir (grounding limitado)
 
-    # Ficha de Google Business: prioriza la búsqueda DEDICADA en Maps; si no fue
-    # concluyente, cae al campo del briefing. Parseo lenient (SI o evidencia de ficha).
-    _gl = (gbp_line or "").strip()
-    _gu = _gl.upper()
-    mrev = re.search(r"(\d[\d.,]*)\s*(reseñas|resenas|reviews|opiniones)", _gl, re.I)
-    mval = re.search(r"([0-5][.,]\d)\s*(?:★|estrellas|de 5|/5)", _gl)
-    has_evidence = bool(mrev or mval or re.search(
-        r"(direcci[oó]n|tel[eé]fono|google maps|categor[ií]a|horario|agencia|empresa|studio|consultor)", _gl, re.I))
-    if _gu.startswith(("SI", "SÍ", "YES")):
-        gbp = True
-    elif _gu.startswith("NO") and not has_evidence:
-        gbp = False
-    elif has_evidence:
-        gbp = True
-    else:
-        gbp = _f("FICHA_GOOGLE", mega).upper().startswith("SI")   # sin señal clara -> briefing
-    _pg = [p.strip() for p in _gl.split("|")]
-    gbp_category = ((_pg[1] if len(_pg) > 1 and _pg[1] and not re.search(r"\d", _pg[1]) else "")
-                    or _f("CATEGORIA", mega))[:80]
-    if mrev:
-        gbp_reviews_n = int(re.sub(r"[^\d]", "", mrev.group(1)))
-    else:
+    # Ficha de Google Business: se agregan las respuestas de TODOS los motores. Si
+    # CUALQUIERA la encuentra (SI o evidencia de ficha), la ficha EXISTE (evita falsos
+    # "SIN FICHA" cuando un motor no ve Maps). Solo es 'NO' si todos lo dicen sin evidencia.
+    gbp = None
+    gbp_category = ""
+    gbp_reviews_n = 0
+    _any_neg = False
+    for _gl0 in (gbp_lines or [gbp_line]):
+        _gl = (_gl0 or "").strip()
+        if not _gl:
+            continue
+        _gu = _gl.upper()
+        _mrev = re.search(r"(\d[\d.,]*)\s*(reseñas|resenas|reviews|opiniones)", _gl, re.I)
+        _mval = re.search(r"([0-5][.,]\d)\s*(?:★|estrellas|de 5|/5)", _gl)
+        _evid = bool(_mrev or _mval or re.search(
+            r"(direcci[oó]n|tel[eé]fono|google maps|categor[ií]a|horario|agencia|empresa|studio|consultor)", _gl, re.I))
+        if _gu.startswith(("SI", "SÍ", "YES")) or _evid:
+            gbp = True
+            _pg = [p.strip() for p in _gl.split("|")]
+            _cat = _pg[1] if len(_pg) > 1 and _pg[1] and not re.search(r"\d", _pg[1]) else ""
+            if _cat and not gbp_category:
+                gbp_category = _cat
+            if _mrev:
+                gbp_reviews_n = max(gbp_reviews_n, int(re.sub(r"[^\d]", "", _mrev.group(1))))
+            break   # una ficha positiva basta
+        if _gu.startswith("NO"):
+            _any_neg = True
+    if gbp is None:
+        gbp = False if _any_neg else _f("FICHA_GOOGLE", mega).upper().startswith("SI")
+    if not gbp_category:
+        gbp_category = _f("CATEGORIA", mega)
+    gbp_category = (gbp_category or "")[:80]
+    if not gbp_reviews_n:
         _rm = re.search(r"\d[\d.,]*", _f("RESENAS", mega))
         gbp_reviews_n = int(re.sub(r"[^\d]", "", _rm.group(0))) if _rm else 0
     kw_ai = [k.strip(" -•\"") for k in _f("KEYWORDS", mega).split("|") if k.strip()][:5]
@@ -1322,12 +1346,12 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
             break
 
     # ---- MATRIZ MULTI-IA: fila del motor primario + sondeo de los demás en paralelo ----
-    prim_cites = len([1 for x in src_out if not x.get("own")])
+    _prim_doms = [x.get("domain") for x in src_out if not x.get("own") and x.get("domain")]
     engines_out = [{
         "name": eng["name"], "provider": prov, "web_only": bool(eng.get("always_web")),
         "knows": bool(knows_brand or knows_with_web), "recognition": recognition,
         "recommended": recommended, "reco_hits": reco_hits, "reco_total": reco_total,
-        "cites": prim_cites,
+        "cites": len(_prim_doms), "sources": _prim_doms[:8],
     }]
     _others = list(_engines[1:])
     if _others:
@@ -1343,6 +1367,7 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
                     "name": p["name"], "provider": p["provider"], "web_only": p.get("web_only"),
                     "knows": p["knows"], "recommended": p["recommended"],
                     "reco_hits": p["reco_hits"], "reco_total": p["reco_total"], "cites": p["cites"],
+                    "sources": p.get("sources") or [],
                 })
                 _have = {(x.get("name") or "").lower() for x in comps}
                 for c in (p.get("competitors") or []):

@@ -163,6 +163,8 @@
       </tr>
       {% endfor %}
     </table>
+    <div style="font-size:11px;color:#6b7580;margin-top:10px;line-height:1.55"><b>{{ 'Knows you?' if en else '¿Te reconoce?' }}</b> {{ 'whether the AI knows who you are.' if en else 'si la IA sabe quién eres al preguntar por tu marca.' }} <b>{{ 'Recommends?' if en else '¿Te recomienda?' }}</b> {{ 'if it includes you when your service is requested without naming you (X/N = in how many searches you appear).' if en else 'si te incluye cuando piden tu servicio sin nombrarte (X/N = en cuántas búsquedas apareces).' }} <b>{{ 'Cites?' if en else '¿Te cita?' }}</b> {{ 'how many external sources it uses about you.' if en else 'cuántas fuentes externas usa la IA al hablar de ti.' }}</div>
+    {% for e in r.geo_ai.engines %}{% if e.sources %}<div style="font-size:11px;color:#5a6572;margin-top:4px"><b style="color:#0b1620">{{ e.name }}</b> · {{ e.cites or 0 }} {{ 'sources' if en else 'fuentes' }}: {{ e.sources[:8]|join(', ') }}</div>{% endif %}{% endfor %}
   </td></tr>
   {% endif %}
 

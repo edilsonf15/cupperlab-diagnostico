@@ -932,6 +932,18 @@ def _ai_matrix(r: dict) -> str:
                  f'<td style="{dcell}">{chip(rec_cell(e))}</td>'
                  f'<td style="{dcell}">{chip(reco_cell(e))}</td>'
                  f'<td style="{dcell}">{chip(cite_cell(e))}</td></tr>')
+    legend = (f'<div style="font-size:8.5px;color:#7b8694;margin-top:7px;line-height:1.55">'
+              f'<b>{L("¿Te reconoce?","Knows you?")}</b> {L("si la IA sabe quién eres al preguntar por tu marca (Sí / a medias, solo con tu web / no).","whether the AI knows who you are when asked about your brand (Yes / partly, only with your site / no).")} '
+              f'<b>{L("¿Te recomienda?","Recommends you?")}</b> {L("si te incluye cuando un cliente pide tu servicio SIN nombrarte; el (X/N) es en cuántas búsquedas reales apareces.","whether it includes you when a customer asks for your service WITHOUT naming you; (X/N) is in how many real searches you appear.")} '
+              f'<b>{L("¿Te cita?","Cites you?")}</b> {L("cuántas fuentes externas (sitios web) usa la IA al hablar de ti: más fuentes = más autoridad.","how many external sources (websites) the AI relies on to talk about you: more sources = more authority.")}</div>')
+    srcrows = ""
+    for e in engines:
+        ss = [s for s in (e.get("sources") or []) if s][:8]
+        if ss:
+            srcrows += (f'<div style="font-size:8.5px;color:#5a6572;margin-top:3px">'
+                        f'<b style="color:{INK9}">{_esc(e.get("name",""))}</b> · {e.get("cites") or 0} {L("fuentes","sources")}: {_esc(", ".join(ss))}</div>')
+    srcblock = (f'<div style="margin-top:9px">'
+                f'<div class="mono" style="font-size:7.5px;letter-spacing:.06em;color:#9aa4b0;margin-bottom:2px">{L("FUENTES EXTERNAS QUE CITA CADA IA SOBRE TI","EXTERNAL SOURCES EACH AI CITES ABOUT YOU")}</div>{srcrows}</div>') if srcrows else ""
     return (f'<div class="sectic" style="margin-top:10px">{L("Cómo te ven las distintas IA (medido en vivo)", "How the different AIs see you (measured live)")}</div>'
             f'<table role="presentation" width="100%" style="border-collapse:collapse;border:1px solid #e7ebf0">'
             f'<tr style="background:#f7f9fb">'
@@ -939,7 +951,7 @@ def _ai_matrix(r: dict) -> str:
             f'<td class="mono" style="{hcell};text-align:center">{L("¿TE RECONOCE?","KNOWS YOU?")}</td>'
             f'<td class="mono" style="{hcell};text-align:center">{L("¿TE RECOMIENDA?","RECOMMENDS YOU?")}</td>'
             f'<td class="mono" style="{hcell};text-align:center">{L("¿TE CITA?","CITES YOU?")}</td>'
-            f'</tr>{rows}</table>')
+            f'</tr>{rows}</table>{legend}{srcblock}')
 
 
 def _crawl_structure_block(r: dict) -> str:
