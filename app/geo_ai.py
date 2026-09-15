@@ -278,7 +278,7 @@ def _strip_cites(s: str) -> str:
     s = re.sub(r"https?://\S+", "", s)                                     # url suelta
     s = re.sub(r"[\[\]]", "", s)                                           # corchetes sueltos
     s = re.sub(r"\(\s*\)", "", s)                                          # parentesis vacios
-    s = re.sub(r"\s+", " ", s)
+    s = re.sub(r"[ \t]+", " ", s)   # colapsa espacios/tabs pero CONSERVA los saltos de línea
     return s.strip(" .-|,(")
 
 
