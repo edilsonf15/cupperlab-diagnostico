@@ -1148,218 +1148,104 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
     _probes: list = []
     _tried = []
     mega = mem = ""
+    # cat_queries LOCALES (no dependen del briefing): permiten lanzar TODO en UNA sola
+    # ronda paralela (mucho más rápido). El país viene de la detección multiseñal del sitio.
+    place = (country or "").strip()
+    sec_txt = service or derive_sector(meta or {}) or "este tipo de servicio"
+    _base = ([f"{sec_txt} en {place}", f"mejores {sec_txt} en {place}", f"empresas de {sec_txt} en {place}"]
+             if place else [sec_txt, f"mejores {sec_txt}", f"empresas de {sec_txt}"])
+    cat_queries = list(dict.fromkeys([q.strip() for q in _base if q.strip()]))[:3]
+    _qlist = "\n".join(f"@@{i+1}@@ {q}" for i, q in enumerate(cat_queries))
+    q_cat = L(
+        f"Usa búsqueda web. Un cliente en {place or 'tu país'} podría escribir estas búsquedas en un asistente "
+        f"de IA. Para CADA búsqueda, recomienda 4-5 EMPRESAS o profesionales REALES de {sec_txt} en "
+        f"{place or 'ese país'}. Devuelve EXACTAMENTE este formato y nada más:\n{_qlist}\n"
+        f"Debajo de cada marcador @@n@@, una empresa por línea como 'Nombre real | dominio.com'. "
+        f"Reglas: solo negocios REALES con web propia; el 'Nombre' es la empresa, NO una categoría, "
+        f"servicio ni ciudad; si no hay 4-5 reales, pon solo las reales. Sin explicaciones.",
+        f"Use web search. A customer in {place or 'their country'} might type these searches into an AI assistant. For "
+        f"EACH search, recommend 4-5 REAL companies or professionals of {sec_txt} in {place or 'that country'}. Return "
+        f"EXACTLY this format and nothing else:\n{_qlist}\n"
+        f"Under each @@n@@ marker, one company per line as 'Real name | domain.com'. Rules: only REAL "
+        f"businesses with their own site; the Name is the company, NOT a category/service/city; if fewer "
+        f"than 4-5 real, list only the real ones. No explanations.")
+
+    eng = _engines[0]
+    prov, key = eng["provider"], eng["key"]
+    strong = eng.get("strong") or eng["model"]
+    model = eng["model"]
     try:
         async with httpx.AsyncClient(headers={"User-Agent": "Mozilla/5.0"}) as client:
-            # RONDA 1 (RESILIENTE): briefing + reconocimiento. Se prueba motor por motor
-            # hasta que uno responda; ese pasa a ser el PRIMARIO. Si un motor no tiene
-            # clave válida o falla, se salta (y se anota para diagnóstico).
-            for _e in _engines:
-                _p, _k = _e["provider"], _e["key"]
-                _s = _e.get("strong") or _e["model"]
-                _m = _e["model"]
-                # La consulta de MARCA del primario va CON búsqueda en vivo (prueba real de
-                # qué dice de ti y en qué fuentes se apoya). Sirve de reconocimiento + prueba.
-                _mg, _mm = await asyncio.gather(
-                    _ask(client, _p, _k, _s, q_mega, max_tokens=600, grounded=True, sink=sources),
-                    _ask(client, _p, _k, _s, q_brand, max_tokens=240, grounded=True, sink=_brand_srcs),
-                    return_exceptions=True,
-                )
-                _err = next((str(x) for x in (_mg, _mm) if isinstance(x, Exception)), "")
-                _mg = _strip_cites(_mg) if isinstance(_mg, str) else ""
-                _mm = _mm if isinstance(_mm, str) else ""
-                if _mg.strip() or _mm.strip():
-                    eng, prov, key, strong, model = _e, _p, _k, _s, _m
-                    mega, mem = _mg, _mm
-                    _engines = [_e] + [x for x in _engines if x is not _e]  # primario primero
-                    break
-                _tried.append(f"{_e['name']}: {(_err or 'vacío')[:80]}")
-            if not mega.strip() and not mem.strip():
-                return {"available": True, "brand": brand, "error": "sin respuesta de la IA",
-                        "debug_engines": _tried}
-
-            sector = _f("SECTOR", mega)[:60]
-            zona = _clean_zona(_f("ZONA", mega))
-            cat_queries = [q.strip(' -•"') for q in _f("BUSQUEDAS", mega).split("|") if q.strip()][:3]
-            # la ZONA que leyó la IA en el sitio manda para el país/gl
-            if zona:
-                zc = zona.split(",")[-1].strip()
-                if len(zc) >= 3:
-                    country = zc[:40]
-                    _zg = _gl_from_name(country)
-                    if _zg:
-                        gl = _zg
-            place = zona or country or ""
-            sec_txt = sector or service or "este tipo de servicio"
-            if not cat_queries:
-                cat_queries = [f"{sec_txt} en {place}".strip()]
-
-            # RONDA 2 — MEDICIÓN REAL Y VERIFICABLE, en UNA sola llamada grounded (para no
-            # agotar la cuota de búsqueda en vivo): pedimos las búsquedas de cliente a la vez
-            # (SIN nombrar la marca) y comprobamos NOSOTROS si la marca sale en cada lista.
-            _qlist = "\n".join(f"@@{i+1}@@ {q}" for i, q in enumerate(cat_queries))
-            q_cat = L(
-                f"Usa búsqueda web. Un cliente en {place} podría escribir estas búsquedas en un asistente "
-                f"de IA. Para CADA búsqueda, recomienda 4-5 EMPRESAS o profesionales REALES de {sec_txt} en "
-                f"{place}. Devuelve EXACTAMENTE este formato y nada más:\n{_qlist}\n"
-                f"Debajo de cada marcador @@n@@, una empresa por línea como 'Nombre real | dominio.com'. "
-                f"Reglas: solo negocios REALES con web propia; el 'Nombre' es la empresa, NO una categoría, "
-                f"servicio ni ciudad; si no hay 4-5 reales, pon solo las reales. Sin explicaciones.",
-                f"Use web search. A customer in {place} might type these searches into an AI assistant. For "
-                f"EACH search, recommend 4-5 REAL companies or professionals of {sec_txt} in {place}. Return "
-                f"EXACTLY this format and nothing else:\n{_qlist}\n"
-                f"Under each @@n@@ marker, one company per line as 'Real name | domain.com'. Rules: only REAL "
-                f"businesses with their own site; the Name is the company, NOT a category/service/city; if fewer "
-                f"than 4-5 real, list only the real ones. No explanations.")
-            # Ficha de Google Business: búsqueda DEDICADA en Maps (por nombre, nombre+zona
-            # y dominio). Muchos negocios la tienen aunque su web no la enlace: hay que
-            # buscarla bien antes de decir que no. Va en paralelo con la medición.
-            q_gbp = L(
-                f"Abre Google Maps y busca a fondo la ficha de este negocio. Prueba varias búsquedas: "
-                f"\"{brand}\", \"{brand} {place}\" y el dominio {domain}. Muchos negocios TIENEN ficha de "
-                f"Google aunque su web no la enlace: búscala bien antes de decir que no. Si encuentras una "
-                f"ficha de Google (con dirección, teléfono, categoría, horario, reseñas o valoración) que sea "
-                f"de ESTE negocio, responde en una línea 'SI | <categoría> | <nº de reseñas o la valoración>'. "
-                f"Responde 'NO' SOLO si tras buscarla de verdad no existe ninguna. No respondas DUDOSO.",
-                f"Open Google Maps and search thoroughly for this business listing. Try several searches: "
-                f"\"{brand}\", \"{brand} {place}\" and the domain {domain}. Many businesses HAVE a Google "
-                f"listing even if their site doesn't link it: search well before saying no. If you find a Google "
-                f"listing (with address, phone, category, hours, reviews or rating) that belongs to THIS "
-                f"business, reply on one line 'SI | <category> | <number of reviews or the rating>'. Reply 'NO' "
-                f"ONLY if after really searching none exists. Do not reply DUDOSO.")
-            # Ficha de Google en TODOS los motores (va en la misma ronda paralela, apenas
-            # suma tiempo): si CUALQUIERA la encuentra, existe. Máxima fiabilidad (evita
-            # los falsos "SIN FICHA", que es lo que más molesta al cliente).
-            _gbp_engs = list(_engines)
-            # La consulta de marca del primario ya se hizo en la ronda 1: respuesta 'mem',
-            # fuentes '_brand_srcs'.
-            primary_brand_ans = _strip_cites(mem).strip() if isinstance(mem, str) else ""
-            # RONDA 2 (TODO EN PARALELO): medición del primario + fichas + sondas de los
-            # demás motores. Una sola espera en vez de tres rondas secuenciales.
-            _others = list(_engines[1:])
-            _gbp_calls = [_ask(client, e["provider"], e["key"], e.get("strong") or e["model"],
-                               q_gbp, max_tokens=120, grounded=True) for e in _gbp_engs]
-            _probe_calls = [_engine_probe(client, e, brand, domain, q_mem, q_brand, q_cat, cat_queries)
-                            for e in _others]
+            # UNA SOLA RONDA en paralelo: briefing (mega, para sector/keywords/contenido) +
+            # sonda de TODAS las IA (reconocimiento/prueba + medición de recomendación).
             _res = await asyncio.gather(
-                _ask(client, prov, key, strong, q_cat, max_tokens=900, grounded=True),
-                *_gbp_calls, *_probe_calls, return_exceptions=True)
-            combo = _res[0] if isinstance(_res[0], str) else ""
-            _ng = len(_gbp_calls)
-            gbp_lines = [_strip_cites(x) if isinstance(x, str) else "" for x in _res[1:1 + _ng]]
-            gbp_line = next((g for g in gbp_lines if g.strip()), "")
-            _probes = [p for p in _res[1 + _ng:]]
-            # Reparte la respuesta en bloques por marcador @@n@@, alineados a cat_queries
-            cat_results = [""] * len(cat_queries)
-            if combo.strip():
-                parts = re.split(r"@@\s*(\d+)\s*@@", combo)
-                for _k in range(1, len(parts) - 1, 2):
-                    try:
-                        _idx = int(parts[_k]) - 1
-                    except Exception:  # noqa: BLE001
-                        continue
-                    if 0 <= _idx < len(cat_results):
-                        cat_results[_idx] = parts[_k + 1]
-                if not any(cat_results):   # el modelo ignoró los marcadores
-                    cat_results[0] = combo
+                _ask(client, prov, key, strong, q_mega, max_tokens=600, grounded=True, sink=sources),
+                *[_engine_probe(client, e, brand, domain, q_mem, q_brand, q_cat, cat_queries)
+                  for e in _engines],
+                return_exceptions=True)
+            mega = _strip_cites(_res[0]) if isinstance(_res[0], str) else ""
+            _probes = list(_res[1:])
     except Exception as exc:  # noqa: BLE001
         return {"available": True, "error": str(exc), "brand": brand}
 
-    mem_c = _strip_cites(mem).strip()
-    knows_brand = bool(mem_c) and "no_lo_se" not in mem_c.lower() and len(mem_c) > 15
-    knows_with_web = bool(_f("SECTOR", mega) or _f("CONTENIDO", mega))
-    recognition = "strong" if knows_brand else ("weak" if knows_with_web else "none")
+    # refina sector/zona desde el briefing (solo para mostrar); el país ya lo teníamos
+    sector = _f("SECTOR", mega)[:60] or sec_txt
+    zona = _clean_zona(_f("ZONA", mega)) or place
+    if zona:
+        zc = zona.split(",")[-1].strip()
+        if len(zc) >= 3:
+            _zg = _gl_from_name(zc[:40])
+            if _zg:
+                country, gl = zc[:40], _zg
 
-    # ---- Medición de aparición en las búsquedas reales de cliente ----
-    brand_l = brand.lower().strip()
-    dom_root = (domain or "").lower().split("/")[0].replace("www.", "")
-    questions, comps, seen = [], [], set()
-    appears = valid = 0
-    for i, search in enumerate(cat_queries):
-        res = cat_results[i] if i < len(cat_results) else None
-        txt = "" if (res is None or isinstance(res, Exception)) else (res or "")
-        if not txt.strip():
-            questions.append({"q": search, "appears": None, "named": [], "answer": ""})
-            continue
-        valid += 1
-        body = re.split(r"\bINCLUIDA:", txt, 1)[0]
-        rows = _parse_companies(body)
-        here = any(_is_brand_row(c, brand_l, dom_root) for c in rows)
-        if here:
-            appears += 1
-        _sl = re.sub(r"\s+", " ", (search or "").lower()).strip()
-        named = []
-        for c in rows:
-            if _is_brand_row(c, brand_l, dom_root):
-                continue
+    # ---- Resultados por motor (todas las IA sondeadas en paralelo) ----
+    _valid = [(e, p) for e, p in zip(_engines, _probes) if isinstance(p, dict) and not p.get("failed")]
+    if not _valid:
+        _tried = [f"{e['name']}: {(str(p)[:80] if isinstance(p, Exception) else 'sin respuesta')}"
+                  for e, p in zip(_engines, _probes)]
+        return {"available": True, "brand": brand, "error": "sin respuesta de la IA",
+                "debug_engines": _tried}
+    prim = _valid[0][1]
+    recognition = prim.get("recognition") or "none"
+    knows_brand = bool(prim.get("knows"))
+    knows_with_web = knows_brand
+    mem_c = prim.get("proof") or ""
+    recommended = prim.get("recommended")
+    reco_hits = prim.get("reco_hits") or 0
+    reco_total = prim.get("reco_total") or 0
+    questions = prim.get("questions") or []
+    appears, valid = reco_hits, reco_total
+    comps = list(prim.get("competitors") or [])
+    _brand_srcs = prim.get("sources") or []
+    primary_brand_ans = mem_c
+
+    # ---- Matriz multi-IA: una fila por motor (todas sondeadas en paralelo) ----
+    engines_out = []
+    _have = set()
+    for _e, _p in _valid:
+        engines_out.append({
+            "name": _p["name"], "provider": _p["provider"], "web_only": _p.get("web_only"),
+            "knows": _p.get("knows"), "recognition": _p.get("recognition"),
+            "recommended": _p.get("recommended"), "reco_hits": _p.get("reco_hits"),
+            "reco_total": _p.get("reco_total"), "cites": _p.get("cites"),
+            "sources": _p.get("sources") or [], "proof": _p.get("proof") or "",
+        })
+        for c in (_p.get("competitors") or []):
             nm = (c.get("name") or "").strip()
-            if not nm or _looks_generic(nm):
-                continue
-            nml = nm.lower()
-            # descarta el ECO de la propia búsqueda (la IA a veces repite el título)
-            if nml == _sl or (len(_sl) > 8 and (_sl in nml or nml in _sl)):
-                continue
-            # sin dominio + frase de categoría/lugar ("X en Madrid", 4+ palabras en
-            # minúscula) NO es una empresa real
-            if not c.get("domain"):
-                _wc = len(nml.split())
-                _has_upper = any(ch.isupper() for ch in nm)
-                if (" en " in f" {nml} ") or _wc >= 5 or (not _has_upper and _wc >= 3):
-                    continue
-            named.append(nm)
-            if nml not in seen:
-                seen.add(nml)
+            if nm and nm.lower() not in _have and len(comps) < 8:
                 comps.append(c)
-        questions.append({"q": search, "appears": here, "named": named[:4],
-                          "answer": re.sub(r"[*_`]+", "", _strip_cites(body))[:300]})
-    # Si la medición no dio competidores, usamos los que nombró el briefing (mega)
+                _have.add(nm.lower())
     if not comps:
         comps = [{"name": c.strip()} for c in _f("COMPETENCIA", mega).split("|")
                  if c.strip() and not _looks_generic(c.strip())][:6]
+    engine_names = [x["name"] for x in engines_out]
 
-    # 'recommended' MEDIBLE: apareces en X de N búsquedas reales de cliente
-    reco_hits, reco_total = appears, valid
-    if valid:
-        recommended = True if appears >= 2 else (False if appears == 0 else None)
-    elif recognition == "none":
-        recommended = False   # ni te reconoce y no se pudo medir
-    else:
-        recommended = None    # no se pudo medir (grounding limitado)
-
-    # Ficha de Google Business: se agregan las respuestas de TODOS los motores. Si
-    # CUALQUIERA la encuentra (SI o evidencia de ficha), la ficha EXISTE (evita falsos
-    # "SIN FICHA" cuando un motor no ve Maps). Solo es 'NO' si todos lo dicen sin evidencia.
+    # Ficha de Google Business: la detecta un SCRIPT (Places API) fuera de la IA, para
+    # ahorrar coste. Aquí quedan neutros; main.py los rellena con check_gbp.
     gbp = None
-    gbp_category = ""
-    gbp_reviews_n = 0
-    _any_neg = False
-    for _gl0 in (gbp_lines or [gbp_line]):
-        _gl = (_gl0 or "").strip()
-        if not _gl:
-            continue
-        _gu = _gl.upper()
-        _mrev = re.search(r"(\d[\d.,]*)\s*(reseñas|resenas|reviews|opiniones)", _gl, re.I)
-        _mval = re.search(r"([0-5][.,]\d)\s*(?:★|estrellas|de 5|/5)", _gl)
-        _evid = bool(_mrev or _mval or re.search(
-            r"(direcci[oó]n|tel[eé]fono|google maps|categor[ií]a|horario|agencia|empresa|studio|consultor)", _gl, re.I))
-        if _gu.startswith(("SI", "SÍ", "YES")) or _evid:
-            gbp = True
-            _pg = [p.strip() for p in _gl.split("|")]
-            _cat = _pg[1] if len(_pg) > 1 and _pg[1] and not re.search(r"\d", _pg[1]) else ""
-            if _cat and not gbp_category:
-                gbp_category = _cat
-            if _mrev:
-                gbp_reviews_n = max(gbp_reviews_n, int(re.sub(r"[^\d]", "", _mrev.group(1))))
-            break   # una ficha positiva basta
-        if _gu.startswith("NO"):
-            _any_neg = True
-    if gbp is None:
-        gbp = False if _any_neg else _f("FICHA_GOOGLE", mega).upper().startswith("SI")
-    if not gbp_category:
-        gbp_category = _f("CATEGORIA", mega)
-    gbp_category = (gbp_category or "")[:80]
-    if not gbp_reviews_n:
-        _rm = re.search(r"\d[\d.,]*", _f("RESENAS", mega))
-        gbp_reviews_n = int(re.sub(r"[^\d]", "", _rm.group(0))) if _rm else 0
+    gbp_category = _f("CATEGORIA", mega)[:80]
+    _rm = re.search(r"\d[\d.,]*", _f("RESENAS", mega))
+    gbp_reviews_n = int(re.sub(r"[^\d]", "", _rm.group(0))) if _rm else 0
     kw_ai = [k.strip(" -•\"") for k in _f("KEYWORDS", mega).split("|") if k.strip()][:5]
     entities_ai = [e.strip(" -•\"") for e in _f("ENTIDADES", mega).split("|") if e.strip()][:5]
 
@@ -1377,44 +1263,6 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
                         "own": bool(_own and (h == _own or h.endswith("." + _own))), "title": ""})
         if len(src_out) >= 8:
             break
-
-    # ---- MATRIZ MULTI-IA: fila del motor primario + sondeo de los demás en paralelo ----
-    # Fuentes del primario = las de su consulta de MARCA (sobre ti), no del briefing.
-    _prim, _ps = [], set()
-    for s in _brand_srcs:
-        u = s.get("url") or ""
-        m = re.search(r"([a-z0-9.\-]+\.[a-z]{2,})", u.lower())
-        h = m.group(1).replace("www.", "") if m else ""
-        if h and _own not in h and "vertexaisearch" not in h and "googleusercontent" not in h and h not in _ps:
-            _ps.add(h)
-            _prim.append({"domain": h, "url": u})
-    _prim_proof = (primary_brand_ans[:240]
-                   if primary_brand_ans and "no_lo_se" not in primary_brand_ans.lower() and len(primary_brand_ans) > 15
-                   else "")
-    engines_out = [{
-        "name": eng["name"], "provider": prov, "web_only": bool(eng.get("always_web")),
-        "knows": bool(knows_brand or knows_with_web), "recognition": recognition,
-        "recommended": recommended, "reco_hits": reco_hits, "reco_total": reco_total,
-        "cites": len(_prim), "sources": _prim[:8], "proof": _prim_proof,
-    }]
-    # Sondas de los demás motores (ya calculadas en paralelo en la ronda 2)
-    for p in _probes:
-        if not isinstance(p, dict) or p.get("failed"):
-            continue
-        engines_out.append({
-            "name": p["name"], "provider": p["provider"], "web_only": p.get("web_only"),
-            "knows": p["knows"], "recognition": p.get("recognition"),
-            "recommended": p["recommended"],
-            "reco_hits": p["reco_hits"], "reco_total": p["reco_total"], "cites": p["cites"],
-            "sources": p.get("sources") or [], "proof": p.get("proof") or "",
-        })
-        _have = {(x.get("name") or "").lower() for x in comps}
-        for c in (p.get("competitors") or []):
-            nm = (c.get("name") or "").strip()
-            if nm and nm.lower() not in _have and len(comps) < 8:
-                comps.append(c)
-                _have.add(nm.lower())
-    engine_names = [e["name"] for e in engines_out]
 
     reco_frac = (appears / valid) if valid else (1.0 if recommended is True else (0.5 if recommended is None else 0.0))
     score = round(100 * (0.5 * (1 if knows_brand else 0) + 0.5 * reco_frac))

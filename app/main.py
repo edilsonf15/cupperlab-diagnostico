@@ -31,7 +31,7 @@ load_dotenv()
 from analyzer import (analyze, result_to_dict, normalize_url, apply_ai_to_result,  # noqa: E402
                       apply_analytics, fetch_psi_full, finalize_score)
 from geo_ai import run_ai_geo, run_ai_geo_fast, analyze_content  # noqa: E402
-from search import check_google, check_indexation  # noqa: E402
+from search import check_google, check_indexation, check_gbp  # noqa: E402
 import emailer  # noqa: E402
 import report_pdf  # noqa: E402
 import perf2  # noqa: E402
@@ -282,6 +282,26 @@ async def _run_job(job_id: str, url: str, email: str, name: str, lead: dict, lan
         if ai and isinstance(ai.get("content"), dict):
             data["content_ai"] = ai["content"]
         apply_ai_to_result(data, ai)
+
+        # 2b) Ficha de Google Business por SCRIPT (Places API), SIN gastar IA cara.
+        # Dato real de Google (categoría + nº de reseñas). Si no hay clave/API, queda
+        # como desconocido (neutro) y no se afirma en falso.
+        try:
+            _gb = await check_gbp(
+                (ai.get("brand") if ai else "") or domain,
+                (ai.get("zona") or ai.get("country") or "") if ai else "",
+                domain)
+            geo = data.get("geo_ai")
+            if isinstance(_gb, dict) and isinstance(geo, dict) and _gb.get("found") is not None:
+                geo["gbp"] = bool(_gb.get("found"))
+                if _gb.get("found"):
+                    geo["gbp_reviews_n"] = _gb.get("reviews") or 0
+                    if _gb.get("category"):
+                        geo["gbp_category"] = _gb.get("category")
+                    if _gb.get("rating") is not None:
+                        geo["gbp_rating"] = _gb.get("rating")
+        except Exception as exc:  # noqa: BLE001
+            print(f"[gbp:ERROR] {exc}")
 
         # 3) Competencia / posicion (mientras la velocidad sigue midiendo en paralelo)
         _set(job_id, 58, "Buscando a tu competencia...")

@@ -29,6 +29,51 @@ _KL = {"co": "co-es", "us": "us-en", "es": "es-es", "mx": "mx-es", "ar": "ar-es"
        "cl": "cl-es", "pe": "pe-es", "ec": "ec-es", "uk": "uk-en", "br": "br-pt"}
 
 
+async def check_gbp(brand: str, place: str = "", domain: str = "") -> dict | None:
+    """Detecta la ficha de Google Business por SCRIPT (Google Places API Text Search),
+    sin gastar IA. Determinista y con dato real de Google: nombre, categoría, nº de
+    reseñas y valoración. Devuelve {found, category, reviews, rating, name, maps_url} o
+    None si no hay clave/API disponible. Necesita GOOGLE_PLACES_API_KEY (o reutiliza
+    GOOGLE_PSI_API_KEY si el proyecto tiene habilitada la Places API)."""
+    key = (os.getenv("GOOGLE_PLACES_API_KEY", "").strip()
+           or os.getenv("GOOGLE_PSI_API_KEY", "").strip())
+    if not key or not brand:
+        return None
+    q = (brand + (" " + place if place else "")).strip()
+    dom = (domain or "").split("/")[0].replace("www.", "").lower()
+    bl = re.sub(r"\s+", "", brand.lower())
+    try:
+        async with httpx.AsyncClient(headers={"User-Agent": UA}) as c:
+            r = await c.post(
+                "https://places.googleapis.com/v1/places:searchText",
+                headers={"X-Goog-Api-Key": key,
+                         "X-Goog-FieldMask": ("places.displayName,places.rating,"
+                                              "places.userRatingCount,places.primaryTypeDisplayName,"
+                                              "places.websiteUri,places.googleMapsUri,places.formattedAddress")},
+                json={"textQuery": q}, timeout=TIMEOUT)
+        if r.status_code != 200:
+            return {"found": None, "error": f"{r.status_code}", "reviews": 0}
+        places = r.json().get("places") or []
+        for p in places[:3]:
+            name = (p.get("displayName") or {}).get("text", "")
+            web = (p.get("websiteUri") or "").lower()
+            nm = re.sub(r"\s+", "", name.lower())
+            same_web = bool(dom and dom in web)
+            same_name = bool(bl and (bl in nm or nm in bl))
+            if same_web or same_name:
+                return {"found": True,
+                        "category": p.get("primaryTypeDisplayName", {}).get("text", "") if isinstance(p.get("primaryTypeDisplayName"), dict) else (p.get("primaryTypeDisplayName") or ""),
+                        "reviews": int(p.get("userRatingCount") or 0),
+                        "rating": p.get("rating"),
+                        "name": name,
+                        "address": p.get("formattedAddress", ""),
+                        "maps_url": p.get("googleMapsUri", "")}
+        return {"found": False, "reviews": 0}
+    except Exception as exc:  # noqa: BLE001
+        print(f"[gbp:ERROR] {exc}")
+        return {"found": None, "error": str(exc), "reviews": 0}
+
+
 def provider() -> str:
     if os.getenv("SEARCH_PROVIDER", "").strip().lower() == "serper" or os.getenv("SERPER_API_KEY", "").strip():
         return "serper"
