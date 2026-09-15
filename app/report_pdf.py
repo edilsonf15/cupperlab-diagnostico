@@ -1366,34 +1366,29 @@ def _growth_chart(score: int) -> str:
     </td></tr></table>"""
 
 
-def _findings_cards(r: dict, keys, title=None) -> str:
-    """Hallazgos del analizador de una o varias áreas (por clave), para ENCAJARLOS
-    dentro de la sección del PDF que les corresponde (no como bloque aparte). Críticos
-    primero. Fuente única: findings.compute (los mismos que ve el cliente en pantalla)."""
+def _findings_rows(r: dict, keys, title=None, exclude=None) -> str:
+    """Hallazgos del analizador (por clave de área) renderizados con el ESTILO PROPIO
+    del PDF (la lista de comprobaciones _check_list: punto de color + nombre + etiqueta +
+    observación), NO con las tarjetas del analizador. `exclude` salta títulos que ya
+    muestra la sección nativa (para no duplicar). Fuente única: findings.compute."""
     if isinstance(keys, str):
         keys = [keys]
-    items = []
+    exc = [e.lower() for e in (exclude or [])]
+    rows = []
     for g in (r.get("findings") or []):
-        if g.get("key") in keys:
-            items += (g.get("items") or [])
-    if not items:
+        if g.get("key") not in keys:
+            continue
+        for it in (g.get("items") or []):
+            t = it.get("t", "")
+            if any(e in t.lower() for e in exc):
+                continue
+            crit = it.get("sev") == "critico"
+            code = L("CRÍTICO", "CRITICAL") if crit else L("REVISAR", "REVIEW")
+            rows.append((t, code, "crit" if crit else "med", it.get("d", "")))
+    if not rows:
         return ""
-    items = sorted(items, key=lambda x: 0 if x.get("sev") == "critico" else 1)
-    cards = ""
-    for it in items:
-        crit = it.get("sev") == "critico"
-        col = RED if crit else AMBER
-        tag = L("CRÍTICO", "CRITICAL") if crit else L("OPORTUNIDAD", "OPPORTUNITY")
-        cards += (
-            f'<tr><td style="padding:0 0 7px 0"><table role="presentation" width="100%" '
-            f'style="border-collapse:separate;border:1px solid #e7ebf0;border-left:3px solid {col};'
-            f'border-radius:8px"><tr><td style="padding:8px 11px">'
-            f'<div class="mono" style="font-size:7.5px;letter-spacing:.08em;color:{col};margin-bottom:3px">{tag}</div>'
-            f'<div style="font-size:10.5px;font-weight:700;color:{INK9};margin-bottom:2px">{_esc(it.get("t",""))}</div>'
-            f'<div style="font-size:9px;line-height:1.42;color:#5a6572">{_esc(it.get("d",""))}</div>'
-            f'</td></tr></table></td></tr>')
     head = (f'<div class="sectic" style="margin-top:12px">{_esc(title)}</div>' if title else "")
-    return f'{head}<table role="presentation" width="100%" style="border-collapse:collapse">{cards}</table>'
+    return head + _check_list(rows)
 
 
 def build_report_html(r: dict, contact: dict, name: str = "") -> str:
@@ -1690,7 +1685,7 @@ def build_report_html(r: dict, contact: dict, name: str = "") -> str:
   {_crawl_structure_block(r)}
   {_index_block(r)}
   {(''.join('<div class="block callout r"><b>' + L("Enlaces rotos.", "Broken links.") + '</b> ' + L("Ejemplos reales encontrados:", "Real examples found:") + ' ' + ', '.join(e["url"] for e in s["broken_examples"][:3]) + '.</div>' for _ in [0]) if s.get("broken_examples") else '')}
-  {_findings_cards(r, ["tech", "schema"], L("Hallazgos técnicos y de datos estructurados", "Technical & structured-data findings"))}
+  {_findings_rows(r, ["tech", "schema"], L("Otros hallazgos técnicos y de datos estructurados", "Other technical & structured-data findings"), exclude=["enlaces rotos", "mapa del sitio", "robots", "móvil", "indexación", "cobertura", "conexión segura"])}
 </section>
 
 <section class="pg">
@@ -1700,7 +1695,6 @@ def build_report_html(r: dict, contact: dict, name: str = "") -> str:
   <p class="sub">{L('Analizamos TODAS las páginas de tu sitio, no solo la portada. Estas son las señales que deciden si Google te muestra y si la IA te cita, con ejemplos reales de páginas a corregir.', 'We analyze ALL pages of your site, not just the homepage. These are the signals that decide whether Google shows you and whether AI cites you, with real examples of pages to fix.')}</p>
   </div>
   {_onpage_multi(r) or _onpage_rows(r)}
-  {_findings_cards(r, ["onpage"], L("Hallazgos on-page", "On-page findings"))}
   {_porque_como(r)}
 </section>
 
@@ -1710,16 +1704,12 @@ def build_report_html(r: dict, contact: dict, name: str = "") -> str:
 
 <section class="pg">
   {_speed_section(r)}
-  {_findings_cards(r, ["perf"], L("Hallazgos de velocidad", "Speed findings"))}
   {_security_section(r)}
-  {_findings_cards(r, ["security"], L("Hallazgos de seguridad", "Security findings"))}
 </section>
 
 {(f'''<section class="pg">
   {_local_section(r)}
-  {_findings_cards(r, ["local"], L("Hallazgos de presencia local", "Local presence findings"))}
   {_content_section(r)}
-  {_findings_cards(r, ["content"], L("Hallazgos de contenido", "Content findings"))}
 </section>''') if (_local_section(r) or _content_section(r)) else ''}
 
 {(f'''<section class="pg">
