@@ -827,10 +827,11 @@ def _ai_section(r: dict) -> str:
         <span class="v {_c2_v}">{_c2_lab}</span></div>
     </div>"""
 
-    # Las 3 búsquedas reales de un cliente (el corazon de la prueba GEO), como tarjetas
+    # UNA búsqueda real de cliente como ejemplo (la IA repite los mismos competidores
+    # en todas, así que mostrar más es redundante). El veredicto X/N sí resume las N.
     questions = ai.get("questions") or []
     q_cards = ""
-    for q in questions[:3]:
+    for q in questions[:1]:
         ap = q.get("appears")
         named = ", ".join(q.get("named", [])[:4]) or "—"
         vt = L("APARECES", "YOU APPEAR") if ap is True else (L("NO APARECES", "YOU DON'T APPEAR") if ap is False else L("SIN DATO", "NO DATA"))
@@ -846,7 +847,7 @@ def _ai_section(r: dict) -> str:
     _hits = ai.get("reco_hits"); _tot = ai.get("reco_total")
     _hits_txt = (f' · {L("apareces en", "you appear in")} {_hits}/{_tot}'
                  if isinstance(_hits, int) and isinstance(_tot, int) and _tot else f' · {L("¿sales tú?", "do you show up?")}')
-    q_block = (f'<div class="sectic" style="margin-top:12px">{L("Las búsquedas reales de un cliente", "The real customer searches")}'
+    q_block = (f'<div class="sectic" style="margin-top:12px">{L("Ejemplo de búsqueda real de un cliente", "Example of a real customer search")}'
                f'{(L(" en ", " in ") + _esc(country)) if country else ""}{_hits_txt}</div>{q_cards}') if q_cards else ""
 
     # Veredicto según reconocimiento + recomendacion (verde/ambar/rojo)
@@ -1365,43 +1366,34 @@ def _growth_chart(score: int) -> str:
     </td></tr></table>"""
 
 
-def _all_findings_section(r: dict) -> str:
-    """Todos los hallazgos del diagnóstico, agrupados por área — LOS MISMOS que ve el
-    cliente en la pantalla (fuente única: findings.compute). Críticos primero."""
-    groups = r.get("findings") or []
-    if not groups:
+def _findings_cards(r: dict, keys, title=None) -> str:
+    """Hallazgos del analizador de una o varias áreas (por clave), para ENCAJARLOS
+    dentro de la sección del PDF que les corresponde (no como bloque aparte). Críticos
+    primero. Fuente única: findings.compute (los mismos que ve el cliente en pantalla)."""
+    if isinstance(keys, str):
+        keys = [keys]
+    items = []
+    for g in (r.get("findings") or []):
+        if g.get("key") in keys:
+            items += (g.get("items") or [])
+    if not items:
         return ""
-    n_total = sum(len(g.get("items") or []) for g in groups)
-    n_crit = sum(1 for g in groups for it in (g.get("items") or []) if it.get("sev") == "critico")
-    blocks = ""
-    for g in groups:
-        items = g.get("items") or []
-        if not items:
-            continue
-        cards = ""
-        for it in items:
-            crit = it.get("sev") == "critico"
-            col = RED if crit else AMBER
-            tag = L("CRÍTICO", "CRITICAL") if crit else L("OPORTUNIDAD", "OPPORTUNITY")
-            cards += (
-                f'<tr><td style="padding:0 0 8px 0"><table role="presentation" width="100%" '
-                f'style="border-collapse:separate;border:1px solid #e7ebf0;border-left:3px solid {col};'
-                f'border-radius:8px"><tr><td style="padding:9px 12px">'
-                f'<div class="mono" style="font-size:8px;letter-spacing:.08em;color:{col};margin-bottom:3px">{tag}</div>'
-                f'<div style="font-size:11px;font-weight:700;color:{INK9};margin-bottom:3px">{_esc(it.get("t",""))}</div>'
-                f'<div style="font-size:9.5px;line-height:1.45;color:#5a6572">{_esc(it.get("d",""))}</div>'
-                f'</td></tr></table></td></tr>')
-        blocks += (
-            f'<div class="keep" style="margin-top:12px">'
-            f'<div class="sectic">{_esc(g.get("cat",""))} · {len(items)}</div>'
-            f'<table role="presentation" width="100%" style="border-collapse:collapse">{cards}</table></div>')
-    return (
-        f'<div class="keep"><div class="eyebrow"><span class="bar"></span>'
-        f'{L("Hallazgos de tu sitio", "Findings on your site")}</div>'
-        f'<h2 class="sec">{L("Todo lo que encontramos, del más crítico al medio", "Everything we found, from most critical to softest")}</h2>'
-        f'<p class="sub">{L("Estos son todos los hallazgos del análisis, agrupados por área. En rojo lo crítico, en ámbar las oportunidades. Son los mismos que ves en pantalla.", "These are all the findings from the analysis, grouped by area. Critical in red, opportunities in amber. The same you see on screen.")} '
-        f'<b>{n_total}</b> {L("hallazgos", "findings")}, <b>{n_crit}</b> {L("críticos", "critical")}.</p></div>'
-        f'{blocks}')
+    items = sorted(items, key=lambda x: 0 if x.get("sev") == "critico" else 1)
+    cards = ""
+    for it in items:
+        crit = it.get("sev") == "critico"
+        col = RED if crit else AMBER
+        tag = L("CRÍTICO", "CRITICAL") if crit else L("OPORTUNIDAD", "OPPORTUNITY")
+        cards += (
+            f'<tr><td style="padding:0 0 7px 0"><table role="presentation" width="100%" '
+            f'style="border-collapse:separate;border:1px solid #e7ebf0;border-left:3px solid {col};'
+            f'border-radius:8px"><tr><td style="padding:8px 11px">'
+            f'<div class="mono" style="font-size:7.5px;letter-spacing:.08em;color:{col};margin-bottom:3px">{tag}</div>'
+            f'<div style="font-size:10.5px;font-weight:700;color:{INK9};margin-bottom:2px">{_esc(it.get("t",""))}</div>'
+            f'<div style="font-size:9px;line-height:1.42;color:#5a6572">{_esc(it.get("d",""))}</div>'
+            f'</td></tr></table></td></tr>')
+    head = (f'<div class="sectic" style="margin-top:12px">{_esc(title)}</div>' if title else "")
+    return f'{head}<table role="presentation" width="100%" style="border-collapse:collapse">{cards}</table>'
 
 
 def build_report_html(r: dict, contact: dict, name: str = "") -> str:
@@ -1698,6 +1690,7 @@ def build_report_html(r: dict, contact: dict, name: str = "") -> str:
   {_crawl_structure_block(r)}
   {_index_block(r)}
   {(''.join('<div class="block callout r"><b>' + L("Enlaces rotos.", "Broken links.") + '</b> ' + L("Ejemplos reales encontrados:", "Real examples found:") + ' ' + ', '.join(e["url"] for e in s["broken_examples"][:3]) + '.</div>' for _ in [0]) if s.get("broken_examples") else '')}
+  {_findings_cards(r, ["tech", "schema"], L("Hallazgos técnicos y de datos estructurados", "Technical & structured-data findings"))}
 </section>
 
 <section class="pg">
@@ -1707,6 +1700,7 @@ def build_report_html(r: dict, contact: dict, name: str = "") -> str:
   <p class="sub">{L('Analizamos TODAS las páginas de tu sitio, no solo la portada. Estas son las señales que deciden si Google te muestra y si la IA te cita, con ejemplos reales de páginas a corregir.', 'We analyze ALL pages of your site, not just the homepage. These are the signals that decide whether Google shows you and whether AI cites you, with real examples of pages to fix.')}</p>
   </div>
   {_onpage_multi(r) or _onpage_rows(r)}
+  {_findings_cards(r, ["onpage"], L("Hallazgos on-page", "On-page findings"))}
   {_porque_como(r)}
 </section>
 
@@ -1716,21 +1710,21 @@ def build_report_html(r: dict, contact: dict, name: str = "") -> str:
 
 <section class="pg">
   {_speed_section(r)}
+  {_findings_cards(r, ["perf"], L("Hallazgos de velocidad", "Speed findings"))}
   {_security_section(r)}
+  {_findings_cards(r, ["security"], L("Hallazgos de seguridad", "Security findings"))}
 </section>
 
 {(f'''<section class="pg">
   {_local_section(r)}
+  {_findings_cards(r, ["local"], L("Hallazgos de presencia local", "Local presence findings"))}
   {_content_section(r)}
+  {_findings_cards(r, ["content"], L("Hallazgos de contenido", "Content findings"))}
 </section>''') if (_local_section(r) or _content_section(r)) else ''}
 
 {(f'''<section class="pg">
   {_google_section(r)}
 </section>''') if _google_section(r) else ''}
-
-{(f'''<section class="pg">
-  {_all_findings_section(r)}
-</section>''') if _all_findings_section(r) else ''}
 
 <section class="pg">
   <div class="keep">
