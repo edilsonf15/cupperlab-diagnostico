@@ -20,7 +20,10 @@ from i18n import L, is_en  # idioma del analisis (ES/EN)
 
 ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
 ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
+# OJO: 'gemini-flash-latest' apunta al modelo más nuevo (3.8), que en cuentas de pago
+# recientes sigue capado a free-tier (20/día -> 429). 'gemini-3.6-flash' SÍ tiene cuota
+# de pago y buena calidad. Se puede sobreescribir con GEMINI_MODEL en Dokploy.
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
 AI_BUDGET = float(os.getenv("AI_GEO_BUDGET", "30"))  # grounded necesita margen, pero son 2 rondas: 30s equilibra veracidad y <2min
 _LAST_GROUNDING: dict = {}  # debug temporal: estado del último grounding
 
@@ -974,26 +977,38 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
             if not cat_queries:
                 cat_queries = [f"{sec_txt} en {place}".strip()]
 
-            # RONDA 2 — MEDICIÓN REAL Y VERIFICABLE: por cada búsqueda típica de cliente
-            # (SIN nombrar la marca) le pedimos a la IA a quién recomienda y comprobamos
-            # NOSOTROS si la marca aparece en su lista. Nada de autocalificación.
-            def _q_cat(search: str) -> str:
-                return L(
-                    f"Usa búsqueda web. Un cliente en {place} busca en un asistente de IA: \"{search}\". "
-                    f"Respóndele EXACTAMENTE como lo harías de verdad: recomienda 4-5 EMPRESAS o profesionales "
-                    f"REALES de {sec_txt} en {place}, cada una en una línea con el formato 'Nombre real | dominio.com'. "
-                    f"Reglas: (1) solo negocios REALES con web propia; (2) el 'Nombre' es la empresa, NO una "
-                    f"categoría, servicio ni ciudad; (3) si no encuentras 4-5 reales, pon solo las reales. "
-                    f"Sin explicaciones ni conclusión.",
-                    f"Use web search. A customer in {place} asks an AI assistant: \"{search}\". "
-                    f"Answer EXACTLY as you really would: recommend 4-5 REAL companies or professionals of "
-                    f"{sec_txt} in {place}, each on one line as 'Real name | domain.com'. Rules: (1) only REAL "
-                    f"businesses with their own site; (2) the Name is the company, NOT a category, service or city; "
-                    f"(3) if fewer than 4-5 real ones, list only the real ones. No explanations or conclusion.")
-            cat_results = await asyncio.gather(
-                *[_ask(client, prov, key, strong, _q_cat(s), max_tokens=600, grounded=True)
-                  for s in cat_queries],
-                return_exceptions=True)
+            # RONDA 2 — MEDICIÓN REAL Y VERIFICABLE, en UNA sola llamada grounded (para no
+            # agotar la cuota de búsqueda en vivo): pedimos las búsquedas de cliente a la vez
+            # (SIN nombrar la marca) y comprobamos NOSOTROS si la marca sale en cada lista.
+            _qlist = "\n".join(f"@@{i+1}@@ {q}" for i, q in enumerate(cat_queries))
+            q_cat = L(
+                f"Usa búsqueda web. Un cliente en {place} podría escribir estas búsquedas en un asistente "
+                f"de IA. Para CADA búsqueda, recomienda 4-5 EMPRESAS o profesionales REALES de {sec_txt} en "
+                f"{place}. Devuelve EXACTAMENTE este formato y nada más:\n{_qlist}\n"
+                f"Debajo de cada marcador @@n@@, una empresa por línea como 'Nombre real | dominio.com'. "
+                f"Reglas: solo negocios REALES con web propia; el 'Nombre' es la empresa, NO una categoría, "
+                f"servicio ni ciudad; si no hay 4-5 reales, pon solo las reales. Sin explicaciones.",
+                f"Use web search. A customer in {place} might type these searches into an AI assistant. For "
+                f"EACH search, recommend 4-5 REAL companies or professionals of {sec_txt} in {place}. Return "
+                f"EXACTLY this format and nothing else:\n{_qlist}\n"
+                f"Under each @@n@@ marker, one company per line as 'Real name | domain.com'. Rules: only REAL "
+                f"businesses with their own site; the Name is the company, NOT a category/service/city; if fewer "
+                f"than 4-5 real, list only the real ones. No explanations.")
+            combo = await _ask(client, prov, key, strong, q_cat, max_tokens=900, grounded=True)
+            combo = combo if isinstance(combo, str) else ""
+            # Reparte la respuesta en bloques por marcador @@n@@, alineados a cat_queries
+            cat_results = [""] * len(cat_queries)
+            if combo.strip():
+                parts = re.split(r"@@\s*(\d+)\s*@@", combo)
+                for _k in range(1, len(parts) - 1, 2):
+                    try:
+                        _idx = int(parts[_k]) - 1
+                    except Exception:  # noqa: BLE001
+                        continue
+                    if 0 <= _idx < len(cat_results):
+                        cat_results[_idx] = parts[_k + 1]
+                if not any(cat_results):   # el modelo ignoró los marcadores
+                    cat_results[0] = combo
     except Exception as exc:  # noqa: BLE001
         return {"available": True, "error": str(exc), "brand": brand}
 
