@@ -133,41 +133,6 @@
   </td></tr>
   {% endif %}
 
-  <!-- MATRIZ MULTI-IA -->
-  {% if r.geo_ai and r.geo_ai.engines and not r.geo_ai.limited %}
-  <tr><td class="pad" style="padding:22px 34px 0">
-    <div class="sora" style="font-size:15px;font-weight:700;color:#0b1620">{{ 'How the different AIs see you' if en else 'Cómo te ven las distintas IA' }}</div>
-    <div style="font-size:12px;color:#6b7580;margin:4px 0 12px;line-height:1.5">{{ 'Measured live on ChatGPT, Perplexity and Gemini.' if en else 'Medido en vivo en ChatGPT, Perplexity y Gemini.' }}</div>
-    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border:1px solid #e6ebf0;border-radius:12px;overflow:hidden;font-size:13px">
-      <tr style="background:#f4f7f9">
-        <td style="padding:9px 12px;font:600 10px/1 monospace;letter-spacing:.05em;color:#8a94a0">IA</td>
-        <td align="center" style="padding:9px 8px;font:600 10px/1 monospace;letter-spacing:.05em;color:#8a94a0">{{ 'KNOWS YOU?' if en else '¿TE RECONOCE?' }}</td>
-        <td align="center" style="padding:9px 8px;font:600 10px/1 monospace;letter-spacing:.05em;color:#8a94a0">{{ 'RECOMMENDS?' if en else '¿TE RECOMIENDA?' }}</td>
-        <td align="center" style="padding:9px 8px;font:600 10px/1 monospace;letter-spacing:.05em;color:#8a94a0">{{ 'CITES?' if en else '¿TE CITA?' }}</td>
-      </tr>
-      {% for e in r.geo_ai.engines %}
-      {% set kn_yes = (e.recognition == 'strong') or (e.recognition is none and e.knows) %}
-      {% set rcol = '#1f9d6b' if kn_yes else ('#d9920a' if e.recognition == 'weak' else '#d0402a') %}
-      {% set rtxt = (('Yes' if en else 'Sí') if kn_yes else (('Partly' if en else 'A medias') if e.recognition == 'weak' else 'No')) %}
-      {% set cnt = (' (' ~ e.reco_hits ~ '/' ~ e.reco_total ~ ')') if e.reco_total else '' %}
-      {% set ocol = '#1f9d6b' if e.recommended is true else ('#d0402a' if e.recommended is false else '#d9920a') %}
-      {% set otxt = (('Yes' if en else 'Sí') if e.recommended is true else ('No' if e.recommended is false else ('Sometimes' if en else 'A veces'))) ~ cnt %}
-      {% set n = e.cites or 0 %}
-      {% set ccol = '#1f9d6b' if n >= 2 else ('#d9920a' if n == 1 else '#d0402a') %}
-      {% set ctxt = n ~ ' ' ~ (('source' if en else 'fuente') if n == 1 else ('sources' if en else 'fuentes')) %}
-      <tr>
-        <td style="padding:11px 12px;border-top:1px solid #eef1f4;font-weight:700;color:#0b1620">{{ e.name }}</td>
-        <td align="center" style="padding:11px 8px;border-top:1px solid #eef1f4;font-weight:700;color:{{ rcol }}">{{ rtxt }}</td>
-        <td align="center" style="padding:11px 8px;border-top:1px solid #eef1f4;font-weight:700;color:{{ ocol }}">{{ otxt }}</td>
-        <td align="center" style="padding:11px 8px;border-top:1px solid #eef1f4;font-weight:700;color:{{ ccol }}">{{ ctxt }}</td>
-      </tr>
-      {% endfor %}
-    </table>
-    <div style="font-size:11px;color:#6b7580;margin-top:10px;line-height:1.55"><b>{{ 'Knows you?' if en else '¿Te reconoce?' }}</b> {{ 'whether the AI knows who you are.' if en else 'si la IA sabe quién eres al preguntar por tu marca.' }} <b>{{ 'Recommends?' if en else '¿Te recomienda?' }}</b> {{ 'if it includes you when your service is requested without naming you (X/N = in how many searches you appear).' if en else 'si te incluye cuando piden tu servicio sin nombrarte (X/N = en cuántas búsquedas apareces).' }} <b>{{ 'Cites?' if en else '¿Te cita?' }}</b> {{ 'how many external sources it uses about you.' if en else 'cuántas fuentes externas usa la IA al hablar de ti.' }}</div>
-    {% for e in r.geo_ai.engines %}{% if e.sources %}<div style="font-size:11px;color:#5a6572;margin-top:4px"><b style="color:#0b1620">{{ e.name }}</b> · {{ e.cites or 0 }} {{ 'sources' if en else 'fuentes' }}: {{ e.sources[:8]|join(', ') }}</div>{% endif %}{% endfor %}
-  </td></tr>
-  {% endif %}
-
   <!-- INFORME PDF -->
   <tr><td class="pad" style="padding:20px 34px 0">
     <table width="100%" cellpadding="0" cellspacing="0" style="background:#eaf7fb;border:1px solid #cdeef8;border-radius:14px"><tr><td style="padding:20px 22px">

@@ -1021,19 +1021,21 @@ async def _engine_probe(client, eng, brand, domain, q_mem, cat_prompt, cat_queri
     combo = combo if isinstance(combo, str) else ""
     questions, appears, valid, comps = _measure_appearances(combo, cat_queries, brand, domain)
     _own = (domain or "").split("/")[0].replace("www.", "").lower()
-    _doms = []
+    _srcs, _seen = [], set()
     for s in srcs:
-        m = re.search(r"([a-z0-9.\-]+\.[a-z]{2,})", (s.get("url") or "").lower())
+        u = s.get("url") or ""
+        m = re.search(r"([a-z0-9.\-]+\.[a-z]{2,})", u.lower())
         h = m.group(1).replace("www.", "") if m else ""
-        if h and _own not in h and "vertexaisearch" not in h and "googleusercontent" not in h and h not in _doms:
-            _doms.append(h)
-    cites = len(_doms)
+        if h and _own not in h and "vertexaisearch" not in h and "googleusercontent" not in h and h not in _seen:
+            _seen.add(h)
+            _srcs.append({"domain": h, "url": u})
+    cites = len(_srcs)
     recommended = None
     if valid:
         recommended = True if appears >= max(2, valid // 2 + 1) else (False if appears == 0 else None)
     return {"name": eng["name"], "provider": prov, "web_only": rec_grounded,
             "knows": knows, "recommended": recommended, "reco_hits": appears,
-            "reco_total": valid, "cites": cites, "sources": _doms[:8],
+            "reco_total": valid, "cites": cites, "sources": _srcs[:8],
             "competitors": comps, "questions": questions}
 
 
@@ -1341,17 +1343,19 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
         if not h or h in seen or "vertexaisearch" in h or "googleusercontent" in h:
             continue
         seen.add(h)
-        src_out.append({"domain": h, "own": bool(_own and (h == _own or h.endswith("." + _own))), "title": ""})
+        src_out.append({"domain": h, "url": (u or ("https://" + h)),
+                        "own": bool(_own and (h == _own or h.endswith("." + _own))), "title": ""})
         if len(src_out) >= 8:
             break
 
     # ---- MATRIZ MULTI-IA: fila del motor primario + sondeo de los demás en paralelo ----
-    _prim_doms = [x.get("domain") for x in src_out if not x.get("own") and x.get("domain")]
+    _prim = [{"domain": x["domain"], "url": x.get("url") or ("https://" + x["domain"])}
+             for x in src_out if not x.get("own") and x.get("domain")]
     engines_out = [{
         "name": eng["name"], "provider": prov, "web_only": bool(eng.get("always_web")),
         "knows": bool(knows_brand or knows_with_web), "recognition": recognition,
         "recommended": recommended, "reco_hits": reco_hits, "reco_total": reco_total,
-        "cites": len(_prim_doms), "sources": _prim_doms[:8],
+        "cites": len(_prim), "sources": _prim[:8],
     }]
     _others = list(_engines[1:])
     if _others:
