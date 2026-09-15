@@ -155,10 +155,12 @@ async def _ask(client: httpx.AsyncClient, provider: str, key: str, model: str,
     return "".join(b.get("text", "") for b in data.get("content", [])).strip()
 
 
+# Económico por defecto: gpt-4o-mini para todo (barato y suficientemente preciso
+# para esta tarea estructurada: extraer sector, listar competidores reales, medir
+# apariciones). Si algún día se quiere más precisión, subir OPENAI_MODEL_STRONG a
+# 'gpt-4o' en Dokploy (más caro). Ambos se pueden sobreescribir por env.
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-# Modelo "fuerte" para lo que necesita PRECISION (reconocimiento y competidores
-# reales con busqueda web). Se puede bajar por env si el coste importa.
-OPENAI_MODEL_STRONG = os.getenv("OPENAI_MODEL_STRONG", "gpt-4o")
+OPENAI_MODEL_STRONG = os.getenv("OPENAI_MODEL_STRONG", "gpt-4o-mini")
 
 # Sectores para enfocar la competencia (belleza vs abogados vs marketing...).
 _SECTOR_HINTS = [
@@ -253,11 +255,15 @@ def _gemini_engine() -> dict | None:
 
 
 async def _pick_working_engine() -> dict | None:
-    """Motor de IA: GEMINI es el motor oficial (de pago). Solo cae a OpenAI si algún
-    día se configura y Gemini no está. No gasta búsquedas: solo lista modelos (gratis)."""
-    ge = _gemini_engine()
-    if ge:
-        return ge   # Gemini directo (es el que se paga y se usa)
+    """Motor de IA. Se elige con AI_PROVIDER: 'openai' (ChatGPT, por defecto),
+    'gemini', o 'auto' (usa el que tenga clave, OpenAI primero). ChatGPT es el motor
+    activo: económico y con búsqueda web en vivo por la Responses API."""
+    pref = os.getenv("AI_PROVIDER", "openai").strip().lower()
+    if pref == "gemini":
+        return _gemini_engine() or _openai_engine()
+    if pref == "openai":
+        return _openai_engine() or _gemini_engine()
+    # auto: OpenAI primero, luego Gemini
     oe = _openai_engine()
     if oe:
         try:
@@ -268,7 +274,7 @@ async def _pick_working_engine() -> dict | None:
                     return oe
         except Exception:  # noqa: BLE001
             pass
-    return oe
+    return oe or _gemini_engine()
 
 
 def _strip_cites(s: str) -> str:
