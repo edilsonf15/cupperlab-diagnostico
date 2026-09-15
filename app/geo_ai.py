@@ -293,8 +293,12 @@ def _pick_engines() -> list[dict]:
     'openai,perplexity,gemini'. Si no está, usa AI_PROVIDER o todos los que tengan clave."""
     names = [n.strip().lower() for n in os.getenv("AI_ENGINES", "").split(",") if n.strip()]
     if not names:
+        # Sin AI_ENGINES: usa TODOS los motores que tengan clave (matriz automática).
+        # AI_PROVIDER (si nombra uno) solo decide cuál va primero (el del briefing).
+        names = ["openai", "perplexity", "gemini"]
         pref = os.getenv("AI_PROVIDER", "").strip().lower()
-        names = [pref] if pref and pref not in ("multi", "auto") else ["openai", "perplexity", "gemini"]
+        if pref in names:
+            names = [pref] + [n for n in names if n != pref]
     out, seen = [], set()
     for n in names:
         b = _ENGINE_BUILDERS.get(n)
