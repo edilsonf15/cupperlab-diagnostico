@@ -1008,13 +1008,12 @@ async def _engine_probe(client, eng, brand, domain, q_mem, q_brand, cat_prompt, 
     strong = eng.get("strong") or eng["model"]
     model = eng["model"]
     srcs: list = []
-    web = bool(eng.get("always_web"))   # Perplexity: buscador (trae citas reales)
-    # UNA sola consulta de reconocimiento/prueba: con búsqueda si es buscador (Perplexity,
-    # captura fuentes), o de memoria si no (ChatGPT/Gemini, barata; no devuelven citas).
+    web = bool(eng.get("always_web"))
+    # Consulta de MARCA CON búsqueda en vivo (prueba real: qué dice de ti + fuentes) y la
+    # medición de categoría. 2 llamadas por motor.
     try:
         brand_ans, combo = await asyncio.gather(
-            _ask(client, prov, key, (strong if web else model), (q_brand if web else q_mem),
-                 max_tokens=(240 if web else 150), grounded=web, sink=(srcs if web else None)),
+            _ask(client, prov, key, strong, q_brand, max_tokens=240, grounded=True, sink=srcs),
             _ask(client, prov, key, strong, cat_prompt, max_tokens=900, grounded=True),
             return_exceptions=True)
     except Exception:  # noqa: BLE001
@@ -1157,16 +1156,11 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
                 _p, _k = _e["provider"], _e["key"]
                 _s = _e.get("strong") or _e["model"]
                 _m = _e["model"]
-                _mem_grounded = bool(_e.get("always_web"))  # Perplexity siempre busca
-                # La consulta de MARCA del primario: si es buscador (Perplexity) va con
-                # búsqueda y captura fuentes reales sobre ti (_brand_srcs); si no, de
-                # memoria (barata) y describe lo que sabe. Sirve de reconocimiento + prueba.
+                # La consulta de MARCA del primario va CON búsqueda en vivo (prueba real de
+                # qué dice de ti y en qué fuentes se apoya). Sirve de reconocimiento + prueba.
                 _mg, _mm = await asyncio.gather(
                     _ask(client, _p, _k, _s, q_mega, max_tokens=600, grounded=True, sink=sources),
-                    _ask(client, _p, _k, _s if _mem_grounded else _m,
-                         q_brand if _mem_grounded else q_mem,
-                         max_tokens=240 if _mem_grounded else 150,
-                         grounded=_mem_grounded, sink=(_brand_srcs if _mem_grounded else None)),
+                    _ask(client, _p, _k, _s, q_brand, max_tokens=240, grounded=True, sink=_brand_srcs),
                     return_exceptions=True,
                 )
                 _err = next((str(x) for x in (_mg, _mm) if isinstance(x, Exception)), "")
