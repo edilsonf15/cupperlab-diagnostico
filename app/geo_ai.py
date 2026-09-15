@@ -1040,6 +1040,7 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
         here = any(_is_brand_row(c, brand_l, dom_root) for c in rows)
         if here:
             appears += 1
+        _sl = re.sub(r"\s+", " ", (search or "").lower()).strip()
         named = []
         for c in rows:
             if _is_brand_row(c, brand_l, dom_root):
@@ -1047,9 +1048,20 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
             nm = (c.get("name") or "").strip()
             if not nm or _looks_generic(nm):
                 continue
+            nml = nm.lower()
+            # descarta el ECO de la propia búsqueda (la IA a veces repite el título)
+            if nml == _sl or (len(_sl) > 8 and (_sl in nml or nml in _sl)):
+                continue
+            # sin dominio + frase de categoría/lugar ("X en Madrid", 4+ palabras en
+            # minúscula) NO es una empresa real
+            if not c.get("domain"):
+                _wc = len(nml.split())
+                _has_upper = any(ch.isupper() for ch in nm)
+                if (" en " in f" {nml} ") or _wc >= 5 or (not _has_upper and _wc >= 3):
+                    continue
             named.append(nm)
-            if nm.lower() not in seen:
-                seen.add(nm.lower())
+            if nml not in seen:
+                seen.add(nml)
                 comps.append(c)
         questions.append({"q": search, "appears": here, "named": named[:4],
                           "answer": re.sub(r"[*_`]+", "", _strip_cites(body))[:300]})
