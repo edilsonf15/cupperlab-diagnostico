@@ -1038,10 +1038,16 @@ async def _engine_probe(client, eng, brand, domain, q_mem, q_brand, cat_prompt, 
     recommended = None
     if valid:
         recommended = True if appears >= max(2, valid // 2 + 1) else (False if appears == 0 else None)
+    _pf = ""
+    if knows:
+        _pf = re.sub(r"[*_`#>]+", "", brand_ans).strip()
+        _pf = re.sub(r"\d+\s*$", "", _pf).strip()   # quita citas numéricas al final ("...12")
+        if len(_pf) > 230:
+            _pf = _pf[:230].rsplit(" ", 1)[0].rstrip(" ,;:") + "…"
     return {"name": eng["name"], "provider": prov, "web_only": web,
             "knows": knows, "recognition": recognition,
             "recommended": recommended, "reco_hits": appears, "reco_total": valid,
-            "cites": cites, "sources": _srcs[:8], "proof": (brand_ans[:240] if knows else ""),
+            "cites": cites, "sources": _srcs[:8], "proof": _pf,
             "competitors": comps, "questions": questions}
 
 
