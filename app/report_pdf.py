@@ -944,10 +944,14 @@ def _ai_matrix(r: dict) -> str:
         if proof:
             blk += f' <span style="font-size:9px;color:#39434f">— "{_esc(proof)}"</span>'
         if ss:
+            def _disp(s):
+                u = s.get("url") or ("https://" + s["domain"])
+                d = re.sub(r"^https?://(www\.)?", "", u).rstrip("/")
+                return d[:44] + "…" if len(d) > 44 else d
             links = " · ".join(
-                f'<a href="{_esc(s.get("url") or ("https://" + s["domain"]))}" style="color:#0f9bc2;text-decoration:underline">{_esc(s["domain"])}</a>'
+                f'<a href="{_esc(s.get("url") or ("https://" + s["domain"]))}" style="color:#0f9bc2;text-decoration:underline">{_esc(_disp(s))}</a>'
                 for s in ss)
-            blk += (f'<div style="font-size:8px;color:#7b8694;margin-top:1px">{L("fuentes","sources")} ({e.get("cites") or 0}): {links}</div>')
+            blk += (f'<div style="font-size:8px;color:#7b8694;margin-top:1px">{L("fuentes (página exacta que te cita)","sources (exact page that cites you)")}: {links}</div>')
         blk += "</div>"
         srcrows += blk
     srcblock = (f'<div style="margin-top:10px">'

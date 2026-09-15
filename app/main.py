@@ -268,6 +268,15 @@ async def _run_job(job_id: str, url: str, email: str, name: str, lead: dict, lan
         # Motor nuevo perf2 (CWV + auditorias, movil+escritorio) + analitica por dispositivo.
         perf_task = asyncio.create_task(perf2.measure(final_url))
         analytics_task = asyncio.create_task(_perf.measure_device(final_url, mobile=True))
+        # Ficha de Google Business SIN API (scraping de Maps), en paralelo desde ya.
+        try:
+            from gbp import check_gbp_scrape  # noqa: PLC0415
+            from geo_ai import derive_brand  # noqa: PLC0415
+            _brand0 = derive_brand(data.get("meta", {}), domain) or domain
+            _place0 = (data.get("meta", {}) or {}).get("country", "")
+            gbp_task = asyncio.create_task(check_gbp_scrape(_brand0, _place0, domain))
+        except Exception as exc:  # noqa: BLE001
+            print(f"[gbp:launch:ERROR] {exc}"); gbp_task = None
         # Auditoria SEO on-page AVANZADA (multi-pagina), en paralelo
         onpage_task = asyncio.create_task(_onpage.audit(final_url))
 
@@ -283,14 +292,20 @@ async def _run_job(job_id: str, url: str, email: str, name: str, lead: dict, lan
             data["content_ai"] = ai["content"]
         apply_ai_to_result(data, ai)
 
-        # 2b) Ficha de Google Business por SCRIPT (Places API), SIN gastar IA cara.
-        # Dato real de Google (categoría + nº de reseñas). Si no hay clave/API, queda
-        # como desconocido (neutro) y no se afirma en falso.
+        # 2b) Ficha de Google Business SIN gastar IA: primero el scraping de Maps
+        # (lanzado en paralelo arriba); si no concluyó, cae a la Places API si hay clave.
         try:
-            _gb = await check_gbp(
-                (ai.get("brand") if ai else "") or domain,
-                (ai.get("zona") or ai.get("country") or "") if ai else "",
-                domain)
+            _gb = None
+            if gbp_task is not None:
+                try:
+                    _gb = await gbp_task
+                except Exception as exc:  # noqa: BLE001
+                    print(f"[gbp:scrape:ERROR] {exc}"); _gb = None
+            if (not _gb or _gb.get("found") is None):   # respaldo por Places API (si está)
+                _gb = await check_gbp(
+                    (ai.get("brand") if ai else "") or domain,
+                    (ai.get("zona") or ai.get("country") or "") if ai else "",
+                    domain) or _gb
             geo = data.get("geo_ai")
             if isinstance(_gb, dict) and isinstance(geo, dict) and _gb.get("found") is not None:
                 geo["gbp"] = bool(_gb.get("found"))
