@@ -1000,8 +1000,28 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
                 f"Under each @@n@@ marker, one company per line as 'Real name | domain.com'. Rules: only REAL "
                 f"businesses with their own site; the Name is the company, NOT a category/service/city; if fewer "
                 f"than 4-5 real, list only the real ones. No explanations.")
-            combo = await _ask(client, prov, key, strong, q_cat, max_tokens=900, grounded=True)
+            # Ficha de Google Business: búsqueda DEDICADA en Maps (por nombre, nombre+zona
+            # y dominio). Muchos negocios la tienen aunque su web no la enlace: hay que
+            # buscarla bien antes de decir que no. Va en paralelo con la medición.
+            q_gbp = L(
+                f"Abre Google Maps y busca a fondo la ficha de este negocio. Prueba varias búsquedas: "
+                f"\"{brand}\", \"{brand} {place}\" y el dominio {domain}. Muchos negocios TIENEN ficha de "
+                f"Google aunque su web no la enlace: búscala bien antes de decir que no. Si encuentras una "
+                f"ficha de Google (con dirección, teléfono, categoría, horario, reseñas o valoración) que sea "
+                f"de ESTE negocio, responde en una línea 'SI | <categoría> | <nº de reseñas o la valoración>'. "
+                f"Responde 'NO' SOLO si tras buscarla de verdad no existe ninguna. No respondas DUDOSO.",
+                f"Open Google Maps and search thoroughly for this business listing. Try several searches: "
+                f"\"{brand}\", \"{brand} {place}\" and the domain {domain}. Many businesses HAVE a Google "
+                f"listing even if their site doesn't link it: search well before saying no. If you find a Google "
+                f"listing (with address, phone, category, hours, reviews or rating) that belongs to THIS "
+                f"business, reply on one line 'SI | <category> | <number of reviews or the rating>'. Reply 'NO' "
+                f"ONLY if after really searching none exists. Do not reply DUDOSO.")
+            combo, gbp_line = await asyncio.gather(
+                _ask(client, prov, key, strong, q_cat, max_tokens=900, grounded=True),
+                _ask(client, prov, key, strong, q_gbp, max_tokens=120, grounded=True),
+                return_exceptions=True)
             combo = combo if isinstance(combo, str) else ""
+            gbp_line = _strip_cites(gbp_line) if isinstance(gbp_line, str) else ""
             # Reparte la respuesta en bloques por marcador @@n@@, alineados a cat_queries
             cat_results = [""] * len(cat_queries)
             if combo.strip():
@@ -1079,10 +1099,30 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
     else:
         recommended = None    # no se pudo medir (grounding limitado)
 
-    gbp = _f("FICHA_GOOGLE", mega).upper().startswith("SI")
-    gbp_category = _f("CATEGORIA", mega)[:80]
-    _rev = re.search(r"\d[\d.,]*", _f("RESENAS", mega))
-    gbp_reviews_n = int(re.sub(r"[^\d]", "", _rev.group(0))) if _rev else 0
+    # Ficha de Google Business: prioriza la búsqueda DEDICADA en Maps; si no fue
+    # concluyente, cae al campo del briefing. Parseo lenient (SI o evidencia de ficha).
+    _gl = (gbp_line or "").strip()
+    _gu = _gl.upper()
+    mrev = re.search(r"(\d[\d.,]*)\s*(reseñas|resenas|reviews|opiniones)", _gl, re.I)
+    mval = re.search(r"([0-5][.,]\d)\s*(?:★|estrellas|de 5|/5)", _gl)
+    has_evidence = bool(mrev or mval or re.search(
+        r"(direcci[oó]n|tel[eé]fono|google maps|categor[ií]a|horario|agencia|empresa|studio|consultor)", _gl, re.I))
+    if _gu.startswith(("SI", "SÍ", "YES")):
+        gbp = True
+    elif _gu.startswith("NO") and not has_evidence:
+        gbp = False
+    elif has_evidence:
+        gbp = True
+    else:
+        gbp = _f("FICHA_GOOGLE", mega).upper().startswith("SI")   # sin señal clara -> briefing
+    _pg = [p.strip() for p in _gl.split("|")]
+    gbp_category = ((_pg[1] if len(_pg) > 1 and _pg[1] and not re.search(r"\d", _pg[1]) else "")
+                    or _f("CATEGORIA", mega))[:80]
+    if mrev:
+        gbp_reviews_n = int(re.sub(r"[^\d]", "", mrev.group(1)))
+    else:
+        _rm = re.search(r"\d[\d.,]*", _f("RESENAS", mega))
+        gbp_reviews_n = int(re.sub(r"[^\d]", "", _rm.group(0))) if _rm else 0
     kw_ai = [k.strip(" -•\"") for k in _f("KEYWORDS", mega).split("|") if k.strip()][:5]
     entities_ai = [e.strip(" -•\"") for e in _f("ENTIDADES", mega).split("|") if e.strip()][:5]
 
