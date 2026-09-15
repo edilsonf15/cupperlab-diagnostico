@@ -476,6 +476,13 @@
         <p id="resTitle"></p>
       </div>
 
+      <div id="aiMatrixWrap" style="margin-top:34px;display:none">
+        <div class="kick" data-i18n="aimx_kick">Cómo te ven las IA</div>
+        <h3 class="disp" style="font-weight:700;font-size:clamp(20px,2.6vw,26px);letter-spacing:-.02em;margin:11px 0 6px;color:var(--ink)" id="aiMatrixTitle"></h3>
+        <p style="margin:0 0 16px;color:var(--mut2);font-size:14px" id="aiMatrixSub"></p>
+        <div id="aiMatrix" style="overflow-x:auto"></div>
+      </div>
+
       <div style="margin-top:36px">
         <div style="display:flex;justify-content:space-between;align-items:baseline;gap:16px;flex-wrap:wrap;margin-bottom:20px">
           <div><div class="kick" data-i18n="detail_kick">Diagnóstico detallado</div><h3 class="disp" id="dimsTitle" style="font-weight:700;font-size:clamp(20px,2.6vw,26px);letter-spacing:-.02em;margin:11px 0 0;color:var(--ink)"></h3></div>
@@ -1248,6 +1255,23 @@
   });
 
   /* ===== render results ===== */
+  function renderAiMatrix(r){
+    var ai=r.geo_ai||{},engs=ai.engines||[],wrap=document.getElementById("aiMatrixWrap");
+    if(!engs.length||ai.limited){wrap.style.display="none";return;}
+    wrap.style.display="";
+    document.getElementById("aiMatrixTitle").textContent=P("¿Cómo te ven ChatGPT, Perplexity y Gemini?","How do ChatGPT, Perplexity and Gemini see you?");
+    document.getElementById("aiMatrixSub").textContent=P("Preguntamos EN VIVO a cada IA: si te reconoce, si te recomienda cuando piden tu servicio (sin nombrarte) y con cuántas fuentes te cita.","We asked each AI LIVE: whether it knows you, recommends you when your service is requested (without naming you), and how many sources it cites you from.");
+    function rec(e){var g=e.recognition;if(g==="strong")return[P("Sí","Yes"),OK];if(g==="weak")return[P("A medias","Partly"),WARN];if(g==="none")return[P("No","No"),CRIT];return e.knows?[P("Sí","Yes"),OK]:[P("No","No"),CRIT];}
+    function reco(e){var h=e.reco_hits,t=e.reco_total,c=(typeof h==="number"&&typeof t==="number"&&t)?" ("+h+"/"+t+")":"";if(e.recommended===true)return[P("Sí","Yes")+c,OK];if(e.recommended===false)return[P("No","No")+c,CRIT];return[P("A veces","Sometimes")+c,WARN];}
+    function cite(e){var n=e.cites||0,col=n>=2?OK:(n===1?WARN:CRIT);return[n+" "+P(n===1?"fuente":"fuentes",n===1?"source":"sources"),col];}
+    function c(v){return '<td style="padding:12px 14px;text-align:center;border-top:1px solid var(--line);font-weight:700;color:'+v[1]+'">'+esc(v[0])+'</td>';}
+    var th='padding:11px 14px;font:600 11px/1 var(--mono,monospace);letter-spacing:.06em;color:var(--mut3)';
+    var h='<table style="width:100%;border-collapse:collapse;background:var(--surf);border:1px solid var(--line);border-radius:14px;overflow:hidden;min-width:520px">';
+    h+='<tr style="background:var(--surf2)"><th style="text-align:left;'+th+'">IA</th><th style="'+th+'">'+P("¿TE RECONOCE?","KNOWS YOU?")+'</th><th style="'+th+'">'+P("¿TE RECOMIENDA?","RECOMMENDS?")+'</th><th style="'+th+'">'+P("¿TE CITA?","CITES YOU?")+'</th></tr>';
+    engs.forEach(function(e){h+='<tr><td style="padding:12px 14px;border-top:1px solid var(--line);font-weight:700;color:var(--ink)">'+esc(e.name||"")+'</td>'+c(rec(e))+c(reco(e))+c(cite(e))+'</tr>';});
+    h+='</table>';
+    document.getElementById("aiMatrix").innerHTML=h;
+  }
   function render(r){
     window.__last=r;consoleEl.classList.add("hidden");results.classList.remove("hidden");
     var score=r.score||0,col=clsColor(score);
@@ -1304,6 +1328,7 @@
     if(weak.length)rt=P("En "+dd+", lo que más te está frenando ahora mismo es: "+weak.join(", ")+". ","For "+dd+", what's holding you back right now is: "+weak.join(", ")+". ")+closing;
     else rt=P("En "+dd+" la base está sólida. Ahora toca afinar los detalles para adelantar a tu competencia en Google y en la IA.","For "+dd+" the foundation is solid. Now it's about fine-tuning the details to get ahead of your competitors on Google and in AI.");
     document.getElementById("resTitle").textContent=rt;
+    renderAiMatrix(r);
     document.getElementById("mailed").innerHTML=P("📬 Este es un vistazo rápido. Te enviamos a tu correo el <b>análisis completo en PDF</b>: cómo te ve la IA, tu competencia real, los hallazgos y el <b>plan de acción</b>. Revisa también la carpeta de spam.","📬 This is a quick look. We're sending the <b>full PDF analysis</b> to your inbox: how AI sees you, your real competitors, the findings and the <b>action plan</b>. Check your spam folder too.");
     submitBtn.disabled=false;submitBtn.textContent=t("submit_btn");
     results.scrollIntoView({behavior:"smooth"});
