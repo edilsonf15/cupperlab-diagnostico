@@ -1011,7 +1011,11 @@ async def _engine_probe(client, eng, brand, domain, q_mem, cat_prompt, cat_queri
             _ask(client, prov, key, strong, cat_prompt, max_tokens=900, grounded=True, sink=srcs),
             return_exceptions=True)
     except Exception:  # noqa: BLE001
-        mem, combo = "", ""
+        mem, combo = Exception("err"), Exception("err")
+    # si AMBAS llamadas fallaron (clave inválida, etc.), el motor no responde: se
+    # descarta de la matriz para no decir en falso "no te reconoce".
+    if isinstance(mem, Exception) and isinstance(combo, Exception):
+        return {"name": eng["name"], "provider": prov, "failed": True}
     mem = _strip_cites(mem).strip() if isinstance(mem, str) else ""
     knows = bool(mem) and "no_lo_se" not in mem.lower() and len(mem) > 15
     combo = combo if isinstance(combo, str) else ""
@@ -1114,18 +1118,35 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
     sources: list = []
     cat_results: list = []
     cat_queries: list = []
+    _tried = []
+    mega = mem = ""
     try:
         async with httpx.AsyncClient(headers={"User-Agent": "Mozilla/5.0"}) as client:
-            # RONDA 1: briefing (grounded) + reconocimiento "de memoria" (sin búsqueda)
-            mega, mem = await asyncio.gather(
-                _ask(client, prov, key, strong, q_mega, max_tokens=600, grounded=True, sink=sources),
-                _ask(client, prov, key, model, q_mem, max_tokens=140, grounded=False),
-                return_exceptions=True,
-            )
-            mega = _strip_cites(mega) if isinstance(mega, str) else ""
-            mem = mem if isinstance(mem, str) else ""
+            # RONDA 1 (RESILIENTE): briefing + reconocimiento. Se prueba motor por motor
+            # hasta que uno responda; ese pasa a ser el PRIMARIO. Si un motor no tiene
+            # clave válida o falla, se salta (y se anota para diagnóstico).
+            for _e in _engines:
+                _p, _k = _e["provider"], _e["key"]
+                _s = _e.get("strong") or _e["model"]
+                _m = _e["model"]
+                _mem_grounded = bool(_e.get("always_web"))  # Perplexity siempre busca
+                _mg, _mm = await asyncio.gather(
+                    _ask(client, _p, _k, _s, q_mega, max_tokens=600, grounded=True, sink=sources),
+                    _ask(client, _p, _k, _m, q_mem, max_tokens=140, grounded=_mem_grounded),
+                    return_exceptions=True,
+                )
+                _err = next((str(x) for x in (_mg, _mm) if isinstance(x, Exception)), "")
+                _mg = _strip_cites(_mg) if isinstance(_mg, str) else ""
+                _mm = _mm if isinstance(_mm, str) else ""
+                if _mg.strip() or _mm.strip():
+                    eng, prov, key, strong, model = _e, _p, _k, _s, _m
+                    mega, mem = _mg, _mm
+                    _engines = [_e] + [x for x in _engines if x is not _e]  # primario primero
+                    break
+                _tried.append(f"{_e['name']}: {(_err or 'vacío')[:80]}")
             if not mega.strip() and not mem.strip():
-                return {"available": True, "brand": brand, "error": "sin respuesta de la IA"}
+                return {"available": True, "brand": brand, "error": "sin respuesta de la IA",
+                        "debug_engines": _tried}
 
             sector = _f("SECTOR", mega)[:60]
             zona = _clean_zona(_f("ZONA", mega))
@@ -1316,7 +1337,7 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
                     *[_engine_probe(_c2, e, brand, domain, q_mem, q_cat, cat_queries) for e in _others],
                     return_exceptions=True)
             for p in _probes:
-                if not isinstance(p, dict):
+                if not isinstance(p, dict) or p.get("failed"):
                     continue
                 engines_out.append({
                     "name": p["name"], "provider": p["provider"], "web_only": p.get("web_only"),
