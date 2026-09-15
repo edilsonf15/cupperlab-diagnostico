@@ -1007,23 +1007,23 @@ async def _engine_probe(client, eng, brand, domain, q_mem, q_brand, cat_prompt, 
     prov, key = eng["provider"], eng["key"]
     strong = eng.get("strong") or eng["model"]
     model = eng["model"]
-    srcs: list = []   # fuentes de la consulta de MARCA (sobre ti), no de la categoría
-    rec_grounded = bool(eng.get("always_web"))   # Perplexity siempre busca en la web
+    srcs: list = []
+    web = bool(eng.get("always_web"))   # Perplexity: buscador (trae citas reales)
+    # UNA sola consulta de reconocimiento/prueba: con búsqueda si es buscador (Perplexity,
+    # captura fuentes), o de memoria si no (ChatGPT/Gemini, barata; no devuelven citas).
     try:
-        mem, brand_ans, combo = await asyncio.gather(
-            _ask(client, prov, key, model, q_mem, max_tokens=140, grounded=rec_grounded),
-            _ask(client, prov, key, strong, q_brand, max_tokens=240, grounded=True, sink=srcs),
+        brand_ans, combo = await asyncio.gather(
+            _ask(client, prov, key, (strong if web else model), (q_brand if web else q_mem),
+                 max_tokens=(240 if web else 150), grounded=web, sink=(srcs if web else None)),
             _ask(client, prov, key, strong, cat_prompt, max_tokens=900, grounded=True),
             return_exceptions=True)
     except Exception:  # noqa: BLE001
-        mem, brand_ans, combo = Exception("e"), Exception("e"), Exception("e")
-    if isinstance(mem, Exception) and isinstance(brand_ans, Exception) and isinstance(combo, Exception):
+        brand_ans, combo = Exception("e"), Exception("e")
+    if isinstance(brand_ans, Exception) and isinstance(combo, Exception):
         return {"name": eng["name"], "provider": prov, "failed": True}
-    mem = _strip_cites(mem).strip() if isinstance(mem, str) else ""
-    knows_mem = bool(mem) and "no_lo_se" not in mem.lower() and len(mem) > 15
     brand_ans = _strip_cites(brand_ans).strip() if isinstance(brand_ans, str) else ""
-    knows_web = bool(brand_ans) and "no_lo_se" not in brand_ans.lower() and len(brand_ans) > 15
-    recognition = "strong" if knows_mem else ("weak" if knows_web else "none")
+    knows = bool(brand_ans) and "no_lo_se" not in brand_ans.lower() and len(brand_ans) > 15
+    recognition = "strong" if knows else "none"
     combo = combo if isinstance(combo, str) else ""
     questions, appears, valid, comps = _measure_appearances(combo, cat_queries, brand, domain)
     _own = (domain or "").split("/")[0].replace("www.", "").lower()
@@ -1039,10 +1039,10 @@ async def _engine_probe(client, eng, brand, domain, q_mem, q_brand, cat_prompt, 
     recommended = None
     if valid:
         recommended = True if appears >= max(2, valid // 2 + 1) else (False if appears == 0 else None)
-    return {"name": eng["name"], "provider": prov, "web_only": rec_grounded,
-            "knows": knows_mem or knows_web, "recognition": recognition,
+    return {"name": eng["name"], "provider": prov, "web_only": web,
+            "knows": knows, "recognition": recognition,
             "recommended": recommended, "reco_hits": appears, "reco_total": valid,
-            "cites": cites, "sources": _srcs[:8], "proof": (brand_ans[:240] if knows_web else ""),
+            "cites": cites, "sources": _srcs[:8], "proof": (brand_ans[:240] if knows else ""),
             "competitors": comps, "questions": questions}
 
 
@@ -1158,9 +1158,15 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
                 _s = _e.get("strong") or _e["model"]
                 _m = _e["model"]
                 _mem_grounded = bool(_e.get("always_web"))  # Perplexity siempre busca
+                # La consulta de MARCA del primario: si es buscador (Perplexity) va con
+                # búsqueda y captura fuentes reales sobre ti (_brand_srcs); si no, de
+                # memoria (barata) y describe lo que sabe. Sirve de reconocimiento + prueba.
                 _mg, _mm = await asyncio.gather(
                     _ask(client, _p, _k, _s, q_mega, max_tokens=600, grounded=True, sink=sources),
-                    _ask(client, _p, _k, _m, q_mem, max_tokens=140, grounded=_mem_grounded),
+                    _ask(client, _p, _k, _s if _mem_grounded else _m,
+                         q_brand if _mem_grounded else q_mem,
+                         max_tokens=240 if _mem_grounded else 150,
+                         grounded=_mem_grounded, sink=(_brand_srcs if _mem_grounded else None)),
                     return_exceptions=True,
                 )
                 _err = next((str(x) for x in (_mg, _mm) if isinstance(x, Exception)), "")
@@ -1225,21 +1231,20 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
                 f"listing (with address, phone, category, hours, reviews or rating) that belongs to THIS "
                 f"business, reply on one line 'SI | <category> | <number of reviews or the rating>'. Reply 'NO' "
                 f"ONLY if after really searching none exists. Do not reply DUDOSO.")
-            # La ficha de Google se busca en TODOS los motores (Gemini/Google es el mejor
-            # para Maps): si CUALQUIERA la encuentra con evidencia, la ficha existe. Así se
-            # evitan los falsos "SIN FICHA" cuando el primario (p. ej. ChatGPT) no ve Maps.
-            _gbp_order = sorted(_engines, key=lambda e: 0 if e["provider"] == "gemini" else 1)
-            _gbp_tasks = [_ask(client, e["provider"], e["key"], e.get("strong") or e["model"],
-                               q_gbp, max_tokens=120, grounded=True) for e in _gbp_order]
-            _brand_srcs: list = []   # fuentes de la consulta de MARCA del primario (sobre ti)
+            # Ficha de Google: SOLO en UN motor (Gemini/Google es el mejor para Maps;
+            # si no hay, el primario). Ahorra llamadas frente a preguntar a los 3.
+            _gbp_eng = next((e for e in _engines if e["provider"] == "gemini"), _engines[0])
+            # La consulta de marca del primario ya se hizo en la ronda 1 (mem/q_brand):
+            # su respuesta es 'mem' y sus fuentes '_brand_srcs'. Aquí solo medición + ficha.
+            primary_brand_ans = _strip_cites(mem).strip() if isinstance(mem, str) else ""
             _res = await asyncio.gather(
                 _ask(client, prov, key, strong, q_cat, max_tokens=900, grounded=True),
-                _ask(client, prov, key, strong, q_brand, max_tokens=240, grounded=True, sink=_brand_srcs),
-                *_gbp_tasks, return_exceptions=True)
+                _ask(client, _gbp_eng["provider"], _gbp_eng["key"], _gbp_eng.get("strong") or _gbp_eng["model"],
+                     q_gbp, max_tokens=120, grounded=True),
+                return_exceptions=True)
             combo = _res[0] if isinstance(_res[0], str) else ""
-            primary_brand_ans = _strip_cites(_res[1]).strip() if isinstance(_res[1], str) else ""
-            gbp_lines = [_strip_cites(x) if isinstance(x, str) else "" for x in _res[2:]]
-            gbp_line = next((g for g in gbp_lines if g.strip()), "")  # compat
+            gbp_lines = [_strip_cites(_res[1]) if isinstance(_res[1], str) else ""]
+            gbp_line = gbp_lines[0]
             # Reparte la respuesta en bloques por marcador @@n@@, alineados a cat_queries
             cat_results = [""] * len(cat_queries)
             if combo.strip():
