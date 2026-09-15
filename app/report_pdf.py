@@ -874,17 +874,17 @@ def _ai_section(r: dict) -> str:
         vcol = "o"
         verdict = f'{L("La IA te reconoce a medias y cuando piden tu servicio nombra a", "AI half-recognizes you and when people ask for your service it names")} {comps}: {L("trabajemos para que te cite a ti primero.", "let us work so it cites you first.")}'
 
-    cards = card1 + gbp_card + card2
+    # La matriz multi-IA de arriba ya resume reconocimiento/recomendación/citas por
+    # motor, así que las tarjetas de detalle (card1/card2/ejemplo) sobran aquí. Dejamos
+    # matriz + veredicto (la ficha de Google va en 'Presencia local').
     return f"""
     <div class="keep">
     <div class="eyebrow"><span class="bar"></span>04 · {L('Cómo te ve la inteligencia artificial', 'How artificial intelligence sees you')}</div>
     <h2 class="sec">{L('Cómo te ve la IA cuando preguntan por ti', 'How AI sees you when people ask about you')}</h2>
     <p class="sub">{L('Le preguntamos EN VIVO a varias IA (ChatGPT, Perplexity y Gemini): por tu marca, por tu servicio y con búsquedas reales de cliente en', 'We asked several AIs LIVE (ChatGPT, Perplexity and Gemini): about your brand, your service and with real customer searches in')} {_esc(zona or L('tu zona','your area'))}. {L('Cada vez más gente busca así antes de decidir.', 'More and more people search this way before deciding.')}</p>
     {_ai_matrix(r)}
-    <div class="block callout {vcol}">{topnote}</div>
-    </div>
-    {cards}{q_block}
-    <div class="block callout {vcol}"><b>{L('Veredicto IA.', 'AI verdict.')}</b> {verdict}</div>"""
+    <div class="block callout {vcol}"><b>{L('Veredicto IA.', 'AI verdict.')}</b> {verdict}</div>
+    </div>"""
 
 
 def _ai_matrix(r: dict) -> str:
