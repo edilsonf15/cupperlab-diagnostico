@@ -243,7 +243,10 @@ def _parse_page(url: str, html: str, status: int, base_net: str) -> dict:
     # --- Señales locales / contacto (NAP + mapa + horario), en TODA la página ---
     html_low0 = (html or "").lower()
     l_phone = (bool(soup.find("a", href=re.compile(r"^tel:", re.I)))
-               or bool(re.search(r"(?:\+|\b00)\s?\d[\d\s().\-]{6,}\d", html_low0)))
+               or bool(soup.find("a", href=re.compile(r"(?:wa\.me|api\.whatsapp\.com|whatsapp://)", re.I)))
+               or bool(re.search(r"(?:\+|\b00)\s?\d[\d\s().\-]{6,}\d", html_low0))
+               or bool(re.search(r"(tel[eé]fono|tel[eé]f?\.|ll[áa]ma\w*|phone|m[óo]vil|celular|"
+                                 r"whatsapp|contacto)[^0-9]{0,40}\d[\d\s().\-]{6,}\d", html_low0)))
     l_map = (bool(soup.find("iframe", src=re.compile(r"google\.[a-z.]+/maps|maps\.google|/maps/embed", re.I)))
              or "google.com/maps" in html_low0 or "maps.google" in html_low0
              or "www.google.com/maps/embed" in html_low0)
@@ -605,8 +608,23 @@ def _content(pages: list) -> dict:
             fresh = 0
 
     urls = [p["url"].lower() for p in pages]
-    about = any(re.search(r"/(about|sobre|nosotros|quienes|equipo|team|adn|empresa|conocenos|conócenos)(/|$)", u)
+    about = any(re.search(r"/(about|sobre|nosotros|quienes|equipo|team|adn|empresa|"
+                          r"conocenos|conócenos|historia|company|acerca)(/|$)", u)
                 for u in urls)
+    # No todas las páginas "sobre nosotros" viven en una URL con esa palabra (p. ej.
+    # /marca/). También la reconocemos por el título/H1 o por texto de "quiénes somos".
+    if not about:
+        _about_rx = re.compile(
+            r"(sobre\s+nosotros|qui[eé]nes\s+somos|acerca\s+de|nuestra\s+(empresa|historia|"
+            r"misi[óo]n|filosof[íi]a|compañ[íi]a)|nuestro\s+equipo|con[óo]cenos|about\s+us|"
+            r"who\s+we\s+are|our\s+(story|company|team|mission))", re.I)
+        _found_rx = re.compile(r"(desde|fundad[ao]s?\s+en|founded\s+in|est\.\s*)\s*(19|20)\d{2}", re.I)
+        for p in pages:
+            blob = (p.get("title") or "") + " " + (p.get("h1_first") or "")
+            body = p.get("_text") or ""
+            if _about_rx.search(blob) or _about_rx.search(body) or _found_rx.search(body):
+                about = True
+                break
     author = any(any(t in (p.get("schema_types") or []) for t in ("author", "person")) for p in pages)
 
     # estructura por temas (pilar + clusters): agrupa por primera carpeta de la URL

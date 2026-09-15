@@ -514,19 +514,30 @@ def analyze_robots(robots_text: str) -> dict:
     relevant = [d for d in dict.fromkeys(relevant) if d and d != "/"]
 
     # a) Recursos que Google NECESITA para pintar la pagina (CSS/JS/assets).
-    #    Bloquearlos hace que Google vea la web "rota" y penaliza.
-    render_kw = [".css", ".js", "/css", "/js", "/assets", "/static", "/media",
-                 "/dist", "/build", "/_next", "/wp-content", "/wp-includes",
-                 "/sites/default/files", "/themes", "/scripts", "/styles"]
-    blocks_render = [d for d in relevant if any(k in d.lower() for k in render_kw)]
+    #    Bloquearlos hace que Google vea la web "rota" y penaliza. OJO: en WordPress
+    #    el CSS/JS vive en /wp-content/themes y /wp-content/plugins; bloquear
+    #    /wp-content/uploads/wc-logs, woocommerce_uploads, cache, etc. es CORRECTO
+    #    (son logs, descargas privadas y temporales, no recursos de render).
+    render_kw = [".css", ".js", "/css/", "/js/", "/assets", "/static", "/media/",
+                 "/dist", "/build", "/_next", "/wp-content/themes", "/wp-content/plugins",
+                 "/wp-includes", "/sites/default/files", "/themes/", "/scripts/", "/styles/"]
+    # Subrutas de WordPress/WooCommerce que es NORMAL y recomendable bloquear
+    # (privado/sistema/temporales): nunca son recursos de render ni "contenido real".
+    wp_benign = ["/wp-content/uploads", "wc-logs", "woocommerce_uploads",
+                 "woocommerce_transient", "woocommerce_", "/wp-content/cache",
+                 "/wp-content/upgrade", "/wp-content/backup", "wp-snapshots",
+                 "/wp-content/mu-plugins", "duplicator", "/wp-content/uploads/wpforms"]
+    blocks_render = [d for d in relevant
+                     if any(k in d.lower() for k in render_kw)
+                     and not any(b in d.lower() for b in wp_benign)]
 
     # b) Directorios que PARECEN contenido real (no admin/sistema/parametros).
     benign_kw = ["wp-admin", "wp-login", "/admin", "/login", "/cart", "/checkout",
                  "/carrito", "/search", "/buscar", "?s=", "?q=", "/?", "*?", "?",
                  "/feed", "attachment", "/wp-json", "/trackback", "/cgi-bin",
                  "/tag", "/etiqueta", "/label", "/api", "/account", "/cuenta",
-                 "/wp-includes", "/comments", "/print", "/tmp", "/private",
-                 "/thank", "/gracias", "/out/", "/go/", "/redirect"]
+                 "/wp-includes", "/wp-content", "/comments", "/print", "/tmp", "/private",
+                 "/thank", "/gracias", "/out/", "/go/", "/redirect"] + wp_benign
     def _looks_content(d: str) -> bool:
         dl = d.lower()
         if any(k in dl for k in benign_kw):
