@@ -55,6 +55,19 @@ RATE_LIMIT = int(os.getenv("RATE_LIMIT_PER_HOUR", "30"))
 ANALYSIS_HARD_TIMEOUT = float(os.getenv("ANALYSIS_HARD_TIMEOUT", "50"))
 
 app = FastAPI(title="Cupperlab · Diagnostico SEO + GEO", docs_url=None, redoc_url=None)
+
+
+@app.middleware("http")
+async def _embed_headers(request, call_next):
+    """Permite incrustar el diagnóstico DENTRO de cupperlab.com (bloque del CMS),
+    sin recuadro. frame-ancestors sustituye a X-Frame-Options."""
+    resp = await call_next(request)
+    resp.headers["Content-Security-Policy"] = (
+        "frame-ancestors 'self' https://cupperlab.com https://*.cupperlab.com")
+    resp.headers.pop("X-Frame-Options", None)
+    return resp
+
+
 app.mount("/static", StaticFiles(directory=BASE / "static"), name="static")
 templates = Jinja2Templates(directory=BASE / "templates")
 

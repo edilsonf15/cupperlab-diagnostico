@@ -1371,5 +1371,17 @@
   try{window.CL_render=render;}catch(e){}
 })();
 </script>
+<script>
+/* Auto-alto cuando el diagnóstico va EMBEBIDO en cupperlab.com (bloque del CMS):
+   enviamos nuestra altura al contenedor para que ajuste el iframe (sin recuadro/scroll). */
+(function(){
+  if(window.parent===window)return;               // solo si está dentro de un iframe
+  function post(){try{parent.postMessage({cupperlabDiagHeight:Math.ceil(document.documentElement.scrollHeight)},"*");}catch(e){}}
+  window.addEventListener("load",post);
+  document.addEventListener("DOMContentLoaded",post);
+  try{new ResizeObserver(post).observe(document.body);}catch(e){}
+  setInterval(post,1200);                          // respaldo para cambios dinámicos
+})();
+</script>
 </body>
 </html>
