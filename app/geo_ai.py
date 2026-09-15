@@ -1145,6 +1145,7 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
     gbp_line = ""
     _brand_srcs: list = []
     primary_brand_ans = ""
+    _probes: list = []
     _tried = []
     mega = mem = ""
     try:
@@ -1225,20 +1226,27 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
                 f"listing (with address, phone, category, hours, reviews or rating) that belongs to THIS "
                 f"business, reply on one line 'SI | <category> | <number of reviews or the rating>'. Reply 'NO' "
                 f"ONLY if after really searching none exists. Do not reply DUDOSO.")
-            # Ficha de Google: SOLO en UN motor (Gemini/Google es el mejor para Maps;
-            # si no hay, el primario). Ahorra llamadas frente a preguntar a los 3.
-            _gbp_eng = next((e for e in _engines if e["provider"] == "gemini"), _engines[0])
-            # La consulta de marca del primario ya se hizo en la ronda 1 (mem/q_brand):
-            # su respuesta es 'mem' y sus fuentes '_brand_srcs'. Aquí solo medición + ficha.
+            # Ficha de Google en los 2 motores buenos para Maps (Gemini + Perplexity); si
+            # cualquiera la encuentra, existe. Más fiable que 1 y más barato que 3.
+            _gbp_engs = [e for e in _engines if e["provider"] in ("gemini", "perplexity")][:2] or [_engines[0]]
+            # La consulta de marca del primario ya se hizo en la ronda 1: respuesta 'mem',
+            # fuentes '_brand_srcs'.
             primary_brand_ans = _strip_cites(mem).strip() if isinstance(mem, str) else ""
+            # RONDA 2 (TODO EN PARALELO): medición del primario + fichas + sondas de los
+            # demás motores. Una sola espera en vez de tres rondas secuenciales.
+            _others = list(_engines[1:])
+            _gbp_calls = [_ask(client, e["provider"], e["key"], e.get("strong") or e["model"],
+                               q_gbp, max_tokens=120, grounded=True) for e in _gbp_engs]
+            _probe_calls = [_engine_probe(client, e, brand, domain, q_mem, q_brand, q_cat, cat_queries)
+                            for e in _others]
             _res = await asyncio.gather(
                 _ask(client, prov, key, strong, q_cat, max_tokens=900, grounded=True),
-                _ask(client, _gbp_eng["provider"], _gbp_eng["key"], _gbp_eng.get("strong") or _gbp_eng["model"],
-                     q_gbp, max_tokens=120, grounded=True),
-                return_exceptions=True)
+                *_gbp_calls, *_probe_calls, return_exceptions=True)
             combo = _res[0] if isinstance(_res[0], str) else ""
-            gbp_lines = [_strip_cites(_res[1]) if isinstance(_res[1], str) else ""]
-            gbp_line = gbp_lines[0]
+            _ng = len(_gbp_calls)
+            gbp_lines = [_strip_cites(x) if isinstance(x, str) else "" for x in _res[1:1 + _ng]]
+            gbp_line = next((g for g in gbp_lines if g.strip()), "")
+            _probes = [p for p in _res[1 + _ng:]]
             # Reparte la respuesta en bloques por marcador @@n@@, alineados a cat_queries
             cat_results = [""] * len(cat_queries)
             if combo.strip():
@@ -1388,31 +1396,23 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
         "recommended": recommended, "reco_hits": reco_hits, "reco_total": reco_total,
         "cites": len(_prim), "sources": _prim[:8], "proof": _prim_proof,
     }]
-    _others = list(_engines[1:])
-    if _others:
-        try:
-            async with httpx.AsyncClient(headers={"User-Agent": "Mozilla/5.0"}) as _c2:
-                _probes = await asyncio.gather(
-                    *[_engine_probe(_c2, e, brand, domain, q_mem, q_brand, q_cat, cat_queries) for e in _others],
-                    return_exceptions=True)
-            for p in _probes:
-                if not isinstance(p, dict) or p.get("failed"):
-                    continue
-                engines_out.append({
-                    "name": p["name"], "provider": p["provider"], "web_only": p.get("web_only"),
-                    "knows": p["knows"], "recognition": p.get("recognition"),
-                    "recommended": p["recommended"],
-                    "reco_hits": p["reco_hits"], "reco_total": p["reco_total"], "cites": p["cites"],
-                    "sources": p.get("sources") or [], "proof": p.get("proof") or "",
-                })
-                _have = {(x.get("name") or "").lower() for x in comps}
-                for c in (p.get("competitors") or []):
-                    nm = (c.get("name") or "").strip()
-                    if nm and nm.lower() not in _have and len(comps) < 8:
-                        comps.append(c)
-                        _have.add(nm.lower())
-        except Exception as _e:  # noqa: BLE001
-            print(f"[ai:probe:ERROR] {_e}")
+    # Sondas de los demás motores (ya calculadas en paralelo en la ronda 2)
+    for p in _probes:
+        if not isinstance(p, dict) or p.get("failed"):
+            continue
+        engines_out.append({
+            "name": p["name"], "provider": p["provider"], "web_only": p.get("web_only"),
+            "knows": p["knows"], "recognition": p.get("recognition"),
+            "recommended": p["recommended"],
+            "reco_hits": p["reco_hits"], "reco_total": p["reco_total"], "cites": p["cites"],
+            "sources": p.get("sources") or [], "proof": p.get("proof") or "",
+        })
+        _have = {(x.get("name") or "").lower() for x in comps}
+        for c in (p.get("competitors") or []):
+            nm = (c.get("name") or "").strip()
+            if nm and nm.lower() not in _have and len(comps) < 8:
+                comps.append(c)
+                _have.add(nm.lower())
     engine_names = [e["name"] for e in engines_out]
 
     reco_frac = (appears / valid) if valid else (1.0 if recommended is True else (0.5 if recommended is None else 0.0))
