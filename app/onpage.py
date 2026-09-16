@@ -289,32 +289,31 @@ def _parse_page(url: str, html: str, status: int, base_net: str) -> dict:
         tag.decompose()
     text = re.sub(r"\s+", " ", soup.get_text(" ", strip=True))
     word_count = len(text.split())
-    # Dirección real: SOLO si hay una vía+número dentro de un CONTEXTO de dirección
-    # (etiqueta <address>, el pie de página, o cerca de "dirección/sede/oficina/
-    # ubícanos"). Buscar el patrón en TODO el texto daba falsos positivos en blogs
-    # (cualquier "Calle... 2024" o cifra suelta se tomaba por dirección).
+    # Dirección real (precisión ante todo, para NO marcar dirección en falso a partir
+    # de prosa de blog): SOLO cuenta si hay una vía+número en una etiqueta <address>,
+    # o en el PIE de página junto a un código postal. El texto suelto del cuerpo NO
+    # cuenta (cualquier "Calle... 2024" daba dirección en falso, p.ej. en ainoa).
     if not l_addr:
         _street_re = re.compile(
             r"\b(c/|calle|avda?\.?|avenida|carrera|cra\.?|cll\.?|diagonal|transversal|"
             r"pol[íi]gono|carrer|r[úu]a|jir[óo]n|jr\.?|street|road|avenue|ave\.?|blvd|"
             r"boulevard)\b[^\d\n]{0,25}\d{1,4}", re.I)
-        _ctx_blobs = []
+        _cp_re = re.compile(r"\b\d{4,6}\b")
         try:
+            # <address> con una vía+número: señal clara y semántica.
             for adr in soup.find_all("address"):
-                _ctx_blobs.append(adr.get_text(" ", strip=True))
-            for foot in soup.find_all("footer"):
-                _ctx_blobs.append(foot.get_text(" ", strip=True))
-            # bloque cercano a una palabra de dirección
-            for m in re.finditer(r"(direcci[óo]n|nuestra sede|oficinas?|ub[íi]canos|"
-                                 r"encu[ée]ntranos|vis[íi]tanos|c[óo]mo llegar|headquarters|"
-                                 r"our address|find us)", text, re.I):
-                _ctx_blobs.append(text[m.start():m.start() + 160])
+                if _street_re.search(adr.get_text(" ", strip=True) or ""):
+                    l_addr = True
+                    break
+            # pie de página: vía+número Y código postal en el MISMO pie (dirección fiscal).
+            if not l_addr:
+                for foot in soup.find_all("footer"):
+                    ft = foot.get_text(" ", strip=True) or ""
+                    if _street_re.search(ft) and _cp_re.search(ft):
+                        l_addr = True
+                        break
         except Exception:  # noqa: BLE001
             pass
-        for _blob in _ctx_blobs:
-            if _street_re.search(_blob or ""):
-                l_addr = True
-                break
 
     lang = ""
     htmltag = soup.find("html")

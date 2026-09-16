@@ -999,8 +999,13 @@ async def analyze(raw_url: str) -> Result:
                               r"verifying you are human|error 10\d\d", _bl_low))
         ) and not bool(re.search(r"<main|<article|<section", _bl_low))
         meta["blocked"] = bool(_blocked)
-        # Pais real por contenido (telefono/menciones), no solo por TLD
-        country = detect_country(home_html, res.domain)
+        # Pais real por contenido (telefono/menciones), no solo por TLD. Si la web está
+        # bloqueada, NO deducimos país de la página de reto (daba "Estados Unidos" por la
+        # ubicación del WAF): mejor dejarlo desconocido que afirmar un país falso.
+        if _blocked:
+            country = {"name": "", "gl": "", "source": ""}
+        else:
+            country = detect_country(home_html, res.domain)
         meta["country"] = country.get("name", "")
         meta["gl"] = country.get("gl", "")
         meta["country_source"] = country.get("source", "")
