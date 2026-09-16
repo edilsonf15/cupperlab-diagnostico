@@ -36,10 +36,23 @@
   /* Modo embebido en cupperlab.com (bloque del CMS): sin doble cabecera/pie;
      el sitio ya pone su header/footer. Alinea el contenido al ancho del sitio (1180). */
   html.cl-embedded header, html.cl-embedded footer{display:none!important}
-  html.cl-embedded .wrap{max-width:1180px}
+  /* Mismo ancho y color de fondo que el resto del sitio cupperlab (1468/34px,
+     #F5F5F5) para que no queden bandas blancas a los lados. */
+  html.cl-embedded, html.cl-embedded body{background:#F5F5F5}
+  html.cl-embedded .wrap{max-width:1468px;padding-left:34px;padding-right:34px}
   /* El contenedor del CMS mete el iframe -90px detras del header; empujamos el
      hero 140px hacia abajo para despejarlo (igual que .cl-page-hero__frame). */
   html.cl-embedded .hero{padding-top:140px}
+  /* Banner con el mismo azul (navy) que el hero de las demas paginas. */
+  html.cl-embedded .hero-bg{background:#031825}
+  /* Formulario un poco mas grande. */
+  html.cl-embedded .fgrid{grid-template-columns:minmax(0,1fr) minmax(0,500px)}
+  html.cl-embedded .fgrid h2{font-size:clamp(28px,3.6vw,42px)}
+  html.cl-embedded .panel{padding:clamp(34px,4vw,56px)}
+  html.cl-embedded .frm input[type=text],
+  html.cl-embedded .frm input[type=email],
+  html.cl-embedded .frm input[type=tel]{padding:16px;font-size:16.5px;border-radius:12px}
+  html.cl-embedded .frm .cbx{font-size:13.5px}
   .kick{font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--cy-t);font-weight:500}
   .hidden{display:none!important}
   /* buttons */
