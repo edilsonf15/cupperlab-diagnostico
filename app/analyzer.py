@@ -34,11 +34,19 @@ AI_WAIT = float(os.getenv("AI_GEO_WAIT", "26"))
 LINK_SAMPLE = 22          # URLs (enlaces internos + sitemap) a comprobar para 404
 LINK_CONCURRENCY = 8
 
+# UA de navegador real: muchos sitios (Cloudflare, WAFs) devuelven una página de
+# RETO/bloqueo a los bots. Con un UA de bot, el análisis se hacía sobre esa
+# página de reto (p. ej. la marca salía "Cloudflare") en vez del sitio real.
 UA = (
-    "Mozilla/5.0 (compatible; CupperlabDiagnostico/1.0; +https://cupperlab.com) "
-    "AppleWebKit/537.36"
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 )
-HEADERS = {"User-Agent": UA, "Accept-Language": "es-ES,es;q=0.9,en;q=0.6"}
+HEADERS = {
+    "User-Agent": UA,
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    "Accept-Language": "es-ES,es;q=0.9,en;q=0.6",
+    "Upgrade-Insecure-Requests": "1",
+}
 
 GEO_SCHEMA_TYPES = {
     "organization", "localbusiness", "website", "webpage", "product",

@@ -43,6 +43,22 @@ STOP = {
     "the", "and", "para", "empresa", "servicios", "productos",
 }
 
+# Marcas/textos de páginas de RETO o bloqueo (Cloudflare, WAF, errores). Si el
+# título de la home es una de estas, NO es la marca del cliente: se ignora para
+# no analizar (ni preguntarle a la IA) por "Cloudflare" en vez del negocio real.
+_JUNK_BRAND = (
+    "cloudflare", "just a moment", "attention required", "access denied",
+    "acceso denegado", "checking your browser", "please wait", "un momento",
+    "403 forbidden", "forbidden", "error 1", "ddos", "security check",
+    "are you human", "captcha", "site not found", "account suspended",
+    "under construction", "sucuri", "imperva", "incapsula",
+)
+
+
+def _is_junk_brand(s: str) -> bool:
+    s = (s or "").strip().lower()
+    return any(j in s for j in _JUNK_BRAND)
+
 
 def _looks_like_domain(s: str) -> bool:
     s = (s or "").strip().lower()
@@ -51,17 +67,18 @@ def _looks_like_domain(s: str) -> bool:
 
 def derive_brand(meta: dict, domain: str) -> str:
     osn = (meta.get("og_site_name") or "").strip()
-    if osn and not _looks_like_domain(osn):
+    if osn and not _looks_like_domain(osn) and not _is_junk_brand(osn):
         return osn
     title = (meta.get("title") or "").strip()
-    if title:
+    if title and not _is_junk_brand(title):
         # el nombre de marca suele ir tras el ultimo separador o antes del primero
         parts = re.split(r"\s[|\-–—:·]\s", title)
-        parts = [p.strip() for p in parts if p.strip()]
+        parts = [p.strip() for p in parts if p.strip() and not _is_junk_brand(p)]
         if parts:
             cand = min(parts, key=len) if len(parts) > 1 else parts[0]
             if 2 <= len(cand) <= 40 and cand.lower() not in STOP:
                 return cand
+    # Sin marca fiable: usa el nombre del dominio (mejor que "Cloudflare").
     root = urlparse("https://" + domain).netloc or domain
     root = root.split(".")[0]
     return root.capitalize()
