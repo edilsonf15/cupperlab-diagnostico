@@ -1307,21 +1307,44 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
         f"businesses with their own site; the Name is the company, NOT a category/service/city; if fewer "
         f"than 4-5 real, list only the real ones. No explanations.")
 
+    # CONOCIMIENTO del modelo (SIN búsqueda web): competidores líderes + ficha de Google.
+    # La búsqueda en vivo daba tiendas pequeñas/SEO y una ficha inconsistente; el
+    # conocimiento del modelo da las marcas que un cliente reconoce (Studio F, Koaj...) y
+    # sabe que las marcas/cadenas establecidas casi siempre tienen ficha de Google.
+    q_comp = L(
+        f"Sin usar búsqueda web, solo con tu conocimiento del mercado. Sobre \"{brand}\" ({sec_txt} en "
+        f"{place or 'su país'}), responde EXACTAMENTE en 3 líneas y nada más:\n"
+        f"COMPETIDORES: <las 6 marcas MÁS CONOCIDAS y líderes del mismo tipo que compiten con ella a nivel "
+        f"nacional, separadas por |. Solo marcas reales y reconocidas, NADA de tiendas pequeñas. Si no "
+        f"conoces ninguna con seguridad, deja vacío>\n"
+        f"FICHA: <¿tiene ficha de Google Business / perfil en Google Maps con reseñas? Las marcas conocidas "
+        f"y los negocios locales establecidos casi siempre tienen. Responde SI, NO o NOSE>\n"
+        f"RESENAS: <número aproximado de reseñas de su ficha si lo sabes; vacío si no>",
+        f"Without web search, only from your market knowledge. About \"{brand}\" ({sec_txt} in "
+        f"{place or 'its country'}), reply EXACTLY in 3 lines and nothing else:\n"
+        f"COMPETIDORES: <the 6 BEST-KNOWN, leading brands of the same type that compete with it nationally, "
+        f"separated by |. Only real, recognized brands, NO small shops. If you know none for sure, leave empty>\n"
+        f"FICHA: <does it have a Google Business profile / Google Maps listing with reviews? Well-known brands "
+        f"and established local businesses almost always do. Reply SI, NO or NOSE>\n"
+        f"RESENAS: <approx number of reviews on its listing if you know it; empty if not>")
+
     eng = _engines[0]
     prov, key = eng["provider"], eng["key"]
     strong = eng.get("strong") or eng["model"]
     model = eng["model"]
     try:
         async with httpx.AsyncClient(headers={"User-Agent": "Mozilla/5.0"}) as client:
-            # UNA SOLA RONDA en paralelo: briefing (mega, para sector/keywords/contenido) +
+            # UNA SOLA RONDA en paralelo: briefing (mega) + competidores por conocimiento +
             # sonda de TODAS las IA (reconocimiento/prueba + medición de recomendación).
             _res = await asyncio.gather(
                 _ask(client, prov, key, strong, q_mega, max_tokens=600, grounded=True, sink=sources),
+                _ask(client, prov, key, model, q_comp, max_tokens=120, grounded=False),
                 *[_engine_probe(client, e, brand, domain, q_mem, q_brand, q_cat, cat_queries)
                   for e in _engines],
                 return_exceptions=True)
             mega = _strip_cites(_res[0]) if isinstance(_res[0], str) else ""
-            _probes = list(_res[1:])
+            comp_know = _res[1] if isinstance(_res[1], str) else ""
+            _probes = list(_res[2:])
     except Exception as exc:  # noqa: BLE001
         return {"available": True, "error": str(exc), "brand": brand}
 
@@ -1367,8 +1390,26 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
             "reco_total": _p.get("reco_total"), "cites": _p.get("cites"),
             "sources": _p.get("sources") or [], "proof": _p.get("proof") or "",
         })
-    # Competidores: SOLO del mejor motor (prim), sin mezclar los 3 (evita ruido).
-    comps = list(prim.get("competitors") or [])
+    # Competidores: PRIMERO los de conocimiento (marcas líderes reconocidas); si el modelo
+    # no dio, caemos a la recomendación real del motor y luego al campo del briefing.
+    def _clean_comps(raw: str) -> list:
+        out = []
+        for c in (raw or "").replace("\n", "|").split("|"):
+            c = c.strip(" -•\"'.").strip()
+            if (c and len(c) <= 40 and c.lower() not in ("nada", "none", "n/a")
+                    and not _looks_generic(c) and brand.lower() not in c.lower()):
+                out.append({"name": c})
+        # dedup por nombre
+        seen, dd = set(), []
+        for c in out:
+            k = c["name"].lower()
+            if k not in seen:
+                seen.add(k); dd.append(c)
+        return dd[:6]
+
+    comps = _clean_comps(_f("COMPETIDORES", comp_know))
+    if not comps:
+        comps = list(prim.get("competitors") or [])
     if not comps:
         comps = [{"name": c.strip()} for c in _f("COMPETENCIA", mega).split("|")
                  if c.strip() and not _looks_generic(c.strip())][:6]
@@ -1378,15 +1419,27 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
     # fiable — no depende de cuota de la Places API ni del scraping que Google bloquea.
     # main.py luego enriquece con la Places API/scraping SI están disponibles (para un
     # número de reseñas exacto), pero NUNCA baja a "sin ficha" un SI seguro de la IA.
-    _ficha = _f("FICHA_GOOGLE", mega).strip().upper()
-    if _ficha.startswith(("SI", "SÍ", "YES")):
+    def _yn(s: str):
+        s = (s or "").strip().upper()
+        if s.startswith(("SI", "SÍ", "YES")):
+            return True
+        if s.startswith("NO") and not s.startswith("NOSE"):
+            return False
+        return None
+    # Ficha por DOS vías: el briefing en vivo (mega, grounded) y el conocimiento del
+    # modelo (comp_know). Cualquier SÍ fiable gana (las marcas/cadenas establecidas casi
+    # siempre tienen ficha, y el grounded a veces la falla, como pasó con NAF NAF).
+    _fmega = _yn(_f("FICHA_GOOGLE", mega))
+    _fknow = _yn(_f("FICHA", comp_know))
+    if True in (_fmega, _fknow):
         gbp = True
-    elif _ficha.startswith("NO"):
+    elif False in (_fmega, _fknow):
         gbp = False
     else:
         gbp = None
     gbp_category = _f("CATEGORIA", mega)[:80]
-    _rm = re.search(r"\d[\d.,]*", _f("RESENAS", mega))
+    # nº de reseñas: primero el del briefing en vivo; si no, el del conocimiento.
+    _rm = re.search(r"\d[\d.,]*", _f("RESENAS", mega)) or re.search(r"\d[\d.,]*", _f("RESENAS", comp_know))
     gbp_reviews_n = (int(re.sub(r"[^\d]", "", _rm.group(0))) if _rm else None) if gbp else None
     _rt = re.search(r"([0-5][.,]\d)", _f("VALORACION", mega))
     gbp_rating = _rt.group(1).replace(",", ".") if (_rt and gbp) else None
