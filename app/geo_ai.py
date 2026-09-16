@@ -1160,16 +1160,11 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
     ficha/reseñas y evaluación de contenido, en una sola llamada grounded + una barata
     sin búsqueda para el reconocimiento 'de memoria'. Devuelve el mismo shape que
     run_ai_geo (+ 'content'). None si no hay motor de IA."""
-    # Web bloqueada por anti-bots: no leímos el contenido real. NO inventamos marca,
-    # país ni competidores desde una página de reto (Cloudflare/WAF): sería mentir.
-    if (meta or {}).get("blocked"):
-        _root = re.sub(r"^www\.", "", domain).split(".")[0]
-        return {"available": True, "blocked": True, "limited": True, "brand": _root.capitalize(),
-                "error": "blocked",
-                "note": ("No pudimos leer tu web porque tiene una protección anti-bots "
-                         "(Cloudflare/WAF) que bloquea el análisis automático. Para el "
-                         "diagnóstico de IA hay que revisarla con acceso o permitir el rastreo.")}
-
+    # NOTA: si NUESTRO rastreador no pudo leer la web (anti-bots/WAF), NO cortamos aquí:
+    # la IA tiene su propia búsqueda web y su conocimiento, que NO dependen de que
+    # nosotros alcancemos el sitio. Marcas conocidas (Mario Hernández, Arturo Calle...)
+    # se resuelven igual por nombre. Si la IA tampoco encuentra nada fiable, degrada
+    # sola a 'no reconocida' (sin inventar), gracias a los prompts estrictos.
     _engines = _pick_engines()
     eng = _engines[0] if _engines else await _pick_working_engine()
     if not eng:
