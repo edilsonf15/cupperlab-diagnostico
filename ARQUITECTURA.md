@@ -1,180 +1,127 @@
-# Cómo funciona TODO — Motor de diagnóstico SEO + GEO de Cupperlab
+# Cómo funciona TODO — Motor de diagnóstico SEO + GEO de Cupperlab (v2)
 
-Documento técnico completo para dar contexto a Cowork (o a cualquiera que toque el motor).
-Complementa a `PROMPTS.md` (que detalla solo los prompts de IA).
+Documento técnico para quien toque el motor (Cowork, Claude Code o una persona).
+Complementa a `PROMPTS.md` (prompts de IA) y `bench/` (banco de pruebas).
 
-- **App:** FastAPI + Jinja2 + JS vanilla. Python 3.
-- **Navegador headless:** Playwright/Chromium (render de JS, scraping de Maps, PDF).
+- **App:** FastAPI + Jinja2 + JS vanilla. Python 3.12 (imagen Playwright).
 - **Endpoint público:** `analisis.cupperlab.com` · **Repo:** `edilsonf15/cupperlab-diagnostico`
-- **Integrado en el CMS:** `cupperlab.com/diagnostico` (iframe/bloque nativo).
+- **Integrado en el CMS:** `cupperlab.com/diagnostico` (iframe). El contrato de la API no cambió.
 
 ---
 
-## 1. Visión general del flujo
+## 1. Principios v2 (lo que arregla los fallos de v1)
+
+1. **Hechos medidos vs. opinión de la IA.** Ficha de Google, reseñas, categoría, ciudad, país, posición en Google, indexación, velocidad y schema salen de scripts contra fuentes oficiales, con `status`/`source`. La IA solo responde a *"¿qué contesta ChatGPT/Perplexity cuando un cliente pregunta por este servicio?"*.
+2. **Nada desaparece en silencio.** Cada módulo devuelve `status: ok|partial|failed|skipped` y una `note`. Lo que no se pudo medir va a `result.not_measured[{key,name,note}]`; la pantalla y el PDF lo pintan en gris como "No medido (motivo)" y no entra en el índice.
+3. **Un LLM nunca pisa un dato medido.** El país lo decide crawl + Places; la IA no lo toca.
+4. **Presupuesto de tiempo por etapa y global** (`asyncio.wait_for`). Tope 120 s. El resultado sale con lo que haya.
+5. **Caché 24 h** por dominio + idioma + `ENGINE_VERSION`, en SQLite (sobrevive deploys). Mismo dominio = 0 € de IA y APIs.
+6. **Banco de pruebas** (`bench/`) con dominios de verdad conocida. Se corre antes de desplegar cambios de motor o prompts.
+
+---
+
+## 2. Flujo de un análisis
 
 ```
-Usuario mete su web  →  POST /api/analyze  →  crea job_id, corre _run_job en 2º plano
-                                                   │
-   El front hace polling a GET /api/status/{job_id}  (barra de progreso)
-                                                   │
-   _run_job orquesta TODO en paralelo y va marcando progreso (_set):
-     1) analyzer.analyze()      → home + render + país + señales técnicas
-     2) onpage.audit()          → rastreo multipágina (~70 URLs)
-     3) perf2.measure()         → velocidad (PageSpeed API, móvil+escritorio)
-     4) geo_ai.run_ai_geo_fast()→ IA: marca, competencia, ficha, contenido
-     5) gbp / Places API        → enriquece la ficha de Google
-     6) search.check_google/…   → posición y competencia en buscador
-     7) dims.compute()          → las 9 dimensiones (0-100 c/u)
-     8) findings.compute()      → hallazgos agrupados
-     9) report_pdf + emailer    → PDF y correo con el informe
-   →  result guardado en el job (y en caché por dominio 30 min)
+POST /api/analyze ──► store.job_create (SQLite) ──► _run_job
+                                                     │  caché 24h? ──► resultado + PDF/correo
+                                                     ▼
+                                 _pipeline (tope global ANALYSIS_HARD_TIMEOUT=120 s)
+  t=0   analyzer.analyze()           home + render JS + país por evidencia + técnico     ≤50 s
+  t≈8   ┌ perf2.measure()            PageSpeed móvil+escritorio (2 intentos, ≤60 s c/u)   ┐ en
+        ├ perf.measure_device()      analítica/píxeles con navegador                       │ paralelo
+        └ onpage.audit()             rastreo ≤60 páginas, 404, contenido, señales locales ┘ ≤65 s
+  t≈10  places.resolve()             ficha + categoría + ciudad + país (Places API)      ≤10 s
+        _scope()                     ámbito ciudad|pais (ficha con dirección vs ecommerce)
+  t≈12  geo_ai.run_geo()             P1 → P2 (motores × 3 búsquedas) + P4 → P3           ≤70 s
+  t≈50  serp.run()                   Google real: marca, 3 búsquedas, site: (1 petición) ≤20 s
+        serp.find_domains()          dominios de competidores citados por la IA sin web
+  ...   recoge perf / analytics / onpage
+        finalize_score → dims.compute → not_measured → findings.compute
+        store.cache_put + store.job_finish  ──► pantalla (done=true)
+        _build_and_send: PDF (2 intentos) → correo (3 intentos) → lead (SQLite + JSONL + aviso)
 ```
 
-Cuando `done=True`, el front pinta el resultado (las 9 dimensiones, la matriz de IA, los hallazgos) y se envía el PDF por correo.
-
 ---
 
-## 2. Módulo por módulo (todo está en `app/`)
+## 3. Módulos (`app/`)
 
-### `main.py` (564 líneas) — Orquestador y API
-- **Rutas:** `/` (form), `/agenda` (reserva), `POST /api/book`, `POST /api/analyze`, `GET /api/status/{job_id}`, `GET /reporte/{token}.pdf`, `GET /salud`.
-- **`_run_job`**: corre el pipeline completo (§1). Lanza tareas en paralelo (perf, gbp scrape, onpage) y las va uniendo.
-- **Caché de resultados** (`_RESULT_CACHE`, `_cache_key`): 30 min por dominio+idioma; se limpia al reiniciar el contenedor (deploy).
-- **Rate limit** por IP (`_rate_ok`, `RATE_LIMIT_PER_HOUR`, def. 30/h).
-- **`_embed_headers`**: quita `X-Frame-Options` para poder incrustar en el CMS (iframe).
-- **Resolución de la ficha de Google (paso 5):** la IA es primaria; Places API/scraping solo confirman o añaden nº exacto de reseñas (ver `PROMPTS.md §2`).
-
-### `analyzer.py` (1564 líneas) — Lectura de la home + técnico
-- **`analyze(url)`** → objeto `Result`. Descarga la home (`fetch_home`, reintenta https antes de caer a http, UA de navegador real, `verify=False`), la **re-renderiza con Playwright** (`perf.render_html`) para ejecutar JS, y fusiona ambas versiones.
-- **`parse_home`**: título, metas, OG/Twitter, H1/H2, canonical, robots meta, favicon, viewport, **schema JSON-LD** (captura `@type` string y array), **FAQ** (schema o ≥3 preguntas), **NAP** (dirección/teléfono con contexto), **mapa** (solo iframe), hreflang, idioma.
-- **`detect_country`**: país por contenido (prefijo telefónico, moneda, menciones, idioma-región) y por **TLD** (`.co`→Colombia, etc.). Si la web está bloqueada, no deduce país de la página de reto.
-- **Detección de bloqueo (`meta["blocked"]`)**: si la home (o el render) es una página de reto de Cloudflare/WAF, se marca. La IA igual analiza por nombre (ver `geo_ai`).
-- **SSL, robots.txt, sitemap.xml, llms.txt, compresión, CDN, HTTPS forzado, variantes www**.
-- **Muestreo de enlaces rotos (404)** desde el sitemap.
-- **`apply_ai_to_result`**: integra la respuesta de la IA en el result (corrige país, añade hallazgos).
-
-### `onpage.py` (831 líneas) — Auditoría SEO multipágina
-- **`audit(url)`**: rastrea hasta ~70 páginas (sitemap + BFS de enlaces internos, `SITEMAP_CAP`).
-- **`_parse_page`**: por cada página → título/desc (longitudes), H1/H2, canonical, noindex, imágenes sin alt, word count, schema, URL amigable, anchor pobre, breadcrumbs, **señales locales** (teléfono, dirección con contexto, mapa iframe, horario, geo, **testimonios**), enlaces internos.
-- **`_check_broken`**: estado HTTP real de todas las URLs; **excluye 401/403/405/429/451/503/999** (no son 404 reales).
-- **`_aggregate`**: suma todo el sitio → issues (títulos/desc faltantes o duplicados, thin content, huérfanas, profundidad, etc.), schema agregado, `local` (señales de contacto), y un **score on-page**.
-- **`_content`**: profundidad, casi-duplicados, frescura, coherencia de tema, señales E-E-A-T.
-
-### `perf2.py` (368 líneas) — Velocidad (motor nuevo)
-- **`measure(url)`**: llama a **PageSpeed Insights API** (`_psi`, con reintentos) para **móvil y escritorio**. Devuelve score global + Core Web Vitals (LCP, CLS, INP, TTFB) con dato de laboratorio (Lighthouse) y de campo (CrUX).
-- **Auditorías de ahorro:** imágenes WebP/AVIF, minificación JS/CSS, lazy-load, scripts de terceros.
-- **Sonda de cabeceras propia:** CDN y compresión gzip/brotli (lo que PSI no expone claro).
-- `perf.py` (viejo) sigue usándose para `render_html` (Playwright) y `bing_site_search`.
-
-### `geo_ai.py` (1517 líneas) — La parte de IA (GEO/LLMO)
-Ver **`PROMPTS.md`** para los prompts. Resumen de funciones:
-- **`run_ai_geo_fast(domain, meta, lang)`**: el flujo rápido (1 ronda en paralelo). Deriva marca/servicio/país, lanza `q_mega` + `q_comp` + sondas por motor (`q_mem`, `q_brand`, `q_cat`), y arma: reconocimiento, recomendación, competidores, **ficha de Google**, keywords, entidades, evaluación de contenido, score de IA.
-- **`_ask`**: llama al proveedor (OpenAI Responses API con `web_search`, o Gemini con `google_search`, o Anthropic). `temperature=0`. Grounded = con búsqueda web en vivo.
-- **`derive_brand`**: marca desde og:site_name / título (casa con el dominio) / dominio. Ignora títulos "basura" (Cloudflare, "Just a moment").
-- **`derive_sector` / `short_category`**: categoría corta por palabras clave (para las búsquedas de cliente).
-- **`_country_from_domain`**: país por ccTLD.
-- **Motores:** `_pick_engines` elige ChatGPT/Gemini según claves disponibles.
-
-### `search.py` (306 líneas) — Buscador y Places API
-- **`check_gbp`**: **Places API (New)** por nombre+zona (varias formulaciones). Devuelve nombre, categoría, nº de reseñas, valoración. ⚠️ **HOY devuelve 403: la Places API está DESHABILITADA en el proyecto GCP `907452438504`.**
-- **`check_google`**: posición del dominio en las búsquedas de categoría (vía Serper API o DuckDuckGo).
-- **`check_indexation`**: cuántas páginas indexa el buscador vs el sitemap; muestrea 404 en lo indexado.
-
-### `gbp.py` (164 líneas) — Ficha de Google por scraping (respaldo)
-- **`check_gbp_scrape`**: abre Google Maps con Playwright y busca la ficha por nombre/zona/dominio. Intermitente (Google bloquea con el muro de consentimiento). Solo confirma; la IA es la fuente primaria.
-
-### `dims.py` (231 líneas) — Las 9 dimensiones (0-100)
-`compute(data)` calcula 9 scores ponderados, en el mismo orden que la pantalla:
-1. **Visibilidad en la IA (GEO)** `_geo` — reconocimiento + recomendación.
-2. **Velocidad móvil** / 3. **Velocidad escritorio** (`perf2`).
-4. **SEO on-page** (`onpage`).
-5. **Contenido** (`_content`).
-6. **Salud técnica** `_tech` — SSL, robots, sitemap, 404, indexación.
-7. **Datos estructurados (Schema)** `_schema`.
-8. **Seguridad** `_security` — HTTPS, cabeceras, cookies, exposiciones.
-9. **Presencia local y reputación** `_local` — ficha Google, reseñas/testimonios, NAP, mapa, LocalBusiness, horario, categoría.
-Cada dimensión es una lista de señales `ok/warn/bad` con peso → `_score`.
-
-### `findings.py` (595 líneas) — Hallazgos (qué corregir)
-`compute(data, lang)` agrupa hallazgos por categoría, mismo orden que la web. Funciones por grupo: `geo_findings`, `perf_findings` (solo si móvil o escritorio <80), `onpage_findings`, `content_findings`, `tech_findings`, `schema_findings`, `local_findings`, `security_findings`. Cada hallazgo: `{sev, t (título), d (detalle)}` bilingüe.
-
-### `report_pdf.py` (1836 líneas) — Informe en PDF
-`build_plan` + render HTML→PDF (Playwright). Portada, gauge de salud, 9 dimensiones, matriz de IA (reconocimiento + recomendación + competidores + ejemplo real de búsqueda), hallazgos y plan de acción.
-
-### Otros
-- **`emailer.py`**: envía el PDF por SMTP.
-- **`booking.py` / `gcal.py`**: reserva de cita (agenda) + Google Calendar.
-- **`i18n.py`**: idioma (es/en) por request.
-- **`authority.py`**: señales de autoridad de marca.
-- **`templates/index.html`**: la UI (form, loader, render de dimensiones y matriz de IA en JS). **Ojo:** el texto de la tarjeta "Presencia local" y algunos hallazgos se generan aquí en JS, además de en `findings.py`/`dims.py` (hay que tocar los dos si se cambia el texto).
-- **`static/js/app.js`**: lógica del front (polling, animaciones).
-
----
-
-## 3. Salidas (dónde se ve el resultado)
-
-El mismo `result` alimenta **3 salidas** (deben coincidir):
-1. **Pantalla** — `templates/index.html` + `static/js/app.js` (usa `data.dims` y `data.findings`).
-2. **PDF** — `report_pdf.py`.
-3. **Correo** — `emailer.py` con el PDF adjunto.
-
-`dims.py` y `findings.py` son la **fuente única** para que las tres coincidan.
-
----
-
-## 4. APIs externas y claves (variables de entorno en Dokploy)
-
-| Servicio | Para qué | Variable | Estado |
+| Módulo | Qué hace | Fuente | Estado sin clave |
 |---|---|---|---|
-| **PageSpeed Insights** | Velocidad / CWV | `GOOGLE_PSI_API_KEY` | ✅ Funciona (gratis, cuota alta) |
-| **Places API (New)** | Ficha de Google (reseñas/categoría) | `GOOGLE_PLACES_API_KEY` o reusa `GOOGLE_PSI_API_KEY` | ⚠️ **DESHABILITADA** en GCP 907452438504 (403) |
-| **OpenAI** | IA GEO (ChatGPT + web_search) | `OPENAI_API_KEY` | ✅ (motor primario) |
-| **Gemini** | IA GEO (respaldo) | `GEMINI_API_KEY` | Según clave |
-| **Serper** | Posición en Google | `SERPER_API_KEY` / `SEARCH_PROVIDER=serper` | Opcional (si no, DuckDuckGo) |
-| **SMTP** | Envío del PDF | vars SMTP | ✅ |
+| `main.py` | Orquestador, rutas, presupuestos, `not_measured`, PDF/correo | — | — |
+| `store.py` | SQLite: jobs, caché 24 h, rate-limit, leads, bench_runs | `data/app.db` | — |
+| `analyzer.py` | Home + render + país por evidencia (teléfono, moneda, hreflang, ccTLD) + SSL/robots/sitemap/seguridad | crawl | — |
+| `onpage.py` | Rastreo multipágina, títulos/metas/H1, 404 (con tope), contenido, señales locales | crawl | — |
+| `perf2.py` | Core Web Vitals móvil/escritorio + auditorías + CDN/compresión. Devuelve `status` y `notes` | PageSpeed API | `not_measured` |
+| `places.py` | **Ficha de Google** (solo si `websiteUri` casa con el dominio, o nombre+ciudad), reseñas, valoración, `primaryType` → categoría de cliente, ciudad, país | Places API (New) | `gbp=None` + `not_measured` |
+| `serp.py` | Posición de marca, top 5 para las búsquedas de cliente, `site:` + 404 sobre lo indexado, dominios de competidores. **1 petición batch** | Serper (Google) | `google=None`, `indexation=None` + `not_measured` |
+| `geo_ai.py` | Test GEO: P1 búsquedas de cliente, P2 pregunta real por motor, P3 extracción JSON, P4 reconocimiento verificado. `share_of_voice`, `by_engine`, competidores con `cited_by` | OpenAI / Perplexity / Gemini | `status=skipped` + `not_measured` |
+| `dims.py` | 9 dimensiones 0-100. GEO solo puntúa si algún motor respondió | local | — |
+| `findings.py` | Hallazgos por grupo; GEO incluye "Cómo lo medimos" (motores + búsquedas) | local | — |
+| `report_pdf.py` | PDF (Playwright). Lista `not_measured`; competidores con quién los cita | — | — |
+| `emailer.py`, `booking.py`, `gcal.py`, `i18n.py`, `authority.py`, `perf.py` (render + analítica) | sin cambios | | |
 
-Otras: `RATE_LIMIT_PER_HOUR`, `RESULT_CACHE_TTL` (1800s), `ANALYSIS_HARD_TIMEOUT` (50s), `AI_GEO_BUDGET` (30s), `PUBLIC_BASE_URL`.
-
----
-
-## 5. Despliegue
-
-- **Diagnóstico** (`edilsonf15/cupperlab-diagnostico`): auto-deploy en push a `main`, pero conviene **deploy manual en Dokploy con "Clean Cache" ON** (evita capa Docker `COPY app/` cacheada con código viejo). Al reiniciar el contenedor se **limpia la caché de resultados**.
-  - Dokploy: `http://82.223.116.53:3000` · proyecto `zleVM-vOaCrKOOrVvmah8` · servicio `kmMPXR_o5aigE75B9YuU1`.
-- **CMS** (`dardcode/Admin-Cupperlab`): auto-deploy en push a `main`. La página `cupperlab.com/diagnostico` es nativa (bloque + migraciones SQL en `database/migrations/`). Si cambia el menú/caché, se toca `content_entries.updated_at` con una migración (Last-Modified del navegador).
+Eliminados en v2: `gbp.py` (scraping de Maps, bloqueado), `search.py` (DuckDuckGo, bloqueado), `run_ai_geo`/`run_ai_geo_fast` y sus parsers, `index_v1_backup.html`.
 
 ---
 
-## 6. Cómo verificar un cambio (sin abrir la UI)
+## 4. Objeto `result` (claves nuevas y las que leen pantalla/PDF/correo)
 
-```bash
-# 1) lanzar análisis
-curl -s -X POST https://analisis.cupperlab.com/api/analyze \
-  -H "Content-Type: application/json" \
-  -d '{"url":"koaj.co","email":"tucorreo@cupperlab.com","lang":"es"}'
-# → {"job_id":"..."}
+- `identity` = `{brand, domain, city, country, cc, gl, scope, category, snippet, places_found}` (lo medido antes de preguntar a la IA).
+- `places` = contrato `{status, source, note, data{found, name, category_type, category_label, address, city, country_code, reviews, rating, maps_url, website, matched_by}}`.
+- `serp` = `{status, source, note}`; `google` e `indexation` mantienen el shape legacy que lee el PDF.
+- `perf2` = `{status, score, mobile|None, desktop|None, infra, notes{mobile, desktop}}`; `psi_full` legacy para PDF/score.
+- `geo_ai` = claves legacy (`available, limited, recognition, knows, knows_brand, recommended, reco_hits, reco_total, questions[{q, appears, named, answer, by_engine}], competitors[{name, domain, cited_by, hits, source}], sources[{domain, url, own}], gbp, gbp_reviews_n, gbp_rating, gbp_category, ai_score, engines[], answered_names, brand, sector, zona, country, category_queries`) + `status, share_of_voice, by_engine, gbp_source, gbp_maps_url, prompts_version, debug`.
+- `dims[{key, grp, name, score}]` solo con score numérico; `not_measured[{key, name, note}]` aparte (una dim con `score: null` rompería el PDF).
+- `from_cache`, `engine_version`, `elapsed_total`.
 
-# 2) leer el resultado (repetir hasta done=true)
-curl -s https://analisis.cupperlab.com/api/status/<job_id> | python -m json.tool
-# Campos clave: result.geo_ai.{gbp,gbp_reviews_n,competitors,recognition,knows_brand},
-#               result.meta.{country,has_address,has_testimonials,blocked},
-#               result.dims, result.findings, result.perf2.mobile.score
+Consumidores: `templates/index.html` (recalcula hallazgos en JS y sobreescribe scores con `dims` por `name`; pinta `not_measured`), `report_pdf.py` (dims, findings tech/schema, geo_ai, psi_full, google, indexation, not_measured), `templates/email_report.html` (dims por `key`).
+
+---
+
+## 5. Variables de entorno (Dokploy)
+
+```
+GOOGLE_PSI_API_KEY=        # velocidad (gratis)
+GOOGLE_PLACES_API_KEY=     # ficha/categoría/ciudad. Habilitar "Places API (New)" en GCP 907452438504
+SERPER_API_KEY=            # Google real. serper.dev (2.500 gratis, ~1 $/1.000)
+OPENAI_API_KEY=            # P1/P3/P4 (mini) + ChatGPT con web_search (P2)
+PERPLEXITY_API_KEY=        # P2 (sonar)
+GEMINI_API_KEY=            # opcional, P2 si se añade a AI_ENGINES
+AI_ENGINES=openai,perplexity
+OPENAI_MODEL=gpt-4o-mini   # revisar el nombre vigente del modelo mini
+ANALYSIS_HARD_TIMEOUT=120  STAGE_BUDGET_PSI=60  STAGE_BUDGET_ONPAGE=65  AI_GEO_BUDGET=45
+RESULT_CACHE_TTL=86400     ENGINE_VERSION=v2.0  MAX_CONCURRENT_JOBS=3
 ```
 
-Compilar antes de desplegar: `python -m py_compile app/geo_ai.py app/main.py app/analyzer.py app/onpage.py`.
+`GET /salud` dice qué integraciones están activas: `{places, serper, ai_engines, psi, engine}`.
+
+Coste estimado por análisis nuevo (2 motores): Places 0,03 € + Serper 0,005 € + OpenAI (4 P2 + 3 mini) ≈ 0,04-0,07 € + Perplexity (3 P2) ≈ 0,02 € → **≈ 0,10-0,13 €**. En caché: 0 €.
 
 ---
 
-## 7. Problemas conocidos (lo que "sigue mal")
+## 6. Despliegue y verificación
 
-1. **Ficha de Google inconsistente** → Places API deshabilitada; depende de la IA. Fix real: habilitar Places API (New) en GCP.
-2. **Competidores con ruido** → dependen del criterio de la IA (ver `PROMPTS.md §6`).
-3. **País en `.com` global** → puede fijar el mercado internacional en vez del local.
-4. **"Consulta a la IA no completada"** → la llamada grounded a la IA se limita/tarda; falta retry a un segundo motor.
-5. **Texto duplicado front/back** → algunos textos viven en `index.html` (JS) y en `findings.py`/`dims.py`; cambiar ambos.
-
-Para mejorar los **prompts**, ver **`PROMPTS.md`** (tiene los 5 prompts verbatim, cómo se combinan y las reglas para no romper el parser).
+1. Dokploy: deploy manual con **Clean Cache ON** (capa `COPY app/`). El volumen `./data` guarda `app.db`, `reports/`, `leads.jsonl`.
+2. Comprobar `GET /salud` → todas las integraciones `true`.
+3. Lanzar un análisis y leer el JSON:
+```bash
+curl -s -X POST https://analisis.cupperlab.com/api/analyze -H "Content-Type: application/json" \
+  -d '{"url":"rustikadecoracion.com","email":"tucorreo@cupperlab.com","lang":"es"}'
+curl -s https://analisis.cupperlab.com/api/status/<job_id> | python -m json.tool
+# Mirar: result.identity, result.not_measured, result.places.status, result.serp.status,
+#        result.geo_ai.{status, category_queries, share_of_voice, competitors[*].cited_by}
+```
+4. Banco de pruebas: `python bench/run.py` (o `--only dominio`, `--no-cache`). Debe decir `TODO OK` antes de desplegar cambios de motor/prompts.
+5. Compilar: `python -m py_compile app/*.py`.
 
 ---
 
-*Este documento y `PROMPTS.md` son el paquete de contexto para iterar el motor con Cowork.*
+## 7. Decisiones de diseño (por qué así)
+
+- **Places en vez de IA para la ficha**: un LLM no puede saber si un negocio tiene ficha; con el prompt de v1 ("las marcas conocidas casi siempre tienen") respondía SI por sesgo. Places devuelve el dato y la ficha se acepta solo si su web es la del cliente.
+- **Serper en vez de scraping**: DuckDuckGo/Bing/Maps por scraping estaban bloqueados y devolvían `null` en todos los análisis. Google real cuesta 0,005 € por análisis.
+- **Pregunta del cliente sin instrucciones**: el test GEO debe medir lo que un cliente vería. Pedir "4-5 empresas con dominio" cambia la respuesta y deja de ser una medición.
+- **Ámbito ciudad/país**: una tienda física de Madrid se evalúa en Madrid, no en "España"; un ecommerce nacional, al revés. Lo decide la ficha (dirección) y las señales de ecommerce de la home.
+- **`not_measured` aparte de `dims`**: el PDF hace `max()`/`>` sobre los scores; un `null` lo rompía. Y una dimensión que desaparece sin explicación era el "a veces mide la velocidad y a veces no".
+- **SQLite y no Redis**: un fichero en el volumen basta para 1-2 workers; cero infraestructura nueva en el VPS.

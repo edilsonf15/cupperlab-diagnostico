@@ -16,6 +16,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN playwright install chromium
 
 COPY app/ ./app/
+COPY bench/ ./bench/
 
 WORKDIR /srv/app
 EXPOSE 8000

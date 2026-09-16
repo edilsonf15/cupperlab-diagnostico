@@ -1,161 +1,100 @@
-# Motor de diagnóstico SEO + GEO — Estado del proyecto y prompts de IA
+# Prompts del motor v2 (test GEO) — `app/geo_ai.py`
 
-Documento de handoff para mejorar los prompts con Cowork y devolverlos para aplicar.
-Todo lo de IA vive en `app/geo_ai.py`. El orquestador es `app/main.py`.
+Documento de referencia de los 4 prompts que usa el motor. Cambió la filosofía respecto a v1:
 
----
+| v1 | v2 |
+|---|---|
+| La IA decidía ficha de Google, reseñas, categoría, país y competidores | Todo eso se **mide** (Places API, Serper, crawl). La IA solo responde lo que solo la IA puede: qué dice de la marca y a quién recomienda |
+| Un prompt "actúa como analista SEO y GEO" con 14 campos `CAMPO: valor` | La pregunta a la IA es la **del cliente**, en texto libre (P2). La estructura se saca después con un modelo mini y **JSON con esquema** (P3) |
+| Las 3 búsquedas iban en una sola llamada (el modelo copiaba la misma lista) | **Una llamada por búsqueda y por motor** |
+| Búsquedas = eslogan de la web ("mejores Especialistas en muebles de diseño contemporáneo en España") | Búsquedas generadas como cliente (P1) a partir de la categoría de Google + ciudad; filtro anti-eslogan |
+| `knows` = "la respuesta mide más de 25 caracteres" | `conoce` solo cuenta si el **sector y el país que cree la IA coinciden con los medidos** (P4) |
+| Competidores "de memoria, sin buscar" (con ejemplos ancla) | Competidores = los que las IAs **citaron de verdad** + top 5 de Google, con quién los cita |
 
-## 1. Cómo funciona el motor (pipeline de un análisis)
-
-Al pedir un análisis de un dominio (`POST /api/analyze`), `main.py::_run_job` corre en este orden:
-
-1. **`analyzer.analyze(url)`** — descarga la home (httpx con reintentos + UA real), la re-renderiza con Playwright (JS), detecta país por contenido/TLD, y marca `meta["blocked"]=True` si la web tiene anti-bots (Cloudflare/WAF) y no se pudo leer.
-2. **`onpage.audit(url)`** — rastrea hasta ~70 páginas (sitemap + enlaces): títulos, metas, H1/H2, schema, enlaces rotos, dirección (NAP), mapa, testimonios, contenido.
-3. **`perf2.measure(url)`** — velocidad real vía **PageSpeed Insights API** (Lighthouse + CrUX), móvil y escritorio. (API gratis, cuota alta — NO es la que falla.)
-4. **`geo_ai.run_ai_geo_fast(domain, meta, lang)`** — **la parte de IA** (ver §3). Reconocimiento de marca, recomendación, competidores, ficha de Google, contenido.
-5. **Ficha de Google** — se resuelve en `geo_ai` (IA, primaria) y `main.py` la enriquece con Places API/scraping SI están disponibles.
-6. **`dims.compute` + `findings.compute`** — convierten todo en las 9 dimensiones y los hallazgos (misma fuente para pantalla, PDF y correo).
-
-**Determinismo:** todas las llamadas de IA usan `temperature=0`. Mismo input → misma salida.
+Reglas comunes: `temperature=0`; JSON con esquema en P1, P3 y P4; P2 es texto libre a propósito; sin ejemplos con marcas reales (anclan); ES y EN; `{variables}` en runtime. `PROMPTS_VERSION = "2.0"` viaja en el resultado.
 
 ---
 
-## 2. Estado actual (qué funciona y qué es frágil)
+## P1 · Categoría en lenguaje de cliente + 3 búsquedas reales
+Modelo mini, sin búsqueda. Salida `{"categoria": str, "busquedas": [str, str, str]}`.
 
-### Funciona bien
-- Velocidad (PageSpeed), SEO on-page, técnico, schema, seguridad, contenido, testimonios, dirección (NAP), mapa.
-- Marca, país y categoría cuando la web es legible.
-- Reconocimiento de marca por IA (knows_brand / recognition).
+Entrada: marca, categoría de Google (Places `primaryType` traducido), ciudad, país, ámbito (`ciudad` | `pais`, lo decide `main._scope`), título + description + H1 de la home (≤600 caracteres).
 
-### Frágil / dependiente de la IA (lo que "sigue mal")
-- **Ficha de Google (gbp):** la **Places API (New) está DESHABILITADA** en el proyecto GCP `907452438504` (devuelve 403). Por eso la ficha la resuelve la **IA** (a veces inconsistente: una marca sale SÍ y otra vez NO). El scraping de Maps es intermitente (Google lo bloquea). → **Fix real opcional:** habilitar Places API en GCP para datos deterministas.
-- **Competidores:** dependen 100% del criterio de la IA. Han oscilado entre (a) tiendas pequeñas/SEO, (b) gigantes globales, (c) genéricos repetidos. Ahora se piden por **segmento concreto** y **marcas nacionales**, pero sigue habiendo ruido ocasional (p. ej. un outlier de otro rubro).
-- **País en dominios `.com` globales:** una marca colombiana con `.com` internacional (ej. leonisa.com) puede salir como EE.UU. porque su web apunta a ese mercado. Correcto técnicamente, pero puede no ser lo que el cliente espera.
-- **Webs bloqueadas por anti-bots:** ahora la IA analiza por nombre igual (Mario Hernández, Arturo Calle), pero con menos contexto (categoría/segmento los deduce la IA sola).
-- **"Consulta a la IA no completada" (limited):** aparece cuando la llamada grounded a la IA falla/tarda (límite temporal del proveedor). Es honesto, pero conviene reducir su frecuencia (retry / fallback a otro motor).
+```
+Eres un cliente potencial, no un analista. Con los datos de abajo, escribe cómo buscaría un cliente este tipo de negocio en un asistente de IA si NO conociera la marca.
+
+Datos medidos (no los cuestiones):
+- Negocio: {brand}
+- Categoría según Google: {category}
+- Ubicación: {city}, {country}
+- Ámbito: {scope}   (ciudad = negocio local; pais = vende/atiende en todo el país)
+- Texto de su web: "{snippet}"
+
+Devuelve JSON con:
+- "categoria": cómo llamaría un cliente a este tipo de negocio, en 2-5 palabras, en minúsculas, sin adjetivos publicitarios ni la marca (una categoría genérica del sector, no un eslogan).
+- "busquedas": exactamente 3 frases distintas, de 5 a 12 palabras, tal y como las escribiría un cliente en {country} en un chat de IA. Si el ámbito es "ciudad", las 3 incluyen "{city}"; si es "pais", ninguna incluye ciudad y como mucho una menciona "{country}". Una de las tres debe pedir explícitamente recomendaciones ("recomiéndame", "cuáles son los mejores", "dónde puedo"). No uses la marca ni frases de su web.
+```
+
+Después del prompt, el código **descarta** cualquier búsqueda que contenga la marca o que comparta ≥70 % de sus palabras con el texto de la web, y rellena con plantillas neutras (`dónde encontrar {categoría} en {ciudad}`…).
+
+## P2 · La pregunta del cliente (una llamada por búsqueda × motor)
+ChatGPT (`web_search`), Perplexity (`sonar`), Gemini (`google_search`) según `AI_ENGINES`. **Sin system prompt, sin formato, sin instrucciones.** Se guardan la respuesta cruda (ejemplo real en el PDF) y las citas.
+
+```
+Estoy en {ciudad_o_pais}. {busqueda}
+```
+
+## P3 · Extracción de negocios (una llamada para todas las respuestas)
+Modelo mini, JSON estricto `{"respuestas": [{"id": int, "negocios": [{"nombre": str, "dominio": str|null}]}]}`.
+
+```
+Te paso respuestas de asistentes de IA a preguntas de un cliente. Extrae los negocios, marcas o profesionales concretos que cada respuesta recomienda o menciona, en el orden en que aparecen.
+
+Reglas:
+- Solo entidades con nombre propio (empresas, tiendas, marcas, profesionales). No incluyas categorías, ciudades, plataformas de reseñas ni directorios (mapas, redes sociales, marketplaces genéricos) salvo que la respuesta los recomiende como el negocio en sí.
+- Si la respuesta da un dominio o URL para ese negocio, inclúyelo en "dominio" sin protocolo ni www. Si no, null. No inventes dominios.
+- Si una respuesta no recomienda ningún negocio concreto (solo consejos genéricos), devuelve una lista vacía para ella.
+- Respeta el nombre tal y como aparece. Devuelve una entrada por respuesta, ids 1..N.
+
+Respuestas:
+[1]
+...
+```
+
+El código decide si **apareces** comparando `dominio` con el tuyo o el nombre normalizado (similitud ≥ 0,85). Los competidores sin dominio se resuelven con Serper (`serp.find_domains`).
+
+## P4 · Reconocimiento de marca (de memoria y con búsqueda)
+Dos llamadas: modelo mini sin búsqueda (JSON estricto) y motor primario con búsqueda (JSON en el texto, parseo tolerante).
+
+```
+{Sin usar búsqueda web, solo con lo que ya sabes: | Usa búsqueda web. }¿Conoces la empresa "{brand}" cuyo sitio web es {domain}?
+
+Responde en JSON:
+- "conoce": true solo si tienes información concreta sobre ESA empresa (no sobre otra con nombre parecido). false si no la conoces o solo puedes suponer por el nombre.
+- "descripcion": si conoce=true, una frase de máximo 30 palabras sobre qué hace, que empiece por "{brand}". Si false, cadena vacía.
+- "sector": en 2-4 palabras, a qué se dedica según lo que sabes. Vacío si no sabes.
+- "pais": país donde opera según lo que sabes. Vacío si no sabes.
+- "confianza": "alta", "media" o "baja".
+No inventes. Es preferible conoce=false que una suposición.
+```
+
+Regla de código: `reconoce = conoce && confianza != "baja" && sector_compatible(sector, categoría medida) && pais_compatible(pais, país medido)`. `strong` = de memoria; `weak` = solo con búsqueda; `none` = ninguna.
 
 ---
 
-## 3. TODOS los prompts de IA (verbatim, con ubicación)
+## Cómo se combinan
 
-> Variables entre `{}` se rellenan en runtime. `L(es, en)` elige idioma. `{brand}` = marca, `{domain}` = dominio, `{place}`/`{country}` = país, `{sec_txt}` = categoría corta, `{full}` = URL.
+- **Reconocimiento** → P4 (mem + web) → `recognition`, `brand_description`, `sources` (citas externas al describirte).
+- **¿Apareces?** → P2 × P3 → por motor `hits/valid`; global `reco_hits/reco_total`, `share_of_voice` (menciones tuyas / menciones totales) y `recommended` (True si apareces en ≥ la mitad de las respuestas válidas; False si en ninguna; None si a medias o sin datos).
+- **Competidores** → P3 (citados por las IAs, con `cited_by`) + Google top 5 (Serper, `source: google`).
+- **Ficha / reseñas / categoría / ciudad / país** → **Places API** (`places.py`), nunca la IA.
+- **Posición en Google e indexación** → **Serper** (`serp.py`).
+- `ai_score` (entra en el índice global) = 40 % reconocimiento (strong 1 / weak 0,55) + 60 % `reco_hits/reco_total`.
 
-### 3.1 `q_mega` — Briefing principal (grounded, con búsqueda web) · `geo_ai.py:~1226`
-Una sola llamada que devuelve casi todo en formato `CAMPO: valor`.
+## Reglas al tocar prompts
 
-```
-Usa búsqueda web y entra en {full}. Actúa como analista SEO y GEO. Analiza la empresa
-"{brand}". Responde EXACTAMENTE en este formato, en texto plano, sin markdown y sin
-enlaces, cada campo en UNA línea:
-SECTOR: <sector concreto>
-ZONA: <ciudad y PAÍS donde opera. Deduce el país por la dirección, el prefijo telefónico
-       (+57 Colombia, +34 España, +52 México...), la moneda, el idioma-región y las
-       menciones del sitio. Señal previa detectada: {country_hint}; confírmala o corrígela
-       leyendo el sitio. NUNCA asumas España por defecto>
-RECOMIENDA: <SI, NO o AVECES> si alguien pide ese tipo de servicio en esa zona SIN nombrar
-       la marca, ¿la recomendarías?
-COMPETENCIA: <NO uses resultados de búsqueda: usa TU CONOCIMIENTO. 4-6 marcas MÁS GRANDES,
-       CONOCIDAS y líderes que compiten con "{brand}" en su país y MISMO segmento.
-       PROHIBIDO tiendas pequeñas/desconocidas. Tampoco gigantes globales. Separadas por |>
-FUENTES: <hasta 4 dominios en los que te apoyas, separadas por |>
-BUSQUEDAS: <3 búsquedas que un cliente escribiría, con la ciudad, separadas por |>
-FICHA_GOOGLE: <Busca en Google/Maps "{brand}". SI si TIENE ficha (mapa, reseñas, horario).
-       Las marcas/cadenas conocidas casi siempre tienen. SI solo si estás seguro; NO solo
-       si tras buscar no hay>
-CATEGORIA: <categoría de la ficha (p. ej. 'Tienda de ropa'); rubro si no hay ficha>
-RESENAS: <número TOTAL aproximado de reseñas; 0 si no hay ficha. SOLO el número>
-VALORACION: <valoración media 0-5 si la ves; vacío si no>
-KEYWORDS: <3-5 palabras clave, separadas por |>
-ENTIDADES: <3-5 temas/entidades clave, separadas por |>
-CONTENIDO: <una frase honesta sobre la calidad del contenido>
-MEJORAS: <2-3 mejoras concretas de contenido, separadas por |>
-```
-**Nota:** el campo COMPETENCIA de aquí es un respaldo; los competidores que se muestran salen de `q_comp` (§3.2).
-
-### 3.2 `q_comp` — Segmento + competidores + ficha (SIN búsqueda, conocimiento) · `geo_ai.py:~1309`
-La fuente PRIMARIA de competidores. Fuerza a identificar el segmento concreto antes de listar.
-
-```
-Sin usar búsqueda web, solo con tu conocimiento. Primero identifica a qué se dedica
-EXACTAMENTE la marca "{brand}": su SEGMENTO concreto de producto (p. ej. marroquinería y
-bolsos de cuero, ropa interior, calzado deportivo, joyería, trajes de baño...), NO un
-genérico como 'moda' o 'ropa'. Responde EXACTAMENTE en 4 líneas y nada más:
-SEGMENTO: <el segmento concreto de "{brand}">
-COMPETIDORES: <6 marcas competidoras DIRECTAS que vendan EXACTAMENTE lo mismo que ese
-       SEGMENTO (bolsos de cuero -> marcas de bolsos; trajes de baño -> marcas de trajes de
-       baño), del MISMO país ({place}) y nivel similar, que un cliente de ahí reconocería.
-       Marcas NACIONALES; NO cadenas globales ni tiendas diminutas. Deben ROTAR según la
-       marca y su segmento. Separadas por |. Vacío si no conoces>
-FICHA: <¿tiene ficha de Google Business con reseñas? Responde SI, NO o NOSE>
-RESENAS: <número aproximado de reseñas si lo sabes; vacío si no>
-```
-**Combinación de ficha:** cualquier SÍ fiable (de `q_mega` FICHA_GOOGLE o de aquí FICHA) → gbp=True. RESENAS "0" se trata como desconocido (None).
-
-### 3.3 `q_cat` — Búsquedas de cliente / test de "¿apareces?" (grounded) · `geo_ai.py:~1296`
-Mide en cuántas búsquedas de categoría aparece la marca (el "apareces 3/3").
-
-```
-Usa búsqueda web. Un cliente en {place} podría escribir estas búsquedas en un asistente de
-IA. Para CADA búsqueda, recomienda 4-5 EMPRESAS o profesionales REALES de {sec_txt} en
-{place}. Devuelve EXACTAMENTE este formato:
-@@1@@ {búsqueda 1}
-@@2@@ {búsqueda 2}
-@@3@@ {búsqueda 3}
-Debajo de cada marcador @@n@@, una empresa por línea como 'Nombre real | dominio.com'.
-Reglas: solo negocios REALES con web propia; el 'Nombre' es la empresa, NO una
-categoría/servicio/ciudad; si hay menos de 4-5 reales, lista solo las reales. Sin explicaciones.
-```
-Las búsquedas (`cat_queries`) se generan localmente: `mejores {sec_txt} en {place}`, `¿qué {sec_txt} me recomiendas en {place}?`, `quiero {sec_txt} en {place}, ¿qué marcas hay?`.
-
-### 3.4 `q_mem` — Reconocimiento "de memoria" (SIN búsqueda) · `geo_ai.py:~1257`
-Mide si la IA conoce la marca por sí sola (clave para GEO).
-
-```
-En una frase, ¿qué es "{brand}" y a qué se dedica? Empieza por el nombre.
-Si NO tienes información fiable de esa marca, responde solo NO_LO_SE.
-```
-
-### 3.5 `q_brand` — Descripción con búsqueda en vivo (grounded) · `geo_ai.py:~1262`
-Prueba real de cómo te cita la IA y en qué fuentes se apoya.
-
-```
-Usa búsqueda web. En 2-3 frases, ¿qué es "{brand}" ({domain}) y a qué se dedica?
-Básate SOLO en lo que encuentres en la web sobre ESA empresa; no inventes.
-Si no encuentras información fiable, responde solo NO_LO_SE.
-```
-
----
-
-## 4. Cómo se combinan (para entender el impacto de cada prompt)
-
-- **Reconocimiento (recognition):** `q_mem` (de memoria) + `q_brand` (con web). Si conoce de memoria → "strong"; solo con web → "weak"; nada → "none".
-- **¿Apareces? (recommended):** `q_cat` mide en cuántas búsquedas sale la marca (`reco_hits/reco_total`).
-- **Competidores:** `q_comp` (primario) → si vacío, `q_cat`/probe → si vacío, `q_mega` COMPETENCIA.
-- **Ficha Google:** `q_mega` FICHA_GOOGLE + `q_comp` FICHA (cualquier SÍ gana) → luego Places/scraping enriquecen reseñas exactas.
-- **País/sector/categoría/keywords/contenido:** `q_mega`.
-
----
-
-## 5. Reglas al mejorar prompts (mantener SIEMPRE)
-
-1. **Salida estructurada** (`CAMPO: valor`, una línea por campo): el parser (`_f`) depende de esto. No romper el formato.
-2. **Anti-alucinación explícita:** "SI solo si estás seguro", "no inventes", "NUNCA asumas país por el nombre", "vacío/NO_LO_SE si no sabes".
-3. **Conocimiento vs búsqueda:** competidores y ficha por CONOCIMIENTO (marcas reales que el modelo sabe); reconocimiento/apariencia por BÚSQUEDA en vivo.
-4. **Segmento concreto antes que genérico** (marroquinería ≠ "moda"): que roten por marca.
-5. **Sin ejemplos que anclen** a nombres concretos si no quieres que se repitan (los ejemplos de "Studio F, Koaj..." hacían que salieran siempre).
-6. **Idioma:** casi todo tiene versión ES y EN (`L(es, en)`). Editar AMBAS.
-7. Tras editar: `python -m py_compile app/geo_ai.py`, y verificar con un análisis real (`POST /api/analyze`) leyendo el JSON de `/api/status/{job_id}` (campos: `geo_ai.gbp`, `geo_ai.competitors`, `geo_ai.recognition`, `meta.country`).
-
----
-
-## 6. Ideas concretas de mejora (para discutir con Cowork)
-
-- **Ficha Google determinista:** habilitar Places API (New) en GCP `907452438504` (un clic) → reseñas/categoría exactas; la IA seguiría de respaldo.
-- **Reducir "limited":** que la llamada grounded reintente y, si falla, caiga a un segundo motor (p. ej. Gemini) antes de rendirse.
-- **Competidores más finos:** pedir a la IA que valide que cada competidor pertenece AL MISMO segmento (auto-filtro) y descartar los que no.
-- **País por dominio local:** si existe versión `.com.co`/`.es`, preferirla para fijar el mercado del cliente.
-- **Un solo prompt maestro vs varios:** hoy son 5 llamadas (q_mega, q_comp, q_cat, q_mem, q_brand). Se puede consolidar para bajar latencia y "limited", a costa de precisión por campo.
-
----
-
-*Repo del motor:* `edilsonf15/cupperlab-diagnostico` · *Deploy:* manual en Dokploy con **Clean Cache ON** (auto-deploy en push a main). *Endpoint:* analisis.cupperlab.com.
+1. No pedir hechos a la IA (ficha, reseñas, país, categoría): se miden.
+2. P2 se queda como texto de cliente. Cualquier instrucción añadida ("recomienda 4-5 empresas con dominio") sesga la respuesta y deja de ser una medición real.
+3. Sin ejemplos con marcas reales.
+4. Editar ES y EN.
+5. Tras cambiar un prompt: `python bench/run.py` y comparar con la corrida anterior (`bench_runs` en `data/app.db`). Subir `PROMPTS_VERSION` y `ENGINE_VERSION` (invalida la caché).
