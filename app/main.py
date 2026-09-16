@@ -334,17 +334,40 @@ async def _run_job(job_id: str, url: str, email: str, name: str, lead: dict, lan
         # 2b) Ficha de Google Business SIN gastar IA: primero el scraping de Maps
         # (lanzado en paralelo arriba); si no concluyó, cae a la Places API si hay clave.
         try:
-            _gb = None
+            # 1) Scraping de Maps (Playwright). Google lo bloquea a menudo con el muro
+            #    de consentimiento y devuelve "sin ficha" en falso.
+            _scr = None
             if gbp_task is not None:
                 try:
-                    _gb = await gbp_task
+                    _scr = await gbp_task
                 except Exception as exc:  # noqa: BLE001
-                    print(f"[gbp:scrape:ERROR] {exc}"); _gb = None
-            if (not _gb or _gb.get("found") is None):   # respaldo por Places API (si está)
-                _gb = await check_gbp(
-                    (ai.get("brand") if ai else "") or domain,
-                    (ai.get("zona") or ai.get("country") or "") if ai else "",
-                    domain) or _gb
+                    print(f"[gbp:scrape:ERROR] {exc}"); _scr = None
+            # 2) Places API (AUTORITATIVA): SIEMPRE que haya clave, no solo si el scraping
+            #    falló. Cadenas grandes (nafnaf, arturocalle, koaj) SÍ tienen ficha y la
+            #    Places API la encuentra por nombre + zona aunque el scraping se bloquee.
+            _brand_q = ((ai.get("brand") if ai else "") or "").strip() or _brand0 or domain
+            _place_q = ((ai.get("zona") or ai.get("country") or "") if ai else "").strip() or _place0 or ""
+            _api = None
+            try:
+                _api = await check_gbp(_brand_q, _place_q, domain)
+            except Exception as exc:  # noqa: BLE001
+                print(f"[gbp:places:ERROR] {exc}"); _api = None
+
+            # 3) Fusiona: gana la que ENCONTRÓ la ficha (y, entre dos, la que trae nº de
+            #    reseñas -> Places API). Solo "sin ficha" si alguna lo afirma y ninguna la
+            #    encontró; "desconocido" si ninguna concluye.
+            def _pick_gbp(a, b):
+                cands = [x for x in (a, b) if isinstance(x, dict)]
+                found = [x for x in cands if x.get("found") is True]
+                if found:
+                    found.sort(key=lambda x: (x.get("reviews") is None, -(x.get("reviews") or 0)))
+                    return found[0]
+                if any(x.get("found") is False for x in cands):
+                    return {"found": False, "reviews": None}
+                return {"found": None, "reviews": None}
+            _gb = _pick_gbp(_scr, _api)
+            print(f"[gbp] scr={_scr and _scr.get('found')} api={_api and _api.get('found')} "
+                  f"-> {_gb.get('found')} rev={_gb.get('reviews')} q={_brand_q!r}/{_place_q!r}")
             geo = data.get("geo_ai")
             if isinstance(_gb, dict) and isinstance(geo, dict) and _gb.get("found") is not None:
                 geo["gbp"] = bool(_gb.get("found"))

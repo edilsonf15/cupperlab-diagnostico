@@ -39,38 +39,50 @@ async def check_gbp(brand: str, place: str = "", domain: str = "") -> dict | Non
            or os.getenv("GOOGLE_PSI_API_KEY", "").strip())
     if not key or not brand:
         return None
-    q = (brand + (" " + place if place else "")).strip()
     dom = (domain or "").split("/")[0].replace("www.", "").lower()
+    dom_root = dom.split(".")[0]
     bl = re.sub(r"\s+", "", brand.lower())
+    # Varias formulaciones: marca+zona (desambigua cadenas homónimas), marca sola, y
+    # marca+país. La primera que dé una ficha que coincida, gana.
+    queries = []
+    for q in [(brand + (" " + place if place else "")).strip(), brand.strip(),
+              (brand + " " + dom_root).strip()]:
+        if q and q not in queries:
+            queries.append(q)
+    saw_false = False
     try:
         async with httpx.AsyncClient(headers={"User-Agent": UA}) as c:
-            r = await c.post(
-                "https://places.googleapis.com/v1/places:searchText",
-                headers={"X-Goog-Api-Key": key,
-                         "X-Goog-FieldMask": ("places.displayName,places.rating,"
-                                              "places.userRatingCount,places.primaryTypeDisplayName,"
-                                              "places.websiteUri,places.googleMapsUri,places.formattedAddress")},
-                json={"textQuery": q}, timeout=TIMEOUT)
-        if r.status_code != 200:
-            return {"found": None, "error": f"{r.status_code}", "reviews": 0}
-        places = r.json().get("places") or []
-        for p in places[:3]:
-            name = (p.get("displayName") or {}).get("text", "")
-            web = (p.get("websiteUri") or "").lower()
-            nm = re.sub(r"\s+", "", name.lower())
-            same_web = bool(dom and dom in web)
-            # Nombre: exige coincidencia de marca con longitud suficiente (>=4) para no dar
-            # por buena una ficha por un substring genérico corto ("la", "sur", "web"...).
-            same_name = bool(bl and len(bl) >= 4 and len(nm) >= 4 and (bl in nm or nm in bl))
-            if same_web or same_name:
-                return {"found": True,
-                        "category": p.get("primaryTypeDisplayName", {}).get("text", "") if isinstance(p.get("primaryTypeDisplayName"), dict) else (p.get("primaryTypeDisplayName") or ""),
-                        "reviews": int(p.get("userRatingCount") or 0),
-                        "rating": p.get("rating"),
-                        "name": name,
-                        "address": p.get("formattedAddress", ""),
-                        "maps_url": p.get("googleMapsUri", "")}
-        return {"found": False, "reviews": 0}
+            for q in queries:
+                r = await c.post(
+                    "https://places.googleapis.com/v1/places:searchText",
+                    headers={"X-Goog-Api-Key": key,
+                             "X-Goog-FieldMask": ("places.displayName,places.rating,"
+                                                  "places.userRatingCount,places.primaryTypeDisplayName,"
+                                                  "places.websiteUri,places.googleMapsUri,places.formattedAddress")},
+                    json={"textQuery": q}, timeout=TIMEOUT)
+                if r.status_code != 200:
+                    continue  # prueba la siguiente formulación
+                places = r.json().get("places") or []
+                for p in places[:4]:
+                    name = (p.get("displayName") or {}).get("text", "")
+                    web = (p.get("websiteUri") or "").lower()
+                    nm = re.sub(r"\s+", "", name.lower())
+                    same_web = bool(dom and dom in web)
+                    # Nombre: coincidencia de marca con longitud suficiente (>=4) para no
+                    # dar por buena una ficha por un substring corto ("la", "sur", "web").
+                    same_name = bool(bl and len(bl) >= 4 and len(nm) >= 4 and (bl in nm or nm in bl))
+                    if same_web or same_name:
+                        return {"found": True,
+                                "category": p.get("primaryTypeDisplayName", {}).get("text", "") if isinstance(p.get("primaryTypeDisplayName"), dict) else (p.get("primaryTypeDisplayName") or ""),
+                                "reviews": int(p.get("userRatingCount") or 0),
+                                "rating": p.get("rating"),
+                                "name": name,
+                                "address": p.get("formattedAddress", ""),
+                                "maps_url": p.get("googleMapsUri", "")}
+                if places:
+                    saw_false = True  # hubo resultados pero ninguno coincidió
+        # Ninguna formulación encontró la ficha de ESTE negocio.
+        return {"found": False if saw_false else None, "reviews": 0}
     except Exception as exc:  # noqa: BLE001
         print(f"[gbp:ERROR] {exc}")
         return {"found": None, "error": str(exc), "reviews": 0}
