@@ -405,22 +405,36 @@ async def _run_job(job_id: str, url: str, email: str, name: str, lead: dict, lan
                 if any(x.get("found") is False for x in cands):
                     return {"found": False, "reviews": None}
                 return {"found": None, "reviews": None}
-            _gb = _pick_gbp(_scr, _api)
-            print(f"[gbp] scr={_scr and _scr.get('found')} api={_api and _api.get('found')} "
-                  f"-> {_gb.get('found')} rev={_gb.get('reviews')} q={_brand_q!r}/{_place_q!r}")
+            _ext = _pick_gbp(_scr, _api)          # señal externa (Places/scraping)
+            _ext_found = _ext.get("found")
             geo = data.get("geo_ai")
-            if isinstance(_gb, dict) and isinstance(geo, dict) and _gb.get("found") is not None:
-                geo["gbp"] = bool(_gb.get("found"))
-                if _gb.get("found"):
-                    # None = no se pudo leer el nº (distinto de 0 reseñas reales)
-                    geo["gbp_reviews_n"] = _gb.get("reviews")
-                    if _gb.get("category"):
-                        geo["gbp_category"] = _gb.get("category")
-                    if _gb.get("rating") is not None:
-                        geo["gbp_rating"] = _gb.get("rating")
+            if isinstance(geo, dict):
+                # LA IA MANDA (fuente primaria y fiable). El externo solo CONFIRMA o AÑADE
+                # datos exactos; nunca baja a "sin ficha" un SI seguro de la IA (que fallaba
+                # cuando la Places API estaba sin cuota o Google bloqueaba el scraping).
+                _ai_gbp = geo.get("gbp")
+                if _ext_found is True:
+                    _final = True                 # confirmado por Google: rotundo
+                elif _ai_gbp is None and _ext_found is not None:
+                    _final = _ext_found           # la IA no supo: usa el externo
                 else:
-                    # No hay ficha: no dejes reseñas/categoría/valoración que la IA hubiera
-                    # supuesto (si no, se contradice "sin ficha" con "N reseñas").
+                    _final = _ai_gbp              # se respeta lo que dijo la IA
+                geo["gbp"] = _final
+                print(f"[gbp] ai={_ai_gbp} scr={_scr and _scr.get('found')} "
+                      f"api={_api and _api.get('found')} -> {_final} "
+                      f"airev={geo.get('gbp_reviews_n')} extrev={_ext.get('reviews')} q={_brand_q!r}/{_place_q!r}")
+                if _final:
+                    # nº de reseñas: PREFIERE el dato exacto de Google (externo); si no lo
+                    # hay, conserva el estimado de la IA.
+                    _er = _ext.get("reviews")
+                    if isinstance(_er, int) and _er > 0:
+                        geo["gbp_reviews_n"] = _er
+                    if _ext.get("category"):
+                        geo["gbp_category"] = _ext.get("category")
+                    if _ext.get("rating") is not None:
+                        geo["gbp_rating"] = _ext.get("rating")
+                else:
+                    # Sin ficha: nada de reseñas/categoría/valoración fantasma.
                     geo["gbp_reviews_n"] = None
                     geo.pop("gbp_category", None)
                     geo.pop("gbp_rating", None)

@@ -1213,9 +1213,14 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
             f"Temu) if there are leading brands in the country. Separated by |>\n"
             f"FUENTES: <up to 4 web domains you rely on to describe the brand, separated by |>\n"
             f"BUSQUEDAS: <3 searches a customer would type for that service, with the city, separated by |>\n"
-            f"FICHA_GOOGLE: <SI or NO> does it have a Google Business profile?\n"
-            f"CATEGORIA: <the main category of its Google profile, or its line of business if none>\n"
-            f"RESENAS: <approx number of reviews on that profile, or 0>\n"
+            f"FICHA_GOOGLE: <Search Google and Google Maps for \"{brand}\". SI if it HAS a Google Business profile "
+            f"(a business listing with map, reviews, hours). Well-known brands and chains almost always have one with "
+            f"many reviews; check their stores by name. Answer SI only if you are sure a real listing exists (with "
+            f"reviews or a rating); NO only if after searching well it truly has none>\n"
+            f"CATEGORIA: <the main category of that Google listing (e.g. 'Clothing store'); its line of business if none>\n"
+            f"RESENAS: <approx TOTAL number of reviews on that Google listing (for a chain, the main location or the "
+            f"sum of its main stores); 0 if it has no listing. Only the number>\n"
+            f"VALORACION: <the listing's average rating 0-5 if you see it; empty if not>\n"
             f"KEYWORDS: <3-5 keywords/searches this site should rank for, separated by |>\n"
             f"ENTIDADES: <3-5 key topics or entities the content covers, separated by |>\n"
             f"CONTENIDO: <one honest sentence about the site content quality>\n"
@@ -1242,9 +1247,14 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
             f"globales genéricos (Amazon, Shein, Temu) si hay marcas líderes del país. Separadas por |>\n"
             f"FUENTES: <hasta 4 dominios web en los que te apoyas para describir a la marca, separadas por |>\n"
             f"BUSQUEDAS: <3 búsquedas que un cliente escribiría para ese servicio, con la ciudad, separadas por |>\n"
-            f"FICHA_GOOGLE: <SI o NO> ¿tiene ficha de Google Business?\n"
-            f"CATEGORIA: <la categoría principal de su ficha de Google, o su rubro si no hay ficha>\n"
-            f"RESENAS: <número aproximado de reseñas de esa ficha, o 0>\n"
+            f"FICHA_GOOGLE: <Busca en Google y Google Maps \"{brand}\". SI si TIENE ficha de Google Business (perfil "
+            f"de empresa con mapa, reseñas y horario). Las marcas y cadenas conocidas casi siempre tienen una con "
+            f"muchas reseñas; revisa sus tiendas por nombre. Responde SI solo si estás seguro de que existe una ficha "
+            f"real (con reseñas o valoración); NO solo si tras buscar bien de verdad no tiene ninguna>\n"
+            f"CATEGORIA: <la categoría principal de esa ficha de Google (p. ej. 'Tienda de ropa'); su rubro si no hay ficha>\n"
+            f"RESENAS: <número TOTAL aproximado de reseñas de esa ficha de Google (si es cadena, la sede principal o "
+            f"la suma de sus tiendas principales); 0 si no tiene ficha. SOLO el número>\n"
+            f"VALORACION: <la valoración media de la ficha 0-5 si la ves; vacío si no>\n"
             f"KEYWORDS: <3-5 palabras clave/búsquedas por las que este sitio debería posicionar, separadas por |>\n"
             f"ENTIDADES: <3-5 temas o entidades clave que cubre el contenido, separadas por |>\n"
             f"CONTENIDO: <una frase honesta sobre la calidad del contenido del sitio>\n"
@@ -1364,12 +1374,22 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
                  if c.strip() and not _looks_generic(c.strip())][:6]
     engine_names = [x["name"] for x in engines_out]
 
-    # Ficha de Google Business: la detecta un SCRIPT (Places API) fuera de la IA, para
-    # ahorrar coste. Aquí quedan neutros; main.py los rellena con check_gbp.
-    gbp = None
+    # Ficha de Google Business: la IA (con búsqueda en vivo) es la fuente PRIMARIA y
+    # fiable — no depende de cuota de la Places API ni del scraping que Google bloquea.
+    # main.py luego enriquece con la Places API/scraping SI están disponibles (para un
+    # número de reseñas exacto), pero NUNCA baja a "sin ficha" un SI seguro de la IA.
+    _ficha = _f("FICHA_GOOGLE", mega).strip().upper()
+    if _ficha.startswith(("SI", "SÍ", "YES")):
+        gbp = True
+    elif _ficha.startswith("NO"):
+        gbp = False
+    else:
+        gbp = None
     gbp_category = _f("CATEGORIA", mega)[:80]
     _rm = re.search(r"\d[\d.,]*", _f("RESENAS", mega))
-    gbp_reviews_n = int(re.sub(r"[^\d]", "", _rm.group(0))) if _rm else 0
+    gbp_reviews_n = (int(re.sub(r"[^\d]", "", _rm.group(0))) if _rm else None) if gbp else None
+    _rt = re.search(r"([0-5][.,]\d)", _f("VALORACION", mega))
+    gbp_rating = _rt.group(1).replace(",", ".") if (_rt and gbp) else None
     kw_ai = [k.strip(" -•\"") for k in _f("KEYWORDS", mega).split("|") if k.strip()][:5]
     entities_ai = [e.strip(" -•\"") for e in _f("ENTIDADES", mega).split("|") if e.strip()][:5]
 
@@ -1403,6 +1423,7 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
         "knows_with_web": knows_with_web, "recognition": recognition,
         "mentions": (mem_c if knows_brand else "")[:400],
         "recommended": recommended, "gbp": gbp, "gbp_reviews_n": gbp_reviews_n,
+        "gbp_rating": gbp_rating,
         "reco_hits": reco_hits, "reco_total": reco_total, "questions": questions,
         "competitors": comps, "gap": "; ".join(content["gaps"])[:400],
         "category_queries": cat_queries, "gl": gl, "sources": src_out,
