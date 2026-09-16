@@ -1,0 +1,19 @@
+# Banco de pruebas del motor v2. Cada caso: dominio + verdades conocidas.
+# Rellena/ajusta `expect` con lo que SABES de cada negocio (tu cartera es la mejor fuente).
+# Correr (raíz del repo): python bench/run.py [--only dominio] [--no-cache]   · en Docker: docker compose run --rm diagnostico python /srv/bench/run.py
+# Falla si una aserción no se cumple, si una dimensión falta sin nota, si tarda > max_seconds,
+# o si alguna búsqueda de cliente contiene la marca o el eslogan de la web.
+max_seconds: 125
+cases:
+  - domain: rustikadecoracion.com
+    expect: {country: España, city: Madrid, scope: ciudad, gbp: true, category_contains: mueble}
+  - domain: luzguijarro.com
+    expect: {country: España, city: Alcobendas, scope: ciudad, gbp: true}
+  - domain: mecaban.com
+    expect: {country: España, scope: pais}
+  - domain: koaj.co
+    expect: {country: Colombia, scope: pais, gbp: true}
+  - domain: cupperlab.com
+    expect: {country: España}
+  # Añade: un negocio pequeño SIN ficha (expect gbp: false), uno con Cloudflare challenge
+  # (expect blocked: true), uno en México y uno en inglés (lang: en).
