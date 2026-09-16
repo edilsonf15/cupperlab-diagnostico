@@ -214,11 +214,15 @@ def parse_home(html: str, base_url: str) -> dict:
                  or bool(re.search(r"(?:\+|\b00)\s?\d[\d\s().\-]{6,}\d", text)))
     has_contact = (has_phone
                    or any(x in schema_low for x in ("contactpoint", "postaladdress", "localbusiness")))
-    # Señales locales (para "Presencia local y reputación") — sin APIs nuevas
+    # Señales locales (para "Presencia local y reputación") — sin APIs nuevas.
+    # Dirección: exige un VALOR real de calle, no solo que exista el @type PostalAddress
+    # o la clave "streetAddress" vacía (una Organization con solo addressCountry daba
+    # dirección en falso, p. ej. ainoa.app).
     html_low = (html or "").lower()
-    has_address = (any(x in schema_low for x in ("postaladdress", "localbusiness")) or
-                   '"streetaddress"' in html_low or "streetaddress" in html_low or
-                   bool(soup.find(attrs={"itemprop": re.compile("streetAddress", re.I)})))
+    _itemprop_addr = soup.find(attrs={"itemprop": re.compile("streetAddress", re.I)})
+    has_address = (
+        bool(re.search(r'"streetaddress"\s*:\s*"[^"]{4,}"', html_low))
+        or (bool(_itemprop_addr) and len((_itemprop_addr.get_text(strip=True) or "")) >= 4))
     # Mapa incrustado: solo cuenta un iframe de mapa (un enlace a Maps NO es un mapa incrustado).
     has_map = bool(soup.find("iframe", src=re.compile(
         r"google\.[a-z.]+/maps|maps\.google|/maps/embed|openstreetmap|mapbox", re.I)))

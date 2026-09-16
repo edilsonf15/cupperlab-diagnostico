@@ -187,6 +187,42 @@ async def salud():
     return {"ok": True, "smtp": emailer.smtp_configured(), "ts": datetime.now(timezone.utc).isoformat()}
 
 
+@app.get("/api/_gbpdbg")
+async def _gbpdbg(brand: str = "", place: str = "", domain: str = ""):
+    """TEMPORAL: diagnóstico de la Places API (no expone la clave). Muestra estado HTTP
+    y los nombres que devuelve Google por cada formulación, para saber por qué no casa."""
+    import os as _os  # noqa: PLC0415
+    key = (_os.getenv("GOOGLE_PLACES_API_KEY", "").strip()
+           or _os.getenv("GOOGLE_PSI_API_KEY", "").strip())
+    out = {"key_present": bool(key), "brand": brand, "place": place, "queries": []}
+    if not key:
+        return JSONResponse(out)
+    dom = (domain or "").split("/")[0].replace("www.", "").lower()
+    dom_root = dom.split(".")[0]
+    qs = []
+    for q in [(brand + (" " + place if place else "")).strip(), brand.strip(),
+              (brand + " " + dom_root).strip()]:
+        if q and q not in qs:
+            qs.append(q)
+    async with httpx.AsyncClient() as c:
+        for q in qs:
+            try:
+                r = await c.post(
+                    "https://places.googleapis.com/v1/places:searchText",
+                    headers={"X-Goog-Api-Key": key,
+                             "X-Goog-FieldMask": "places.displayName,places.userRatingCount,places.websiteUri,places.primaryTypeDisplayName,places.rating"},
+                    json={"textQuery": q}, timeout=15.0)
+                body = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
+                names = [((p.get("displayName") or {}).get("text"), p.get("userRatingCount"),
+                          (p.get("websiteUri") or "")) for p in (body.get("places") or [])[:5]]
+                err = (body.get("error") or {}).get("message") if isinstance(body, dict) else None
+                out["queries"].append({"q": q, "status": r.status_code, "n": len(body.get("places") or []),
+                                       "names": names, "error": err})
+            except Exception as exc:  # noqa: BLE001
+                out["queries"].append({"q": q, "exception": str(exc)})
+    return JSONResponse(out)
+
+
 def _set(job_id: str, progress: int, stage: str) -> None:
     j = _jobs.get(job_id)
     if j:

@@ -268,9 +268,11 @@ def _parse_page(url: str, html: str, status: int, base_net: str) -> dict:
     l_geo = ("geocoordinates" in schema_low0 or '"latitude"' in html_low0)
     # Mapa: solo cuenta un iframe de mapa incrustado (un enlace a Maps NO es un mapa).
     l_map = bool(soup.find("iframe", src=re.compile(r"google\.[a-z.]+/maps|maps\.google|/maps/embed|openstreetmap|mapbox", re.I)))
-    l_addr = (any(x in schema_low0 for x in ("postaladdress", "localbusiness", "professionalservice")) or
-              "streetaddress" in html_low0 or
-              bool(soup.find(attrs={"itemprop": re.compile("streetAddress", re.I)})))
+    # Dirección por schema: exige un VALOR real de calle (no solo el @type ni la clave
+    # vacía). El resto (texto/pie) se resuelve más abajo con contexto estricto.
+    _ip_addr = soup.find(attrs={"itemprop": re.compile("streetAddress", re.I)})
+    l_addr = (bool(re.search(r'"streetaddress"\s*:\s*"[^"]{4,}"', html_low0))
+              or (bool(_ip_addr) and len((_ip_addr.get_text(strip=True) or "")) >= 4))
     # Testimonios/opiniones VISIBLES en la web (distinto del marcado Schema Review):
     # por clase/id de widget o por frases típicas de sección de testimonios.
     # clase/id: exige que el término empiece el token o vaya tras separador, para no
