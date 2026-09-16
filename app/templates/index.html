@@ -199,17 +199,6 @@
   .qa-head .qa-title{max-width:900px;margin:12px auto 0;font-size:clamp(30px,4.6vw,52px);line-height:1.08;text-wrap:balance}
   .qa-head .qa-title .g{color:var(--or)}
   .qa-head .qa-sub{margin:16px auto 0;max-width:720px;text-align:center}
-  /* Banda de estadísticas reales */
-  .statband{padding-top:clamp(16px,3vw,30px);padding-bottom:clamp(6px,1.5vw,16px)}
-  .statband .kick{margin-bottom:6px}
-  .stats3{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:20px}
-  .stat{background:var(--surf);border:1px solid var(--line);border-radius:16px;padding:26px 24px;transition:transform .2s,box-shadow .2s}
-  .stat:hover{transform:translateY(-3px);box-shadow:0 16px 36px -26px rgba(10,16,20,.24)}
-  .stat-n{font-family:var(--disp);font-weight:800;font-size:clamp(38px,4.6vw,56px);letter-spacing:-.03em;color:var(--ink);line-height:1}
-  .stat-n span{font-size:.5em;color:var(--or);margin-left:2px}
-  .stat-t{font-family:var(--disp);font-weight:600;font-size:16px;color:var(--ink2);margin-top:12px;line-height:1.35}
-  .stat-s{font-size:12px;color:var(--mut2);margin-top:10px;line-height:1.45}
-  @media(max-width:760px){.stats3{grid-template-columns:1fr;gap:14px}}
   .sec .sub{margin-top:14px}
   .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(238px,1fr));gap:16px;margin-top:34px}
   .fc{background:var(--surf);border:1px solid var(--line);border-radius:16px;padding:24px;transition:transform .2s,border-color .2s,box-shadow .2s}
@@ -465,16 +454,6 @@
     <div style="position:absolute;left:40%;bottom:-2%;width:calc(52*var(--u));height:calc(52*var(--u));background:#fff;border-radius:calc(15*var(--u));display:flex;align-items:center;justify-content:center;box-shadow:0 16px 30px -12px rgba(18,40,60,.4);animation:floatA 7.3s ease-in-out infinite .25s"><span style="font-weight:800;font-size:calc(20*var(--u));color:#ff642d;letter-spacing:-.03em">Se</span></div>
     <div style="position:absolute;right:23%;bottom:0;width:calc(50*var(--u));height:calc(50*var(--u));background:#fff;border-radius:calc(15*var(--u));display:flex;align-items:center;justify-content:center;box-shadow:0 16px 30px -12px rgba(18,40,60,.4);animation:floatB 6.5s ease-in-out infinite .55s"><span style="font-weight:800;font-size:calc(24*var(--u));color:#054ada;letter-spacing:-.03em">a</span></div>
   </div>
-  </div>
-</section>
-
-<!-- ESTADÍSTICAS REALES -->
-<section class="wrap statband" data-rv>
-  <div class="kick" style="text-align:center" data-i18n="sb_kick">Por qué esto importa hoy</div>
-  <div class="stats3">
-    <div class="stat"><div class="stat-n">+393<span>%</span></div><div class="stat-t" data-i18n="sb1t"></div><div class="stat-s" data-i18n="sb1s"></div></div>
-    <div class="stat"><div class="stat-n">+31<span>%</span></div><div class="stat-t" data-i18n="sb2t"></div><div class="stat-s" data-i18n="sb2s"></div></div>
-    <div class="stat"><div class="stat-n">52<span>%</span></div><div class="stat-t" data-i18n="sb3t"></div><div class="stat-s" data-i18n="sb3s"></div></div>
   </div>
 </section>
 
