@@ -208,14 +208,13 @@
   .fc .fd{font-size:14px;color:var(--mut);line-height:1.55}
   /* motor / form */
   .motor{padding-top:clamp(28px,4vw,50px);padding-bottom:clamp(48px,7vw,80px)}
-  .panel{background:var(--surf);border:1px solid var(--line);border-radius:20px;padding:clamp(26px,4vw,44px);box-shadow:0 24px 50px -40px rgba(10,16,20,.2);position:relative;overflow:hidden}
+  /* Marco animado: un degradado cian->naranja gira alrededor del formulario. */
+  .panel{background:var(--surf);border:0;border-radius:20px;padding:clamp(26px,4vw,44px);box-shadow:0 24px 50px -40px rgba(10,16,20,.2);position:relative;overflow:hidden;isolation:isolate}
+  .panel::before{content:"";position:absolute;left:50%;top:50%;width:220%;height:220%;transform:translate(-50%,-50%);background:conic-gradient(from 0deg,transparent 0 74%,var(--cy) 85%,var(--or) 94%,transparent 100%);animation:spinframe 6s linear infinite;z-index:0}
+  .panel::after{content:"";position:absolute;inset:2.5px;background:var(--surf);border-radius:18px;z-index:0}
+  @keyframes spinframe{to{transform:translate(-50%,-50%) rotate(360deg)}}
   .panel>.fgrid,.panel>#console,.panel>#results{position:relative;z-index:1}
-  .pdeco{position:absolute;border-radius:50%;pointer-events:none;z-index:0}
-  .pdeco.p1{width:200px;height:200px;background:radial-gradient(circle,rgba(28,188,228,.16),transparent 70%);top:-50px;right:-40px;animation:floatA 8s ease-in-out infinite}
-  .pdeco.p2{width:150px;height:150px;background:radial-gradient(circle,rgba(244,100,52,.12),transparent 70%);bottom:-40px;left:-30px;animation:floatB 9s ease-in-out infinite}
-  .pdeco.p3{width:96px;height:96px;border:1.5px solid rgba(28,188,228,.20);background:transparent;top:44%;right:6%;animation:driftX 9s ease-in-out infinite}
-  .pdeco.p4{width:12px;height:12px;background:var(--cy);opacity:.5;top:22%;left:8%;animation:floatC 7s ease-in-out infinite}
-  @keyframes driftX{0%,100%{transform:translateX(0)}50%{transform:translateX(20px)}}
+  @media(prefers-reduced-motion:reduce){.panel::before{animation:none}}
   .fgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,420px);gap:clamp(28px,4vw,44px);align-items:center}
   .fgrid .l{min-width:0}
   .fgrid h2{font-family:var(--disp);font-weight:700;font-size:clamp(25px,3.4vw,38px);letter-spacing:-.025em;color:var(--ink);margin:13px 0 14px;line-height:1.05;text-wrap:balance}
@@ -486,7 +485,6 @@
 <!-- MOTOR: FORM / CONSOLE / RESULTS -->
 <section class="wrap motor" id="motor">
   <div class="panel" data-rv>
-    <span class="pdeco p1" aria-hidden="true"></span><span class="pdeco p2" aria-hidden="true"></span><span class="pdeco p3" aria-hidden="true"></span><span class="pdeco p4" aria-hidden="true"></span>
 
     <!-- FORM -->
     <div id="formBlock" class="fgrid">
