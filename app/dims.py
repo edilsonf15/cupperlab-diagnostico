@@ -155,9 +155,20 @@ def _local(data) -> int | None:
     types = (op.get("schema") or {}).get("types") or meta.get("schema_types") or []
     lb = _rx(types, r"localbusiness|professionalservice")
     gbp = ai.get("gbp")
-    rev = ai.get("gbp_reviews_n") or 0
+    rev = ai.get("gbp_reviews_n")  # None = no se pudo leer (distinto de 0)
+    has_test = bool(meta.get("has_testimonials"))
+    # Reputación: reseñas reales en la ficha (mejor señal) > testimonios visibles en la web
+    # (señal parcial) > ficha sin reseñas legibles > nada. None (no legible) no baja a "bad".
+    if gbp is True and isinstance(rev, int) and rev > 0:
+        rev_st = "ok"
+    elif has_test:
+        rev_st = "warn"   # la web muestra opiniones aunque no haya reseñas GBP verificadas
+    elif gbp:
+        rev_st = "warn"
+    else:
+        rev_st = "bad"
     st = [("gbp", "ok" if gbp is True else ("bad" if gbp is False else "warn"), 24),
-          ("reviews", "ok" if (gbp and rev > 0) else ("warn" if gbp else "bad"), 22),
+          ("reviews", rev_st, 22),
           ("nap", "ok" if (meta.get("has_address") and meta.get("has_phone")) else ("warn" if (meta.get("has_address") or meta.get("has_phone")) else "bad"), 16),
           ("map", "ok" if (meta.get("has_map") or meta.get("has_geo")) else "warn", 12),
           ("lb", "ok" if lb else "warn", 16),

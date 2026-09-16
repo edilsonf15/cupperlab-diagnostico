@@ -349,11 +349,18 @@ async def _run_job(job_id: str, url: str, email: str, name: str, lead: dict, lan
             if isinstance(_gb, dict) and isinstance(geo, dict) and _gb.get("found") is not None:
                 geo["gbp"] = bool(_gb.get("found"))
                 if _gb.get("found"):
-                    geo["gbp_reviews_n"] = _gb.get("reviews") or 0
+                    # None = no se pudo leer el nº (distinto de 0 reseñas reales)
+                    geo["gbp_reviews_n"] = _gb.get("reviews")
                     if _gb.get("category"):
                         geo["gbp_category"] = _gb.get("category")
                     if _gb.get("rating") is not None:
                         geo["gbp_rating"] = _gb.get("rating")
+                else:
+                    # No hay ficha: no dejes reseñas/categoría/valoración que la IA hubiera
+                    # supuesto (si no, se contradice "sin ficha" con "N reseñas").
+                    geo["gbp_reviews_n"] = None
+                    geo.pop("gbp_category", None)
+                    geo.pop("gbp_rating", None)
         except Exception as exc:  # noqa: BLE001
             print(f"[gbp:ERROR] {exc}")
 
@@ -419,7 +426,8 @@ async def _run_job(job_id: str, url: str, email: str, name: str, lead: dict, lan
                 # a veces no lleva la dirección/mapa, que sí están en /contacto.
                 _loc = op.get("local") or {}
                 _m = data.get("meta") or {}
-                for _k in ("has_phone", "has_address", "has_map", "has_hours", "has_geo"):
+                for _k in ("has_phone", "has_address", "has_map", "has_hours",
+                           "has_geo", "has_testimonials"):
                     _m[_k] = bool(_m.get(_k)) or bool(_loc.get(_k))
                 data["meta"] = _m
         except Exception as exc:  # noqa: BLE001

@@ -19,6 +19,34 @@ def _norm(s: str) -> str:
     return re.sub(r"[^a-z0-9]", "", (s or "").lower())
 
 
+def _site_in_panel(page, dom: str) -> bool:
+    """¿El campo 'sitio web' del PANEL de la ficha apunta al dominio del negocio?
+    (Fiable: no confundir con el eco del texto buscado en el HTML de la búsqueda)."""
+    if not dom:
+        return False
+    try:
+        el = (page.query_selector('a[data-item-id="authority"]')
+              or page.query_selector('a[aria-label*="sitio web" i]')
+              or page.query_selector('a[aria-label*="website" i]'))
+        if not el:
+            return False
+        blob = ((el.get_attribute("href") or "") + " " + (el.get_attribute("aria-label") or "")).lower()
+        return dom in blob
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _place_match(page, is_place: bool, bnorm: str, dom: str, name: str) -> bool:
+    """Solo es la ficha del negocio si estamos en una /maps/place Y coincide el NOMBRE
+    con la marca O el sitio web del panel es el dominio. Sin esto, Maps abría un
+    negocio cualquiera y lo dábamos por ficha del cliente (falso positivo)."""
+    if not is_place:
+        return False
+    if bnorm and bnorm in _norm(name):
+        return True
+    return _site_in_panel(page, dom)
+
+
 def _scrape(brand: str, place: str, domain: str) -> dict:
     from playwright.sync_api import sync_playwright  # import perezoso
 
@@ -57,28 +85,29 @@ def _scrape(brand: str, place: str, domain: str) -> dict:
                     name = (h1.inner_text() if h1 else "") or ""
                 except Exception:  # noqa: BLE001
                     name = ""
-                match = (is_place and (bnorm and bnorm in _norm(name))) or (dom and dom in low)
-                # si es una LISTA con un 1er resultado que coincide, entra en su ficha
-                if not is_place:
+                match = _place_match(page, is_place, bnorm, dom, name)
+                # Si es una LISTA, entra en el 1er resultado SOLO si su etiqueta
+                # contiene la marca (no un negocio cualquiera), y re-verifica.
+                if not match and not is_place:
                     try:
                         art = page.query_selector('[role="feed"] a[aria-label]') or page.query_selector('a[href*="/maps/place/"]')
                         al = (art.get_attribute("aria-label") if art else "") or ""
-                        if art and (not bnorm or bnorm in _norm(al) or True):
+                        if art and bnorm and bnorm in _norm(al):
                             art.click()
                             page.wait_for_timeout(2600)
                             cur = page.url
                             is_place = "/maps/place/" in cur
                             h1b = page.query_selector("h1")
                             name = (h1b.inner_text() if h1b else "") or name or al
-                            low = page.content().lower()
-                            match = match or (is_place and (bnorm and bnorm in _norm(name))) or (dom and dom in low)
+                            match = _place_match(page, is_place, bnorm, dom, name)
                     except Exception:  # noqa: BLE001
                         pass
                 if not match:
                     continue
-                # valoración + nº de reseñas: primero del panel de la ficha (fiable)
+                # valoración + nº de reseñas: primero del panel de la ficha (fiable).
+                # reviews=None => no se pudo leer (distinto de 0 reseñas reales).
                 rating = None
-                reviews = 0
+                reviews = None
                 try:
                     rel = page.query_selector('[role="img"][aria-label*="estrella"], [role="img"][aria-label*="star"]')
                     ral = (rel.get_attribute("aria-label") if rel else "") or ""
@@ -98,7 +127,7 @@ def _scrape(brand: str, place: str, domain: str) -> dict:
                 except Exception:  # noqa: BLE001
                     pass
                 txt = page.inner_text("body")[:8000]
-                if not reviews:
+                if reviews is None:
                     mrev = (re.search(r"(\d[\d.,]*)\s*(?:rese|review|opinion)", txt, re.I)
                             or re.search(r"[0-5][.,]\d\s*\((\d[\d.,]*)\)", txt))
                     if mrev:
@@ -107,7 +136,7 @@ def _scrape(brand: str, place: str, domain: str) -> dict:
                     mr = re.search(r"\b([0-5][.,]\d)\b\s*(?:\((\d[\d.,]*)\)|★|estrella|star)", txt, re.I)
                     if mr:
                         rating = mr.group(1).replace(",", ".")
-                        if not reviews and mr.group(2):
+                        if reviews is None and mr.group(2):
                             reviews = int(re.sub(r"[^\d]", "", mr.group(2)))
                 # categoría: botón de categoría del panel
                 category = ""

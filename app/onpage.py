@@ -222,18 +222,27 @@ def _parse_page(url: str, html: str, status: int, base_net: str) -> dict:
     for s in soup.find_all("script", attrs={"type": re.compile("ld\\+json", re.I)}):
         raw = s.get_text() or ""
         raw_ld += raw + "\n"
-        for m in re.findall(r'"@type"\s*:\s*"([^"]+)"', raw):
-            schema_types.append(m.strip())
-        if raw.strip():
-            try:
-                data = json.loads(raw)
-            except Exception:  # noqa: BLE001
-                schema_bad += 1
-            else:
-                for node in _flatten_ld(data):
-                    miss = _missing_req(node)
-                    if miss:
-                        schema_incomplete.append(miss)
+        if not raw.strip():
+            continue
+        try:
+            data = json.loads(raw)
+        except Exception:  # noqa: BLE001
+            schema_bad += 1
+            # fallback: aún así capturamos los @type por texto (str y elementos de array)
+            for m in re.findall(r'"@type"\s*:\s*(\[[^\]]*\]|"[^"]+")', raw):
+                for t in re.findall(r'"([^"]+)"', m):
+                    schema_types.append(t.strip())
+        else:
+            for node in _flatten_ld(data):
+                # @type puede ser string ("LocalBusiness") o lista (["LocalBusiness","Store"])
+                t = node.get("@type") if isinstance(node, dict) else None
+                if isinstance(t, str):
+                    schema_types.append(t.strip())
+                elif isinstance(t, list):
+                    schema_types += [str(x).strip() for x in t if isinstance(x, (str, int))]
+                miss = _missing_req(node)
+                if miss:
+                    schema_incomplete.append(miss)
 
     # breadcrumbs: schema BreadcrumbList o navegación de migas visible
     schema_low0 = [t.lower() for t in schema_types]
@@ -255,27 +264,44 @@ def _parse_page(url: str, html: str, status: int, base_net: str) -> dict:
                or bool(re.search(r"(?:\+|\b00)\s?\d[\d\s().\-]{6,}\d", html_low0))
                or bool(re.search(r"(tel[eé]fono|tel[eé]f?\.|ll[áa]ma\w*|phone|m[óo]vil|celular|"
                                  r"whatsapp|contacto)[^0-9]{0,40}\d[\d\s().\-]{6,}\d", html_low0)))
-    l_map = (bool(soup.find("iframe", src=re.compile(r"google\.[a-z.]+/maps|maps\.google|/maps/embed", re.I)))
-             or "google.com/maps" in html_low0 or "maps.google" in html_low0
-             or "www.google.com/maps/embed" in html_low0)
     l_hours = ("openinghours" in html_low0 or "opening_hours" in html_low0)
     l_geo = ("geocoordinates" in schema_low0 or '"latitude"' in html_low0)
+    # Mapa: solo cuenta un iframe de mapa incrustado (un enlace a Maps NO es un mapa).
+    l_map = bool(soup.find("iframe", src=re.compile(r"google\.[a-z.]+/maps|maps\.google|/maps/embed|openstreetmap|mapbox", re.I)))
     l_addr = (any(x in schema_low0 for x in ("postaladdress", "localbusiness", "professionalservice")) or
               "streetaddress" in html_low0 or
               bool(soup.find(attrs={"itemprop": re.compile("streetAddress", re.I)})))
+    # Testimonios/opiniones VISIBLES en la web (distinto del marcado Schema Review):
+    # por clase/id de widget o por frases típicas de sección de testimonios.
+    # clase/id: exige que el término empiece el token o vaya tras separador, para no
+    # confundir "overview"/"preview" (contienen "review") con una sección de opiniones.
+    _test_cls = re.compile(r"(?:^|[-_ ])(testimoni|reviews?|opinion|rese[nñ]a|valorac)", re.I)
+    has_testimonials = (
+        bool(re.search(r"testimoni|lo que dicen (?:nuestros )?(?:clientes|usuarios)|"
+                       r"opiniones de (?:nuestros )?clientes|nuestros clientes opinan|"
+                       r"rese[nñ]as de (?:nuestros )?clientes|clientes satisfechos|"
+                       r"trustpilot|elfsight|google-reviews|reviews-widget|senja\.io", html_low0))
+        or bool(soup.find(attrs={"class": _test_cls}))
+        or bool(soup.find(attrs={"id": _test_cls})))
 
     # --- Texto visible (ahora sí elimina scripts/estilos) ---
     for tag in soup(["script", "style", "noscript"]):
         tag.decompose()
     text = re.sub(r"\s+", " ", soup.get_text(" ", strip=True))
     word_count = len(text.split())
-    # Dirección en texto plano: código postal + calle/vía (ES/LatAm), sin depender de schema
+    # Dirección en texto plano: calle/vía CON número + código postal (ES/LatAm), sin
+    # depender de schema. Se exige el número de portal junto a la vía y un CP con nombre de
+    # localidad cerca, para no marcar como dirección cualquier "av" suelto o cualquier cifra.
     if not l_addr:
         _tl = text.lower()
-        _street = bool(re.search(r"\b(c/|calle|avda?|avenida|av|carrera|cra|cll|"
-                                 r"pol[íi]gono|p\.?\s?i\.?|carrer|r[úu]a|jr|jir[óo]n|"
-                                 r"street|st|road|rd|avenue|ave)\b", _tl))
-        _cp = bool(re.search(r"\b\d{4,6}\b", text))
+        # vía reconocible + número de portal (p.ej. "Calle Mayor 12", "Av. Insurgentes 500")
+        _street = bool(re.search(
+            r"\b(c/|calle|avda?\.?|avenida|carrera|cra\.?|cll\.?|pol[íi]gono|"
+            r"carrer|r[úu]a|jir[óo]n|jr\.?|street|road|avenue|ave\.?|blvd|boulevard)\b"
+            r"[^\d\n]{0,30}\d{1,4}", _tl))
+        # código postal seguido (o precedido) de nombre de localidad con inicial mayúscula
+        _cp = bool(re.search(r"\b\d{4,6}\b[\s,.-]+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]{2,}", text)
+                   or re.search(r"[A-ZÁÉÍÓÚÑ][a-záéíóúñ]{2,}[\s,]+\b\d{4,6}\b", text))
         if _street and _cp:
             l_addr = True
 
@@ -321,6 +347,7 @@ def _parse_page(url: str, html: str, status: int, base_net: str) -> dict:
         "breadcrumb": breadcrumb,
         "l_phone": l_phone, "l_addr": l_addr, "l_map": l_map,
         "l_hours": l_hours, "l_geo": l_geo,
+        "has_testimonials": has_testimonials,
         "_links": links,
     }
 
@@ -351,13 +378,16 @@ async def _check_broken(links: list[str]) -> dict:
             res = await asyncio.gather(*(_status(c, u, sem) for u in links))
     except Exception:  # noqa: BLE001
         return {"checked": 0, "broken": [], "count": 0, "errors": 0}
+    # Códigos que NO son enlace roto: piden auth, bloquean bots o limitan tasa. Contarlos
+    # como 404 es un falso positivo clásico (401/403 = protegido, 429 = límite, 999 = LinkedIn).
+    _NOT_BROKEN = {401, 403, 405, 429, 451, 503, 999}
     broken, checked, errors = [], 0, 0
     for u, st in res:
         if st is None:
             errors += 1
             continue
         checked += 1
-        if st >= 400:
+        if st >= 400 and st not in _NOT_BROKEN:
             broken.append({"url": u, "status": st})
     broken.sort(key=lambda b: b["url"])
     return {"checked": checked, "broken": broken, "count": len(broken), "errors": errors}
@@ -553,6 +583,7 @@ def _aggregate(pages: list[dict], norm_home: str = "") -> dict:
         "has_map": any(p.get("l_map") for p in pages),
         "has_hours": any(p.get("l_hours") for p in pages),
         "has_geo": any(p.get("l_geo") for p in pages),
+        "has_testimonials": any(p.get("has_testimonials") for p in pages),
     }
 
     return {

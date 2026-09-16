@@ -177,12 +177,14 @@ def parse_home(html: str, base_url: str) -> dict:
     img_total = len(imgs)
     img_alt = sum(1 for i in imgs if (i.get("alt") or "").strip())
 
-    # JSON-LD structured data
+    # JSON-LD structured data. @type puede ser string o lista (["LocalBusiness","Store"]),
+    # así que capturamos ambos, no solo el string suelto (falso negativo si viene en array).
     schema_types = []
     for s in soup.find_all("script", attrs={"type": re.compile("ld\\+json", re.I)}):
         raw = s.string or s.get_text() or ""
-        for m in re.findall(r'"@type"\s*:\s*"([^"]+)"', raw):
-            schema_types.append(m.strip())
+        for m in re.findall(r'"@type"\s*:\s*(\[[^\]]*\]|"[^"]+")', raw):
+            for t in re.findall(r'"([^"]+)"', m):
+                schema_types.append(t.strip())
     has_sameas = bool(re.search(r'"sameAs"', html or ""))
 
     html_tag = soup.find("html")
@@ -202,10 +204,11 @@ def parse_home(html: str, base_url: str) -> dict:
     word_count = len(text.split())
 
     schema_low = [t.lower() for t in schema_types]
-    # FAQ / Q&A: schema FAQPage o varios titulares en forma de pregunta
+    # FAQ / Q&A: schema FAQPage/QAPage (señal fiable) o BASTANTES titulares en forma de
+    # pregunta (>=3). Con solo 2 dábamos FAQ por cualquier par de titulares con "?".
     heading_texts = [h.get_text(strip=True) for h in (h2s + h3s)]
     q_headings = sum(1 for t in heading_texts if t.endswith("?"))
-    has_faq = ("faqpage" in schema_low) or ("qapage" in schema_low) or q_headings >= 2
+    has_faq = ("faqpage" in schema_low) or ("qapage" in schema_low) or q_headings >= 3
     # Ficha de contacto (NAP): tel: link, schema de contacto/direccion o telefono real en texto
     has_phone = (bool(soup.find("a", href=re.compile(r"^tel:", re.I)))
                  or bool(re.search(r"(?:\+|\b00)\s?\d[\d\s().\-]{6,}\d", text)))
@@ -216,8 +219,9 @@ def parse_home(html: str, base_url: str) -> dict:
     has_address = (any(x in schema_low for x in ("postaladdress", "localbusiness")) or
                    '"streetaddress"' in html_low or "streetaddress" in html_low or
                    bool(soup.find(attrs={"itemprop": re.compile("streetAddress", re.I)})))
-    has_map = (bool(soup.find("iframe", src=re.compile(r"google\.[a-z.]+/maps|maps\.google|/maps/embed", re.I)))
-               or "google.com/maps" in html_low or "maps.google" in html_low)
+    # Mapa incrustado: solo cuenta un iframe de mapa (un enlace a Maps NO es un mapa incrustado).
+    has_map = bool(soup.find("iframe", src=re.compile(
+        r"google\.[a-z.]+/maps|maps\.google|/maps/embed|openstreetmap|mapbox", re.I)))
     has_hours = ("openinghours" in html_low or "opening_hours" in html_low)
     has_geo = ("geocoordinates" in schema_low or '"latitude"' in html_low)
 

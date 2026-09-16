@@ -791,16 +791,19 @@ async def run_ai_geo(domain: str, meta: dict) -> dict | None:
             r_gbp = _all[-1]
             gbp_line = _strip_cites("" if isinstance(r_gbp, Exception) else (r_gbp or ""))
             gu = gbp_line.strip().upper()
-            # Parseo lenient: SI explicito, o evidencia de ficha (reseñas/direccion/valoracion)
+            # Parseo estricto: SOLO cuenta como evidencia una señal CUANTITATIVA (nº de reseñas
+            # o valoración). Mencionar "dirección/teléfono/google maps" en prosa no prueba nada:
+            # la IA suele nombrarlos justo cuando explica que NO encontró la ficha. Y un "NO"
+            # explícito se respeta siempre (antes un "NO ... en google maps" daba None o True).
             mrev = re.search(r"(\d[\d.,]*)\s*(reseñas|resenas|reviews|opiniones)", gbp_line, re.I)
             mval = re.search(r"([0-5][.,]\d)\s*(?:★|estrellas|de 5|/5)", gbp_line)
-            has_evidence = bool(mrev or mval or re.search(r"(direcci[oó]n|tel[eé]fono|google maps|ficha)", gbp_line, re.I))
+            quant_evidence = bool(mrev or mval)
             if gu.startswith(("SI", "SÍ", "YES")):
                 gbp = True
-            elif gu.startswith("NO") and not has_evidence:
+            elif gu.startswith("NO"):
                 gbp = False
             else:
-                gbp = True if has_evidence else None
+                gbp = True if quant_evidence else None
             gbp_reviews = ""
             gbp_reviews_n = None
             if gbp:

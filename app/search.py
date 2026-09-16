@@ -59,7 +59,9 @@ async def check_gbp(brand: str, place: str = "", domain: str = "") -> dict | Non
             web = (p.get("websiteUri") or "").lower()
             nm = re.sub(r"\s+", "", name.lower())
             same_web = bool(dom and dom in web)
-            same_name = bool(bl and (bl in nm or nm in bl))
+            # Nombre: exige coincidencia de marca con longitud suficiente (>=4) para no dar
+            # por buena una ficha por un substring genérico corto ("la", "sur", "web"...).
+            same_name = bool(bl and len(bl) >= 4 and len(nm) >= 4 and (bl in nm or nm in bl))
             if same_web or same_name:
                 return {"found": True,
                         "category": p.get("primaryTypeDisplayName", {}).get("text", "") if isinstance(p.get("primaryTypeDisplayName"), dict) else (p.get("primaryTypeDisplayName") or ""),
@@ -248,11 +250,15 @@ async def check_indexation(domain: str, sitemap_total: int = 0, gl: str = "es") 
         async with httpx.AsyncClient(headers=HEADERS) as client:
             sem = asyncio.Semaphore(6)
 
+            # 401/403/405/429/451/503/999 no son enlace roto (auth, bloqueo de bots, límite):
+            # contarlos como 404 es un falso positivo.
+            _not_broken = {401, 403, 405, 429, 451, 503, 999}
+
             async def chk(u):
                 async with sem:
                     try:
                         rr = await client.get(u, timeout=10.0, follow_redirects=True)
-                        if rr.status_code >= 400:
+                        if rr.status_code >= 400 and rr.status_code not in _not_broken:
                             broken_indexed.append({"url": u, "status": rr.status_code})
                     except Exception:  # noqa: BLE001
                         pass

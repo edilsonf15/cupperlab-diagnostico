@@ -389,9 +389,17 @@ def schema_findings(r, P):
                     "d": P("Marcar cada servicio o producto con Schema ayuda a Google y a la IA a saber exactamente qué ofreces y a mostrarte cuando lo buscan.",
                            "Marking each service or product with Schema helps Google and AI know exactly what you offer and show you when it's searched.")})
     if not by["review"]:
-        out.append({"sev": "op", "t": P("Falta marcar reseñas y valoraciones (Review)", "Missing Review/Rating markup"),
-                    "d": P("El Schema Review/AggregateRating puede mostrar tus estrellas en Google y es una señal que la IA usa para recomendarte. Márcalo si tienes valoraciones.",
-                           "Review/AggregateRating Schema can show your stars in Google and is a signal AI uses to recommend you. Mark it up if you have ratings.")})
+        _has_test = bool((r.get("meta") or {}).get("has_testimonials"))
+        if _has_test:
+            # La web SÍ muestra testimonios/opiniones, pero no están marcados como Review:
+            # no digas "no tienes valoraciones", di que las marques para ganar estrellas.
+            out.append({"sev": "op", "t": P("Tienes testimonios pero no están marcados (Review)", "You have testimonials but no Review markup"),
+                        "d": P("Tu web muestra testimonios u opiniones de clientes, pero no llevan el Schema Review/AggregateRating. Márcalos para que Google pueda mostrar tus estrellas en los resultados y para que la IA los use como señal de confianza al recomendarte.",
+                               "Your site shows customer testimonials, but they lack Review/AggregateRating Schema. Mark them up so Google can show your stars in results and AI uses them as a trust signal when recommending you.")})
+        else:
+            out.append({"sev": "op", "t": P("Falta marcar reseñas y valoraciones (Review)", "Missing Review/Rating markup"),
+                        "d": P("El Schema Review/AggregateRating puede mostrar tus estrellas en Google y es una señal que la IA usa para recomendarte. Márcalo si tienes valoraciones.",
+                               "Review/AggregateRating Schema can show your stars in Google and is a signal AI uses to recommend you. Mark it up if you have ratings.")})
     sch = (r.get("onpage") or {}).get("schema") or {}
     errs = sch.get("errors") or 0
     incompl = sch.get("incomplete") or []
@@ -467,7 +475,7 @@ def local_findings(r, P):
         return out
     types = ((op.get("schema") or {}).get("types")) or meta.get("schema_types") or []
     lb = _rx(types, r"localbusiness|professionalservice")
-    rev = ai.get("gbp_reviews_n") or 0
+    rev = ai.get("gbp_reviews_n")  # None = no se pudo leer el nº (distinto de 0 reseñas)
     if ai.get("gbp") is False:
         out.append({"sev": "critico", "t": P("No encontramos tu ficha de Google Business", "We couldn't find your Google Business profile"),
                     "d": P("Sin ficha no apareces en el mapa ni en las búsquedas locales, y pierdes las reseñas que Google y la IA usan para recomendarte. Una ficha activa y bien completa (categoría, dirección, teléfono, horario, fotos) es de lo que más mueve tu visibilidad local.",
