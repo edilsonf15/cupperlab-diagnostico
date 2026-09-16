@@ -78,6 +78,18 @@ _bg_tasks: set = set()
 _jobs: dict = {}
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
+# Caché de resultado por dominio: garantiza que re-analizar el MISMO sitio da el
+# MISMO resultado (fin del "da un % y luego otro"). Se vacía al reiniciar el
+# contenedor (deploy), así que tras corregir el motor sí sale un resultado nuevo.
+_RESULT_CACHE: dict = {}
+_RESULT_TTL = float(os.getenv("RESULT_CACHE_TTL", "1800"))  # 30 min
+
+
+def _cache_key(u: str, lang: str) -> str:
+    d = re.sub(r"^https?://", "", (u or "").strip(), flags=re.I)
+    d = d.replace("www.", "").split("/")[0].split("?")[0].split(":")[0].lower()
+    return f"{d}|{lang}"
+
 
 def _client_ip(req: Request) -> str:
     fwd = req.headers.get("x-forwarded-for")
@@ -265,6 +277,18 @@ async def _run_job(job_id: str, url: str, email: str, name: str, lead: dict, lan
     i18n.set_lang(lang)  # idioma del analisis (lo leen analyzer, geo_ai, report_pdf)
     """Analisis REAL por etapas, con progreso. El mismo resultado que ve la pantalla
     es el que va al correo (mismo dict de datos)."""
+    _ck = _cache_key(url, lang)
+    # Cache-hit: mismo dominio analizado hace poco -> devolvemos el MISMO resultado
+    # (consistencia total). Igual enviamos el correo/PDF a este nuevo lead.
+    _c = _RESULT_CACHE.get(_ck)
+    if _c and (time.time() - _c[0]) < _RESULT_TTL:
+        try:
+            data = json.loads(json.dumps(_c[1])); _ai = _c[2]
+            _jobs[job_id].update(result=data, progress=100, stage="Listo", done=True)
+            await _build_and_send(data, email, name, lead, _ai)
+        except Exception as exc:  # noqa: BLE001
+            print(f"[cache:ERROR] {exc}")
+        return
     _tick = asyncio.create_task(_progress_ticker(job_id))
     try:
         # 1) SEO + salud tecnica (rastreo en vivo)
@@ -419,6 +443,12 @@ async def _run_job(job_id: str, url: str, email: str, name: str, lead: dict, lan
             data["findings"] = _findings.compute(data, lang)
         except Exception as exc:  # noqa: BLE001
             print(f"[findings:ERROR] {exc}"); data["findings"] = []
+
+        # Guarda en caché por dominio: re-analizar da el MISMO resultado.
+        try:
+            _RESULT_CACHE[_ck] = (time.time(), json.loads(json.dumps(data)), ai)
+        except Exception as exc:  # noqa: BLE001
+            print(f"[cache:store:ERROR] {exc}")
 
         # 5) Resultado LISTO para la pantalla (mismos datos que el correo)
         _tick.cancel()

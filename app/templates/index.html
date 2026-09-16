@@ -196,9 +196,20 @@
   .sec{padding-top:clamp(24px,4vw,44px);padding-bottom:clamp(24px,4vw,44px)}
   .sec h2{font-family:var(--disp);font-weight:700;font-size:clamp(27px,3.8vw,44px);letter-spacing:-.025em;color:var(--ink);margin:12px 0 0;max-width:900px;line-height:1.1;text-wrap:pretty}
   .qa-head{text-align:center;max-width:1040px;margin:0 auto}
-  .qa-title{max-width:none;margin:12px auto 0;font-size:clamp(30px,4.6vw,52px);line-height:1.08}
-  .qa-title .g{color:var(--or)}
-  .qa-sub{margin:16px auto 0;max-width:760px}
+  .qa-head .qa-title{max-width:900px;margin:12px auto 0;font-size:clamp(30px,4.6vw,52px);line-height:1.08;text-wrap:balance}
+  .qa-head .qa-title .g{color:var(--or)}
+  .qa-head .qa-sub{margin:16px auto 0;max-width:720px;text-align:center}
+  /* Banda de estadísticas reales */
+  .statband{padding-top:clamp(16px,3vw,30px);padding-bottom:clamp(6px,1.5vw,16px)}
+  .statband .kick{margin-bottom:6px}
+  .stats3{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:20px}
+  .stat{background:var(--surf);border:1px solid var(--line);border-radius:16px;padding:26px 24px;transition:transform .2s,box-shadow .2s}
+  .stat:hover{transform:translateY(-3px);box-shadow:0 16px 36px -26px rgba(10,16,20,.24)}
+  .stat-n{font-family:var(--disp);font-weight:800;font-size:clamp(38px,4.6vw,56px);letter-spacing:-.03em;color:var(--ink);line-height:1}
+  .stat-n span{font-size:.5em;color:var(--or);margin-left:2px}
+  .stat-t{font-family:var(--disp);font-weight:600;font-size:16px;color:var(--ink2);margin-top:12px;line-height:1.35}
+  .stat-s{font-size:12px;color:var(--mut2);margin-top:10px;line-height:1.45}
+  @media(max-width:760px){.stats3{grid-template-columns:1fr;gap:14px}}
   .sec .sub{margin-top:14px}
   .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(238px,1fr));gap:16px;margin-top:34px}
   .fc{background:var(--surf);border:1px solid var(--line);border-radius:16px;padding:24px;transition:transform .2s,border-color .2s,box-shadow .2s}
@@ -457,6 +468,16 @@
   </div>
 </section>
 
+<!-- ESTADÍSTICAS REALES -->
+<section class="wrap statband" data-rv>
+  <div class="kick" style="text-align:center" data-i18n="sb_kick">Por qué esto importa hoy</div>
+  <div class="stats3">
+    <div class="stat"><div class="stat-n">+393<span>%</span></div><div class="stat-t" data-i18n="sb1t"></div><div class="stat-s" data-i18n="sb1s"></div></div>
+    <div class="stat"><div class="stat-n">+31<span>%</span></div><div class="stat-t" data-i18n="sb2t"></div><div class="stat-s" data-i18n="sb2s"></div></div>
+    <div class="stat"><div class="stat-n">52<span>%</span></div><div class="stat-t" data-i18n="sb3t"></div><div class="stat-s" data-i18n="sb3s"></div></div>
+  </div>
+</section>
+
 <!-- QUÉ ANALIZAMOS -->
 <section class="wrap sec" data-rv>
   <div class="qa-head">
@@ -620,6 +641,13 @@
     st_vis:["Visibilidad en las IAs","Visibility in AIs"],
     st_kw:["Keywords en top 10","Keywords in top 10"],
     st_pos:["Posición media en Google","Average position on Google"],
+    sb_kick:["Por qué esto importa hoy","Why this matters now"],
+    sb1t:["más gente llegó a comprar desde una IA en un año","more people came to buy from an AI in a year"],
+    sb1s:["Adobe Analytics — tráfico de retail desde fuentes de IA, 2025.","Adobe Analytics — retail traffic from AI sources, 2025."],
+    sb2t:["más compra quien llega desde una IA que por otros canales","AI-referred visitors convert more than other channels"],
+    sb2s:["Adobe Analytics — conversión de referidos por IA, 2025.","Adobe Analytics — AI referral conversion, 2025."],
+    sb3t:["de los compradores planea usar la IA para comprar","of shoppers plan to use AI to buy"],
+    sb3s:["Adobe — encuesta a consumidores, 2025.","Adobe — consumer survey, 2025."],
     qa_kick:["Qué analizamos","What we analyze"],
     qa_h2:['Todo lo que decide si un cliente <span class="g">te elige a ti</span> o se va con la competencia','Everything that decides whether a customer <span class="g">chooses you</span> or your competitor'],
     qa_sub:["Revisamos los cuatro frentes que hoy deciden tus ventas: cómo apareces en Google y en la IA, si tu web carga rápido y si transmite confianza. Con acciones claras para que te elijan a ti.","We check the four fronts that decide your sales today: how you appear on Google and AI, whether your site loads fast and whether it earns trust. With clear actions so they choose you."],
@@ -635,7 +663,7 @@
     rc_h2:["Descubre cómo aparecer en Google y en la IA.","Find out how to show up on Google and AI."],
     rc_sub:["Lo analizamos en vivo y te enviamos el informe completo en PDF a tu correo, con el plan para mejorar.","We analyze it live and send you the full PDF report to your inbox, with the plan to improve."],
     rc_t1:["Gratis, sin compromiso","Free, no commitment"],
-    rc_t2:["Análisis en vivo de tu web, no una plantilla","Live analysis of your site, not a template"],
+    rc_t2:["Análisis en vivo de tu web","Live analysis of your site"],
     rc_t3:["Solo usamos tus datos para enviarte el informe","We only use your details to send you the report"],
     ph_site:["Tu web (tunegocio.com)","Your site (yoursite.com)"],
     ph_name:["Tu nombre","Your name"],

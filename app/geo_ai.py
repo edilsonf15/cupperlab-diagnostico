@@ -1188,8 +1188,10 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
     # ronda paralela (mucho más rápido). El país viene de la detección multiseñal del sitio.
     place = (country or "").strip()
     sec_txt = service or derive_sector(meta or {}) or "este tipo de servicio"
-    _base = ([f"{sec_txt} en {place}", f"mejores {sec_txt} en {place}", f"empresas de {sec_txt} en {place}"]
-             if place else [sec_txt, f"mejores {sec_txt}", f"empresas de {sec_txt}"])
+    _base = ([f"mejores {sec_txt} en {place}",
+              f"¿qué {sec_txt} me recomiendas en {place}?",
+              f"quiero {sec_txt} en {place}, ¿qué marcas o empresas hay?"]
+             if place else [f"mejores {sec_txt}", f"¿qué {sec_txt} me recomiendas?", f"empresas de {sec_txt}"])
     cat_queries = list(dict.fromkeys([q.strip() for q in _base if q.strip()]))[:3]
     _qlist = "\n".join(f"@@{i+1}@@ {q}" for i, q in enumerate(cat_queries))
     q_cat = L(

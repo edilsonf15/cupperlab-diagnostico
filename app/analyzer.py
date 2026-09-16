@@ -435,6 +435,11 @@ def detect_country(html: str, domain: str) -> dict:
     tld0 = host0.rsplit(".", 1)[-1] if "." in host0 else ""
     if tld0 in _CCTLD and tld0 not in _GENERIC_TLD:
         add(_CCTLD[tld0], 2.5, "tld")
+    elif tld0 == "co":
+        # .co es el ccTLD de Colombia (aunque se venda como generico): voto
+        # moderado, lo pueden superar señales fuertes (moneda/contenido) de otro
+        # pais. Sin esto, koaj.co (Colombia) se confundia con España.
+        add("co", 1.8, "tld")
 
     # 3) Menciones de contenido: el NOMBRE del pais pesa mucho; ciudades, menos.
     for gl, (name, kws) in _GEO_HINTS.items():
