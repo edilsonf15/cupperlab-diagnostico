@@ -888,9 +888,11 @@ def _ai_section(r: dict) -> str:
 
 
 def _ai_matrix(r: dict) -> str:
-    """Matriz multi-IA (ChatGPT / Perplexity / Gemini): ¿te reconoce? ¿te recomienda?
-    ¿te cita? — medido en vivo en cada motor. Estilo nativo del PDF (tabla)."""
-    ai = r.get("geo_ai") or {}
+    """Retirado: el PDF ya no muestra la tabla por motor ni las fuentes. La lectura
+    de la IA (te reconoce / te recomienda + competidores) va en _ai_section, con el
+    veredicto del MEJOR motor. Se mantiene la función por compatibilidad."""
+    return ""
+    ai = r.get("geo_ai") or {}  # noqa: unreachable
     engines = ai.get("engines") or []
     if not engines:
         return ""

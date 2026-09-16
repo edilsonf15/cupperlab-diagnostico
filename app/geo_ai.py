@@ -1268,11 +1268,8 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
             "reco_total": _p.get("reco_total"), "cites": _p.get("cites"),
             "sources": _p.get("sources") or [], "proof": _p.get("proof") or "",
         })
-        for c in (_p.get("competitors") or []):
-            nm = (c.get("name") or "").strip()
-            if nm and nm.lower() not in _have and len(comps) < 8:
-                comps.append(c)
-                _have.add(nm.lower())
+    # Competidores: SOLO del mejor motor (prim), sin mezclar los 3 (evita ruido).
+    comps = list(prim.get("competitors") or [])
     if not comps:
         comps = [{"name": c.strip()} for c in _f("COMPETENCIA", mega).split("|")
                  if c.strip() and not _looks_generic(c.strip())][:6]

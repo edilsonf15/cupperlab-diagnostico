@@ -263,6 +263,14 @@
   .ld-logos .ldg{width:46px;height:46px;border-radius:50%;background:var(--surf);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;box-shadow:0 12px 24px -14px rgba(10,16,20,.28);animation:ldfloat 3.4s ease-in-out infinite}
   .ld-logos .ldg svg{width:56%;height:56%;display:block}
   @keyframes ldfloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-9px)}}
+  @media(max-width:560px){
+    .ld-logos{gap:9px;margin-top:18px}
+    .ld-logos .ldg{width:36px;height:36px}
+    .ld-steps{gap:6px}
+    .ld-step{padding:6px 10px;font-size:11.5px}
+    .ld-pct{font-size:clamp(46px,15vw,64px)}
+    .ld-actx{font-size:15px}
+  }
   .cons-fact{margin-top:22px;font-size:14px;color:var(--ink2);line-height:1.55;transition:opacity .4s;background:linear-gradient(120deg,var(--cyd),rgba(28,188,228,.02));border:1px solid rgba(28,188,228,.22);border-left:3px solid var(--cy);border-radius:12px;padding:14px 16px;font-weight:500;text-align:left}
   .cons-note{margin-top:14px;font-size:12px;color:var(--mut2);text-align:center}
   /* results */
@@ -525,7 +533,7 @@
         <span class="ldg" style="animation-delay:.3s"><svg viewBox="0 0 40 40"><path fill="#10a37f" d="M36.5 16.4a9.9 9.9 0 0 0-.85-8.1 10 10 0 0 0-10.76-4.8A9.9 9.9 0 0 0 17.4.5 10 10 0 0 0 7.9 7.4a9.9 9.9 0 0 0-6.6 4.8 10 10 0 0 0 1.23 11.72 9.9 9.9 0 0 0 .85 8.1 10 10 0 0 0 10.76 4.8 9.9 9.9 0 0 0 7.49 3.34 10 10 0 0 0 9.53-6.92 9.9 9.9 0 0 0 6.6-4.8 10 10 0 0 0-1.26-11.84zM22.3 37.1a7.4 7.4 0 0 1-4.76-1.72l.24-.13 7.9-4.56a1.3 1.3 0 0 0 .65-1.12v-11.1l3.34 1.93a.12.12 0 0 1 .06.09v9.22a7.45 7.45 0 0 1-7.43 7.42zM6.35 30.3a7.4 7.4 0 0 1-.89-4.98l.24.15 7.9 4.56a1.3 1.3 0 0 0 1.3 0l9.65-5.57v3.86a.12.12 0 0 1-.05.1l-7.99 4.61a7.45 7.45 0 0 1-10.16-2.72zM4.27 13.6a7.4 7.4 0 0 1 3.87-3.26v9.4a1.3 1.3 0 0 0 .65 1.12l9.65 5.57-3.34 1.93a.12.12 0 0 1-.11.01l-7.98-4.61a7.45 7.45 0 0 1-2.72-10.16zM30.6 19.7l-9.65-5.58 3.34-1.92a.12.12 0 0 1 .11-.01l7.98 4.6a7.44 7.44 0 0 1-1.15 13.42v-9.4a1.3 1.3 0 0 0-.63-1.11zM33.92 14.7l-.24-.15-7.89-4.58a1.3 1.3 0 0 0-1.3 0l-9.64 5.57v-3.86a.12.12 0 0 1 .05-.1l7.98-4.6a7.44 7.44 0 0 1 11.04 7.72zM12.47 21.55l-3.34-1.93a.12.12 0 0 1-.06-.09v-9.22a7.44 7.44 0 0 1 12.2-5.71l-.24.13-7.9 4.56a1.3 1.3 0 0 0-.65 1.12l-.01 11.09z"/></svg></span>
         <span class="ldg" style="animation-delay:.6s"><svg viewBox="0 0 40 40"><defs><linearGradient id="ldgem" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4285F4"/><stop offset=".5" stop-color="#9b72cb"/><stop offset="1" stop-color="#d96570"/></linearGradient></defs><path fill="url(#ldgem)" d="M20 2c1 9.4 8.6 17 18 18-9.4 1-17 8.6-18 18-1-9.4-8.6-17-18-18C11.4 19 19 11.4 20 2z"/></svg></span>
         <span class="ldg" style="animation-delay:.9s"><svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="18" fill="#20808d"/><g stroke="#fff" stroke-width="1.6" fill="none" stroke-linejoin="round"><path d="M20 9v22M20 9l-7 4v14l7 4 7-4V13l-7-4zM13 13l7 4 7-4M13 27l7-4 7 4"/></g></svg></span>
-        <span class="ldg" style="animation-delay:1.2s"><svg viewBox="0 0 40 40"><defs><linearGradient id="ldbing" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#37bdff"/><stop offset="1" stop-color="#0c8484"/></linearGradient></defs><path fill="url(#ldbing)" d="M13 5l6 2.4v17.2l7.2-4.1-3.4-1.6-2.2-5.6 11 4.4v6.9L19 35l-6-3.4z"/></svg></span>
+        <span class="ldg" style="animation-delay:1.2s"><svg viewBox="0 0 40 40"><rect width="40" height="40" rx="9" fill="#d97757"/><path fill="#fff" d="M13.2 28.2 18.9 11.8h2.9l5.7 16.4h-3.05l-1.2-3.7h-5.75l-1.2 3.7zm4.9-6.2h4.05l-2-6.1z"/></svg></span>
       </div>
       <div class="cons-fact" id="consFact"></div>
       <div class="cons-note" data-i18n="cons_note"></div>
@@ -1324,17 +1332,31 @@
 
   /* ===== render results ===== */
   function renderAiMatrix(r){
-    var ai=r.geo_ai||{},engs=ai.engines||[],wrap=document.getElementById("aiMatrixWrap");
-    if(!engs.length||ai.limited){wrap.style.display="none";return;}
+    var ai=r.geo_ai||{},wrap=document.getElementById("aiMatrixWrap");
+    var comps=(ai.competitors||[]).map(function(c){return ((c&&c.name)||c||"").toString().trim();}).filter(Boolean).slice(0,6);
+    var g=ai.recognition||(ai.knows?"strong":"none");
+    // Ocultar solo si NO hay señal de IA en absoluto.
+    if(ai.limited||(ai.available===false)||(!ai.recognition&&!ai.knows&&ai.recommended==null&&!comps.length)){wrap.style.display="none";return;}
     wrap.style.display="";
-    function rec(e){var g=e.recognition;if(g==="strong")return[P("Sí","Yes"),OK];if(g==="weak")return[P("A medias","Partly"),WARN];if(g==="none")return[P("No","No"),CRIT];return e.knows?[P("Sí","Yes"),OK]:[P("No","No"),CRIT];}
-    function reco(e){var h=e.reco_hits,t=e.reco_total,c=(typeof h==="number"&&typeof t==="number"&&t)?" ("+h+"/"+t+")":"";if(e.recommended===true)return[P("Sí","Yes")+c,OK];if(e.recommended===false)return[P("No","No")+c,CRIT];return[P("A veces","Sometimes")+c,WARN];}
-    function c(v){return '<td style="padding:12px 14px;text-align:center;border-top:1px solid var(--line);font-weight:700;color:'+v[1]+'">'+esc(v[0])+'</td>';}
-    var th='padding:11px 14px;font:600 11px/1 var(--mono,monospace);letter-spacing:.06em;color:var(--mut3)';
-    var h='<table style="width:100%;border-collapse:collapse;background:var(--surf);border:1px solid var(--line);border-radius:14px;overflow:hidden;min-width:420px">';
-    h+='<tr style="background:var(--surf2)"><th style="text-align:left;'+th+'">IA</th><th style="'+th+'">'+P("¿TE RECONOCE?","KNOWS YOU?")+'</th><th style="'+th+'">'+P("¿TE RECOMIENDA?","RECOMMENDS?")+'</th></tr>';
-    engs.forEach(function(e){h+='<tr><td style="padding:12px 14px;border-top:1px solid var(--line);font-weight:700;color:var(--ink)">'+esc(e.name||"")+'</td>'+c(rec(e))+c(reco(e))+'</tr>';});
-    h+='</table>';
+    var recTxt,recDesc,recCol;
+    if(g==="strong"){recTxt=P("La IA ya te reconoce","AI already recognizes you");recDesc=P("Sabe quién eres cuando le preguntan por tu marca.","It knows who you are when asked about your brand.");recCol=OK;}
+    else if(g==="weak"){recTxt=P("La IA te reconoce a medias","AI partly recognizes you");recDesc=P("Solo te encuentra si busca tu web; todavía no te tiene 'de memoria'.","It only finds you if it searches your site; it doesn't know you 'by heart' yet.");recCol=WARN;}
+    else{recTxt=P("La IA no te reconoce todavía","AI doesn't recognize you yet");recDesc=P("Cuando le preguntan por tu marca, no sabe quién eres.","When asked about your brand, it doesn't know who you are.");recCol=CRIT;}
+    var reTxt,reCol;
+    if(ai.recommended===true){reTxt=P("Cuando piden tu servicio, la IA te recomienda a ti.","When your service is requested, AI recommends you.");reCol=OK;}
+    else if(ai.recommended===false){reTxt=P("Cuando piden tu servicio, la IA recomienda a otros, no a ti.","When your service is requested, AI recommends others, not you.");reCol=CRIT;}
+    else{reTxt=P("Cuando piden tu servicio, la IA te menciona solo a veces.","When your service is requested, AI mentions you only sometimes.");reCol=WARN;}
+    var card='background:var(--surf);border:1px solid var(--line);border-radius:14px;padding:16px 18px';
+    var h='<div class="kick" style="margin-bottom:14px">'+P("Cómo te ve la IA","How AI sees you")+'</div>';
+    h+='<div style="display:grid;gap:12px">';
+    h+='<div style="'+card+';border-left:4px solid '+recCol+'"><div style="font-family:var(--disp);font-weight:700;font-size:17px;color:'+recCol+'">'+esc(recTxt)+'</div><div style="font-size:14px;color:var(--ink2);margin-top:4px">'+esc(recDesc)+'</div></div>';
+    h+='<div style="'+card+';border-left:4px solid '+reCol+'"><div style="font-size:15px;color:var(--ink);font-weight:600">'+esc(reTxt)+'</div></div>';
+    if(comps.length){
+      h+='<div style="'+card+'"><div style="font:600 11px/1 var(--mono,monospace);letter-spacing:.06em;color:var(--mut3);margin-bottom:10px">'+P("HOY LA IA RECOMIENDA A","AI RECOMMENDS TODAY")+'</div><div style="display:flex;flex-wrap:wrap;gap:8px">';
+      comps.forEach(function(n){h+='<span style="background:var(--surf2);border:1px solid var(--line);border-radius:999px;padding:7px 14px;font-size:13.5px;font-weight:600;color:var(--ink)">'+esc(n)+'</span>';});
+      h+='</div></div>';
+    }
+    h+='</div>';
     document.getElementById("aiMatrix").innerHTML=h;
   }
   function render(r){
@@ -1396,7 +1418,8 @@
     renderAiMatrix(r);
     document.getElementById("mailed").innerHTML=P("📬 Este es un vistazo rápido. Te enviamos a tu correo el <b>análisis completo en PDF</b>: cómo te ve la IA, tu competencia real, los hallazgos y el <b>plan de acción</b>. Revisa también la carpeta de spam.","📬 This is a quick look. We're sending the <b>full PDF analysis</b> to your inbox: how AI sees you, your real competitors, the findings and the <b>action plan</b>. Check your spam folder too.");
     submitBtn.disabled=false;submitBtn.textContent=t("submit_btn");
-    results.scrollIntoView({behavior:"smooth"});
+    // No hacemos scroll: el resultado aparece en el mismo sitio donde estaba el
+    // cargador, así que la página se queda donde está (antes saltaba arriba).
   }
 
   document.getElementById("againBtn").addEventListener("click",function(){results.classList.add("hidden");formBlock.classList.remove("hidden");err.style.display="none";document.getElementById("motor").scrollIntoView({behavior:"smooth"});});
