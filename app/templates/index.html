@@ -37,6 +37,9 @@
      el sitio ya pone su header/footer. Alinea el contenido al ancho del sitio (1180). */
   html.cl-embedded header, html.cl-embedded footer{display:none!important}
   html.cl-embedded .wrap{max-width:1180px}
+  /* El contenedor del CMS mete el iframe -90px detras del header; empujamos el
+     hero 140px hacia abajo para despejarlo (igual que .cl-page-hero__frame). */
+  html.cl-embedded .hero{padding-top:140px}
   .kick{font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--cy-t);font-weight:500}
   .hidden{display:none!important}
   /* buttons */
