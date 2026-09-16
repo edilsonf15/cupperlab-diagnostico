@@ -850,29 +850,33 @@ def _ai_section(r: dict) -> str:
     q_block = (f'<div class="sectic" style="margin-top:12px">{L("Ejemplo de búsqueda real de un cliente", "Example of a real customer search")}'
                f'{(L(" en ", " in ") + _esc(country)) if country else ""}{_hits_txt}</div>{q_cards}') if q_cards else ""
 
-    # Veredicto según reconocimiento + recomendacion (verde/ambar/rojo)
-    if recg == "strong" and reco:
-        topnote = L("<b>Buena señal:</b> la IA te reconoce y te incluye cuando piden tu servicio. Toca mantener la ventaja.",
-                    "<b>Good signal:</b> AI recognizes you and includes you when people ask for your service. Now it's about keeping the edge.")
-        vcol = "g"
-        verdict = L("La IA te reconoce y te recomienda: vas por delante de la mayoria en tu zona.",
-                    "AI recognizes and recommends you: you're ahead of most in your area.")
-    elif recg == "none":
-        topnote = L("<b>La IA no te encuentra.</b> Ni sabiendo tu nombre te reconoce: hoy no existes para quien "
-                    "pregunta a la IA antes de comprar.",
-                    "<b>AI can't find you.</b> Not even with your name does it recognize you: today you don't exist "
-                    "for anyone who asks AI before buying.")
-        vcol = "r"
-        verdict = f'{L("La IA no sabe quién eres y recomienda a", "AI does not know who you are and recommends")} {comps}: {L("hoy no apareces cuando preguntan por tu servicio.", "today you do not show up when people ask for your service.")}'
+    # Veredicto CONSISTENTE con los datos: reconocimiento (parte 1) + recomendación
+    # REAL (parte 2). Antes el texto de "no te cita" salía aunque recommended fuese
+    # True, contradiciendo las tarjetas.
+    if recg == "strong":
+        rec_part = L("La IA ya te reconoce por tu cuenta", "AI already recognizes you on its own")
+    elif recg == "weak":
+        rec_part = L("La IA te reconoce a medias (solo si le das tu web)", "AI partly recognizes you (only if you give it your site)")
     else:
-        topnote = L("<b>La IA te lee, pero no te tiene de memoria.</b> Si le pasas tu web, te describe bien; pero cuando "
-                    "un cliente pregunta por tu servicio sin conocerte, la IA no te menciona y nombra a la competencia. "
-                    "Ahí es donde hoy se te escapan clientes.",
-                    "<b>AI can read you, but does not remember you.</b> If you give it your site, it describes you well; but "
-                    "when a customer asks for your service without knowing you, AI does not mention you and names competitors "
-                    "instead. That is where you lose customers today.")
+        rec_part = L("La IA todavía no te reconoce", "AI doesn't recognize you yet")
+    if reco is True:
+        reco_part = (L("y cuando piden tu servicio SÍ apareces", "and when people ask for your service you DO appear")
+                     + (L(", junto a ", ", alongside ") + comps if comps else "") + ".")
+        vcol = "g" if recg == "strong" else "o"
+        topnote = L("<b>Buena señal:</b> cuando piden tu servicio, la IA ya te incluye. El siguiente paso es que te reconozca por tu nombre y te cite primero.",
+                    "<b>Good signal:</b> when people ask for your service, AI already includes you. Next step: be recognized by name and cited first.")
+    elif reco is False:
+        reco_part = (L("y cuando piden tu servicio no apareces: nombra a ", "and when people ask for your service you don't appear: it names ")
+                     + (comps or L("otras firmas de tu sector", "other firms in your sector")) + ".")
+        vcol = "r" if recg == "none" else "o"
+        topnote = L("<b>Aquí se te escapan clientes:</b> cuando alguien pregunta por tu servicio sin conocerte, la IA nombra a la competencia y no a ti.",
+                    "<b>This is where you lose customers:</b> when someone asks for your service without knowing you, AI names competitors, not you.")
+    else:
+        reco_part = L("y cuando piden tu servicio te menciona solo a veces.", "and when people ask for your service it mentions you only sometimes.")
         vcol = "o"
-        verdict = f'{L("La IA te reconoce a medias y cuando piden tu servicio nombra a", "AI half-recognizes you and when people ask for your service it names")} {comps}: {L("trabajemos para que te cite a ti primero.", "let us work so it cites you first.")}'
+        topnote = L("<b>Estás cerca:</b> a veces la IA te incluye cuando piden tu servicio. Reforzando tu presencia pasarías a aparecer siempre.",
+                    "<b>You're close:</b> AI sometimes includes you when people ask for your service. Strengthening your presence would make you appear every time.")
+    verdict = rec_part + " " + reco_part
 
     # Tarjetas REALES y con diseño: reconocimiento (de memoria), recomendación con
     # competidores reales y un ejemplo de búsqueda real de cliente. Es el contenido

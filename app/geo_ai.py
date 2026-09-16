@@ -236,6 +236,27 @@ def derive_sector(meta: dict) -> str:
             best, hits = label, n
     return best
 
+
+def short_category(meta: dict) -> str:
+    """Categoría CORTA y genérica para las búsquedas de cliente (p. ej. 'agentes de
+    IA', 'ropa urbana', 'clínica dental'). NUNCA la descripción/eslogan completo del
+    sitio: si usamos el eslogan del propio negocio, la IA siempre lo incluye y el
+    '¿apareces?' da un falso positivo. Preferimos el sector; si no, la primera frase
+    corta de la descripción."""
+    sec = derive_sector(meta or {})
+    if sec:
+        return sec
+    d = (meta.get("description") or meta.get("title") or "").strip()
+    # Corta en el primer separador o conector: deja solo el núcleo (categoría).
+    d = re.split(r"[,.;:\-–—|]|\bque\b|\bpara\b|\bcon\b|\bsin\b", d, 1, flags=re.I)[0].strip()
+    words = d.split()[:6]
+    # No dejar conectores colgando al final (…'a la', …'de').
+    _stop = {"a", "la", "el", "de", "del", "en", "y", "o", "u", "con", "para",
+             "los", "las", "un", "una", "que", "al", "por"}
+    while words and words[-1].lower() in _stop:
+        words.pop()
+    return " ".join(words) if words else ""
+
 # ccTLD -> (nombre de pais, codigo gl). El pais se toma del dominio real.
 CCTLD = {
     "es": ("España", "es"), "mx": ("México", "mx"), "ar": ("Argentina", "ar"),
@@ -1187,7 +1208,8 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
     # cat_queries LOCALES (no dependen del briefing): permiten lanzar TODO en UNA sola
     # ronda paralela (mucho más rápido). El país viene de la detección multiseñal del sitio.
     place = (country or "").strip()
-    sec_txt = service or derive_sector(meta or {}) or "este tipo de servicio"
+    # Categoría CORTA (no el eslogan del negocio) para que el "¿apareces?" sea real.
+    sec_txt = short_category(meta or {}) or "este tipo de servicio"
     _base = ([f"mejores {sec_txt} en {place}",
               f"¿qué {sec_txt} me recomiendas en {place}?",
               f"quiero {sec_txt} en {place}, ¿qué marcas o empresas hay?"]
