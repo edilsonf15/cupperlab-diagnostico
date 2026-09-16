@@ -1314,16 +1314,23 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
     q_comp = L(
         f"Sin usar búsqueda web, solo con tu conocimiento del mercado. Sobre \"{brand}\" ({sec_txt} en "
         f"{place or 'su país'}), responde EXACTAMENTE en 3 líneas y nada más:\n"
-        f"COMPETIDORES: <las 6 marcas MÁS CONOCIDAS y líderes del mismo tipo que compiten con ella a nivel "
-        f"nacional, separadas por |. Solo marcas reales y reconocidas, NADA de tiendas pequeñas. Si no "
-        f"conoces ninguna con seguridad, deja vacío>\n"
+        f"COMPETIDORES: <6 marcas competidoras directas de \"{brand}\", del MISMO tamaño/nivel y sobre todo del "
+        f"MISMO PAÍS ({place or 'su país'}): prioriza marcas NACIONALES de ese país que un cliente de ahí "
+        f"reconocería. NO pongas cadenas globales internacionales (Zara, H&M, Mango, Bershka, Shein, Amazon, "
+        f"Nike, Adidas, IBM, Google, Microsoft...) aunque operen allí, salvo que no exista alternativa local. "
+        f"Tampoco tiendas diminutas o desconocidas. Ej.: ropa en Colombia -> Studio F, Arturo Calle, Koaj, "
+        f"Chevignon, Gef, Leonisa (NO Zara/H&M). Separadas por |. Si no conoces marcas de ese país, deja vacío>\n"
         f"FICHA: <¿tiene ficha de Google Business / perfil en Google Maps con reseñas? Las marcas conocidas "
         f"y los negocios locales establecidos casi siempre tienen. Responde SI, NO o NOSE>\n"
         f"RESENAS: <número aproximado de reseñas de su ficha si lo sabes; vacío si no>",
         f"Without web search, only from your market knowledge. About \"{brand}\" ({sec_txt} in "
         f"{place or 'its country'}), reply EXACTLY in 3 lines and nothing else:\n"
-        f"COMPETIDORES: <the 6 BEST-KNOWN, leading brands of the same type that compete with it nationally, "
-        f"separated by |. Only real, recognized brands, NO small shops. If you know none for sure, leave empty>\n"
+        f"COMPETIDORES: <6 direct competitor brands of \"{brand}\", of the SAME tier and above all from the SAME "
+        f"COUNTRY ({place or 'its country'}): prioritize NATIONAL brands of that country that a local customer "
+        f"would recognize. Do NOT list global international chains (Zara, H&M, Mango, Bershka, Shein, Amazon, "
+        f"Nike, Adidas, IBM, Google, Microsoft...) even if they operate there, unless no local alternative "
+        f"exists. No tiny/unknown shops either. E.g. clothing in Colombia -> Studio F, Arturo Calle, Koaj, "
+        f"Chevignon, Gef, Leonisa (NOT Zara/H&M). Separated by |. If you know no brands from that country, leave empty>\n"
         f"FICHA: <does it have a Google Business profile / Google Maps listing with reviews? Well-known brands "
         f"and established local businesses almost always do. Reply SI, NO or NOSE>\n"
         f"RESENAS: <approx number of reviews on its listing if you know it; empty if not>")
@@ -1392,12 +1399,19 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
         })
     # Competidores: PRIMERO los de conocimiento (marcas líderes reconocidas); si el modelo
     # no dio, caemos a la recomendación real del motor y luego al campo del briefing.
+    # Gigantes genéricos que casi nunca son la respuesta útil de "competencia local":
+    # si aparecen, se descartan (y si la lista queda corta, se cae al respaldo).
+    _GLOBAL_DENY = {"amazon", "shein", "temu", "aliexpress", "ebay", "walmart", "mercadolibre",
+                    "google", "microsoft", "apple", "ibm", "oracle", "sap", "salesforce",
+                    "meta", "facebook", "openai", "chatgpt"}
     def _clean_comps(raw: str) -> list:
         out = []
         for c in (raw or "").replace("\n", "|").split("|"):
             c = c.strip(" -•\"'.").strip()
-            if (c and len(c) <= 40 and c.lower() not in ("nada", "none", "n/a")
-                    and not _looks_generic(c) and brand.lower() not in c.lower()):
+            cl = c.lower()
+            if (c and len(c) <= 40 and cl not in ("nada", "none", "n/a")
+                    and cl not in _GLOBAL_DENY
+                    and not _looks_generic(c) and brand.lower() not in cl):
                 out.append({"name": c})
         # dedup por nombre
         seen, dd = set(), []
@@ -1438,9 +1452,12 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
     else:
         gbp = None
     gbp_category = _f("CATEGORIA", mega)[:80]
-    # nº de reseñas: primero el del briefing en vivo; si no, el del conocimiento.
+    # nº de reseñas: primero el del briefing en vivo; si no, el del conocimiento. Un "0"
+    # se trata como DESCONOCIDO (None), no como "0 reseñas": la IA pone 0 cuando no da el
+    # dato, y sería falso decir "sin reseñas" en una ficha que sí las tiene.
     _rm = re.search(r"\d[\d.,]*", _f("RESENAS", mega)) or re.search(r"\d[\d.,]*", _f("RESENAS", comp_know))
-    gbp_reviews_n = (int(re.sub(r"[^\d]", "", _rm.group(0))) if _rm else None) if gbp else None
+    _rn = int(re.sub(r"[^\d]", "", _rm.group(0))) if _rm else None
+    gbp_reviews_n = (_rn if (_rn and _rn > 0) else None) if gbp else None
     _rt = re.search(r"([0-5][.,]\d)", _f("VALORACION", mega))
     gbp_rating = _rt.group(1).replace(",", ".") if (_rt and gbp) else None
     kw_ai = [k.strip(" -•\"") for k in _f("KEYWORDS", mega).split("|") if k.strip()][:5]
