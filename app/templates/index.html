@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<script>if(window.parent!==window){document.documentElement.classList.add('cl-embedded');}</script>
 <title>Diagnóstico de visibilidad gratis · Google y la IA · Cupperlab</title>
 <meta name="description" content="Analizamos tu web en vivo y medimos, de 0 a 100, qué tan visible eres en Google y en la IA. Recibes el informe completo en PDF, sin coste.">
 <meta name="theme-color" content="#F7F9FB">
@@ -32,6 +33,10 @@
   ::selection{background:var(--cy);color:var(--ink)}
   .disp{font-family:var(--disp)}.mono{font-family:var(--mono)}
   .wrap{max-width:1160px;margin:0 auto;padding-left:clamp(18px,4vw,24px);padding-right:clamp(18px,4vw,24px)}
+  /* Modo embebido en cupperlab.com (bloque del CMS): sin doble cabecera/pie;
+     el sitio ya pone su header/footer. Alinea el contenido al ancho del sitio (1180). */
+  html.cl-embedded header, html.cl-embedded footer{display:none!important}
+  html.cl-embedded .wrap{max-width:1180px}
   .kick{font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--cy-t);font-weight:500}
   .hidden{display:none!important}
   /* buttons */
