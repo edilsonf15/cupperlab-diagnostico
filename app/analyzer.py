@@ -87,6 +87,7 @@ class Result:
     categories: dict = field(default_factory=dict)
     meta: dict = field(default_factory=dict)
     signals: dict = field(default_factory=dict)
+    ssl_cert: dict = field(default_factory=dict)
     findings_good: list = field(default_factory=list)
     findings_improve: list = field(default_factory=list)
     psi: dict | None = None
@@ -106,13 +107,21 @@ async def _get(client: httpx.AsyncClient, url: str, timeout: float, method: str 
 
 
 async def fetch_home(client: httpx.AsyncClient, url: str):
-    r, dt = await _get(client, url, HOME_TIMEOUT)
+    # Reintenta https ANTES de caer a http: un fallo transitorio (timeout, corte
+    # de red) no significa que el sitio no tenga SSL. Sin esto, un timeout
+    # esporádico marcaba "sin HTTPS" en falso y hacía variar el resultado entre
+    # corridas.
+    last: Exception | None = None
+    for _ in range(3):
+        r, dt = await _get(client, url, HOME_TIMEOUT)
+        if not isinstance(r, Exception):
+            return r, "", dt
+        last = r
+    # Solo tras fallar https de verdad varias veces, prueba http://
+    alt = url.replace("https://", "http://", 1)
+    r, dt = await _get(client, alt, HOME_TIMEOUT)
     if isinstance(r, Exception):
-        # reintento sobre http:// si https falla
-        alt = url.replace("https://", "http://", 1)
-        r, dt = await _get(client, alt, HOME_TIMEOUT)
-        if isinstance(r, Exception):
-            return None, str(r), 0.0
+        return None, str(last or r), 0.0
     return r, "", dt
 
 
@@ -932,6 +941,17 @@ async def analyze(raw_url: str) -> Result:
         home_status = home.status_code
         home_time = dt
         https_ok = str(home.url).lower().startswith("https://")
+        # SSL real como fuente de verdad: aunque la home cayera a http por un
+        # fallo transitorio, si el dominio sirve un certificado válido en 443, SÍ
+        # tiene HTTPS. Evita el falso "sin SSL" y hace el resultado estable.
+        res.ssl_cert = {}
+        try:
+            res.ssl_cert = await asyncio.to_thread(
+                _ssl_cert_sync, urlparse(res.final_url).netloc or res.domain)
+        except Exception:  # noqa: BLE001
+            res.ssl_cert = {}
+        if res.ssl_cert.get("valid") is True:
+            https_ok = True
 
         meta = parse_home(home_html, res.final_url)
         # Analiza la pagina YA RENDERIZADA (JS ejecutado): capta schema, FAQ, contacto

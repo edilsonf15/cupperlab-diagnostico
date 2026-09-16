@@ -84,7 +84,7 @@ async def _ask(client: httpx.AsyncClient, provider: str, key: str, model: str,
 
         async def _call(use_grounding: bool):
             body = {"contents": [{"parts": [{"text": prompt}]}],
-                    "generationConfig": {"maxOutputTokens": max_tokens, "temperature": 0.3,
+                    "generationConfig": {"maxOutputTokens": max_tokens, "temperature": 0,
                                          "thinkingConfig": {"thinkingBudget": 0}}}  # sin "thinking": mucho más rápido
             if use_grounding:
                 body["tools"] = [{"google_search": {}}]   # busca en vivo, como la app de Gemini
@@ -142,7 +142,7 @@ async def _ask(client: httpx.AsyncClient, provider: str, key: str, model: str,
             return txt.strip()
         r = await client.post("https://api.openai.com/v1/chat/completions", headers=headers,
                               json={"model": model, "messages": [{"role": "user", "content": prompt}],
-                                    "max_tokens": max_tokens, "temperature": 0.3}, timeout=AI_BUDGET)
+                                    "max_tokens": max_tokens, "temperature": 0}, timeout=AI_BUDGET)
         r.raise_for_status()
         return r.json()["choices"][0]["message"]["content"].strip()
 
@@ -152,7 +152,7 @@ async def _ask(client: httpx.AsyncClient, provider: str, key: str, model: str,
         headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
         r = await client.post("https://api.perplexity.ai/chat/completions", headers=headers,
                               json={"model": model, "messages": [{"role": "user", "content": prompt}],
-                                    "max_tokens": max_tokens, "temperature": 0.2}, timeout=AI_BUDGET)
+                                    "max_tokens": max_tokens, "temperature": 0}, timeout=AI_BUDGET)
         r.raise_for_status()
         data = r.json()
         if sink is not None:
