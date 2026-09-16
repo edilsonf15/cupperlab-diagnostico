@@ -64,7 +64,9 @@ async def _embed_headers(request, call_next):
     resp = await call_next(request)
     resp.headers["Content-Security-Policy"] = (
         "frame-ancestors 'self' https://cupperlab.com https://*.cupperlab.com")
-    resp.headers.pop("X-Frame-Options", None)
+    # MutableHeaders (Starlette) no tiene .pop(); usar del con guardia.
+    if "x-frame-options" in resp.headers:
+        del resp.headers["X-Frame-Options"]
     return resp
 
 
