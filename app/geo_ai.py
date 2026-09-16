@@ -1404,12 +1404,23 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
     _GLOBAL_DENY = {"amazon", "shein", "temu", "aliexpress", "ebay", "walmart", "mercadolibre",
                     "google", "microsoft", "apple", "ibm", "oracle", "sap", "salesforce",
                     "meta", "facebook", "openai", "chatgpt"}
+    # Etiquetas del propio prompt que NO son competidores (por si el modelo no respeta
+    # el formato y se cuelan "FICHA: NO", "RESENAS: 0", etc.).
+    _LABELS = ("ficha", "resenas", "reseñas", "competidores", "valoracion", "valoración",
+               "categoria", "categoría", "sector", "zona", "recomienda", "keywords",
+               "entidades", "contenido", "mejoras", "no conozco", "no se", "ninguna",
+               "no aplica", "no hay")
     def _clean_comps(raw: str) -> list:
         out = []
         for c in (raw or "").replace("\n", "|").split("|"):
             c = c.strip(" -•\"'.").strip()
             cl = c.lower()
-            if (c and len(c) <= 40 and cl not in ("nada", "none", "n/a")
+            # descarta etiquetas del prompt, campos "algo: valor", y no-marcas
+            if ":" in c:
+                continue
+            if any(cl == lb or cl.startswith(lb + " ") for lb in _LABELS):
+                continue
+            if (c and 2 <= len(c) <= 40 and cl not in ("nada", "none", "n/a")
                     and cl not in _GLOBAL_DENY
                     and not _looks_generic(c) and brand.lower() not in cl):
                 out.append({"name": c})
