@@ -44,9 +44,9 @@ async def check_gbp(brand: str, place: str = "", domain: str = "") -> dict | Non
     bl = re.sub(r"\s+", "", brand.lower())
     # Varias formulaciones: marca+zona (desambigua cadenas homónimas), marca sola, y
     # marca+país. La primera que dé una ficha que coincida, gana.
+    # Máx 2 formulaciones para no quemar cuota de la Places API: marca+zona y marca sola.
     queries = []
-    for q in [(brand + (" " + place if place else "")).strip(), brand.strip(),
-              (brand + " " + dom_root).strip()]:
+    for q in [(brand + (" " + place if place else "")).strip(), brand.strip()]:
         if q and q not in queries:
             queries.append(q)
     saw_false = False

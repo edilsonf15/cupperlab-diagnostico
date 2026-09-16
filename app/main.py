@@ -192,9 +192,13 @@ async def _gbpdbg(brand: str = "", place: str = "", domain: str = ""):
     """TEMPORAL: diagnóstico de la Places API (no expone la clave). Muestra estado HTTP
     y los nombres que devuelve Google por cada formulación, para saber por qué no casa."""
     import os as _os  # noqa: PLC0415
+    import httpx  # noqa: PLC0415
     key = (_os.getenv("GOOGLE_PLACES_API_KEY", "").strip()
            or _os.getenv("GOOGLE_PSI_API_KEY", "").strip())
-    out = {"key_present": bool(key), "brand": brand, "place": place, "queries": []}
+    out = {"key_present": bool(key),
+           "key_src": ("PLACES" if _os.getenv("GOOGLE_PLACES_API_KEY", "").strip() else
+                       ("PSI" if _os.getenv("GOOGLE_PSI_API_KEY", "").strip() else "none")),
+           "brand": brand, "place": place, "queries": []}
     if not key:
         return JSONResponse(out)
     dom = (domain or "").split("/")[0].replace("www.", "").lower()
