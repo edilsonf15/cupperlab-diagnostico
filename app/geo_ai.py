@@ -66,29 +66,58 @@ def _looks_like_domain(s: str) -> bool:
 
 
 def derive_brand(meta: dict, domain: str) -> str:
+    # raíz del dominio (nafnaf.com.co -> "nafnaf") para reconocer qué trozo del título
+    # es la marca de verdad.
+    root = urlparse("https://" + domain).netloc or domain
+    root = re.sub(r"^www\.", "", root).split(".")[0]
+    root_norm = re.sub(r"[^a-z0-9]", "", root.lower())
+
     osn = (meta.get("og_site_name") or "").strip()
     if osn and not _looks_like_domain(osn) and not _is_junk_brand(osn):
         return osn
     title = (meta.get("title") or "").strip()
     if title and not _is_junk_brand(title):
-        # el nombre de marca suele ir tras el ultimo separador o antes del primero
         parts = re.split(r"\s[|\-–—:·]\s", title)
-        parts = [p.strip() for p in parts if p.strip() and not _is_junk_brand(p)]
+        parts = [p.strip() for p in parts if p.strip() and not _is_junk_brand(p)
+                 and p.strip().lower() not in STOP]
         if parts:
-            cand = min(parts, key=len) if len(parts) > 1 else parts[0]
-            if 2 <= len(cand) <= 40 and cand.lower() not in STOP:
+            # 1) El trozo cuya forma normalizada coincide con la raíz del dominio ES la
+            #    marca (p.ej. "NAF NAF Tienda de Ropa..." casa con "nafnaf"; el eslogan
+            #    "Tendencias en Moda Femenina" no). Antes cogíamos el trozo más corto y
+            #    salía el eslogan como si fuera el nombre.
+            for p in parts:
+                pn = re.sub(r"[^a-z0-9]", "", p.lower())
+                if root_norm and (root_norm in pn or pn in root_norm):
+                    # Recorta al prefijo mínimo de palabras que ya cubre la raíz del
+                    # dominio: "NAF NAF Tienda de Ropa Online" -> "NAF NAF" (nafnaf),
+                    # sin arrastrar la coletilla descriptiva.
+                    words = p.split()
+                    acc = ""
+                    for i, w in enumerate(words):
+                        acc += re.sub(r"[^a-z0-9]", "", w.lower())
+                        if root_norm in acc or acc == root_norm:
+                            cand = " ".join(words[:i + 1])
+                            if 2 <= len(cand) <= 40:
+                                return cand
+                    cand = " ".join(words[:4])
+                    if 2 <= len(cand) <= 40:
+                        return cand
+            # 2) Sin coincidencia con el dominio: el primer trozo (no el más corto).
+            cand = parts[0]
+            if 2 <= len(cand) <= 40:
                 return cand
     # Sin marca fiable: usa el nombre del dominio (mejor que "Cloudflare").
-    root = urlparse("https://" + domain).netloc or domain
-    root = root.split(".")[0]
     return root.capitalize()
 
 
 def derive_service(meta: dict) -> str:
     desc = (meta.get("description") or "").strip()
-    if desc:
+    if desc and not _is_junk_brand(desc):
         return desc[:160]
-    return (meta.get("title") or "").strip()[:120]
+    title = (meta.get("title") or "").strip()
+    if title and not _is_junk_brand(title):
+        return title[:120]
+    return ""
 
 
 async def _ask(client: httpx.AsyncClient, provider: str, key: str, model: str,
@@ -213,6 +242,14 @@ _SECTOR_HINTS = [
                               "community manager", "redes sociales para empresas"]),
     ("inmobiliaria", ["inmobiliaria", "pisos", "propiedades", "bienes raíces", "raices", "venta de casas", "alquiler de"]),
     ("restaurante/hostelería", ["restaurante", "cafetería", "cafeteria", "catering", "menú del día", "bar de", "gastro"]),
+    # Moda/ropa ANTES del ecommerce genérico: una tienda de ropa NO debe caer en
+    # "tienda online" (daba competidores de electrónica en vez de moda).
+    ("tienda de ropa / moda", ["ropa", "moda", "vestido", "vestidos", "jeans", "jean", "camisa", "camiseta",
+                                "blusa", "pantal", "falda", "chaqueta", "abrigo", "prendas", "colección",
+                                "coleccion", "outfit", "fashion", "boutique", "moda femenina", "moda masculina",
+                                "ropa urbana", "streetwear", "denim"]),
+    ("calzado / zapatería", ["calzado", "zapatos", "zapatillas", "tenis", "sneakers", "botas", "sandalias"]),
+    ("joyería / accesorios", ["joyería", "joyeria", "joyas", "relojes", "bisutería", "bisuteria", "accesorios de moda"]),
     ("tienda online / ecommerce", ["tienda online", "comprar", "envío", "carrito", "añadir a la cesta", "producto"]),
     ("reformas/construcción", ["reformas", "construcción", "construccion", "fontaner", "electricista", "albañil", "obra"]),
     ("academia/formación", ["academia", "curso", "formación", "formacion", "escuela de", "clases de", "máster", "oposicion"]),
@@ -247,6 +284,8 @@ def short_category(meta: dict) -> str:
     if sec:
         return sec
     d = (meta.get("description") or meta.get("title") or "").strip()
+    if _is_junk_brand(d):   # página de reto/bloqueo: no es una categoría real
+        return ""
     # Corta en el primer separador o conector: deja solo el núcleo (categoría).
     d = re.split(r"[,.;:\-–—|]|\bque\b|\bpara\b|\bcon\b|\bsin\b", d, 1, flags=re.I)[0].strip()
     words = d.split()[:6]
@@ -569,6 +608,17 @@ async def run_ai_geo(domain: str, meta: dict) -> dict | None:
     fraseos, el veredicto deja de contradecirse. Competencia enfocada en el pais
     del dominio real.
     """
+    # Web bloqueada por anti-bots: no pudimos leer el contenido real. NO inventamos
+    # marca, país ni competidores a partir de una página de reto (Cloudflare/WAF).
+    if meta.get("blocked"):
+        _root = re.sub(r"^www\.", "", domain).split(".")[0]
+        return {"available": True, "blocked": True, "limited": True, "brand": _root.capitalize(),
+                "error": "blocked",
+                "note": ("No pudimos leer tu web porque tiene una protección anti-bots "
+                         "(Cloudflare/WAF) que bloquea el análisis automático. Para un "
+                         "diagnóstico de IA fiable hay que revisarla con acceso o permitir "
+                         "el rastreo.")}
+
     eng = await _pick_working_engine()
     if not eng:
         return None
@@ -1110,6 +1160,16 @@ async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | N
     ficha/reseñas y evaluación de contenido, en una sola llamada grounded + una barata
     sin búsqueda para el reconocimiento 'de memoria'. Devuelve el mismo shape que
     run_ai_geo (+ 'content'). None si no hay motor de IA."""
+    # Web bloqueada por anti-bots: no leímos el contenido real. NO inventamos marca,
+    # país ni competidores desde una página de reto (Cloudflare/WAF): sería mentir.
+    if (meta or {}).get("blocked"):
+        _root = re.sub(r"^www\.", "", domain).split(".")[0]
+        return {"available": True, "blocked": True, "limited": True, "brand": _root.capitalize(),
+                "error": "blocked",
+                "note": ("No pudimos leer tu web porque tiene una protección anti-bots "
+                         "(Cloudflare/WAF) que bloquea el análisis automático. Para el "
+                         "diagnóstico de IA hay que revisarla con acceso o permitir el rastreo.")}
+
     _engines = _pick_engines()
     eng = _engines[0] if _engines else await _pick_working_engine()
     if not eng:

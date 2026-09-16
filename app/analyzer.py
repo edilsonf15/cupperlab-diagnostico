@@ -985,6 +985,20 @@ async def analyze(raw_url: str) -> Result:
                 pass
             if len(rendered_html) > len(home_html or ""):
                 home_html = rendered_html  # rendered para enlaces internos + pais
+        # ¿La web está bloqueada por anti-bots (Cloudflare/WAF) y NO pudimos leer el
+        # contenido real? Si es así, marcamos meta["blocked"] para NO inventar marca,
+        # categoría, país ni competidores a partir de una página de reto.
+        _bl = (home_html or "")
+        _bl_low = _bl.lower()
+        _blocked = (
+            home_status >= 400
+            or len(_bl) < 2500
+            or bool(re.search(r"just a moment|attention required|cf-browser-verification|"
+                              r"checking your browser|challenge-platform|_cf_chl_|access denied|"
+                              r"acceso denegado|enable javascript and cookies to continue|"
+                              r"verifying you are human|error 10\d\d", _bl_low))
+        ) and not bool(re.search(r"<main|<article|<section", _bl_low))
+        meta["blocked"] = bool(_blocked)
         # Pais real por contenido (telefono/menciones), no solo por TLD
         country = detect_country(home_html, res.domain)
         meta["country"] = country.get("name", "")

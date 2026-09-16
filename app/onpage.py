@@ -289,21 +289,32 @@ def _parse_page(url: str, html: str, status: int, base_net: str) -> dict:
         tag.decompose()
     text = re.sub(r"\s+", " ", soup.get_text(" ", strip=True))
     word_count = len(text.split())
-    # Dirección en texto plano: calle/vía CON número + código postal (ES/LatAm), sin
-    # depender de schema. Se exige el número de portal junto a la vía y un CP con nombre de
-    # localidad cerca, para no marcar como dirección cualquier "av" suelto o cualquier cifra.
+    # Dirección real: SOLO si hay una vía+número dentro de un CONTEXTO de dirección
+    # (etiqueta <address>, el pie de página, o cerca de "dirección/sede/oficina/
+    # ubícanos"). Buscar el patrón en TODO el texto daba falsos positivos en blogs
+    # (cualquier "Calle... 2024" o cifra suelta se tomaba por dirección).
     if not l_addr:
-        _tl = text.lower()
-        # vía reconocible + número de portal (p.ej. "Calle Mayor 12", "Av. Insurgentes 500")
-        _street = bool(re.search(
-            r"\b(c/|calle|avda?\.?|avenida|carrera|cra\.?|cll\.?|pol[íi]gono|"
-            r"carrer|r[úu]a|jir[óo]n|jr\.?|street|road|avenue|ave\.?|blvd|boulevard)\b"
-            r"[^\d\n]{0,30}\d{1,4}", _tl))
-        # código postal seguido (o precedido) de nombre de localidad con inicial mayúscula
-        _cp = bool(re.search(r"\b\d{4,6}\b[\s,.-]+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]{2,}", text)
-                   or re.search(r"[A-ZÁÉÍÓÚÑ][a-záéíóúñ]{2,}[\s,]+\b\d{4,6}\b", text))
-        if _street and _cp:
-            l_addr = True
+        _street_re = re.compile(
+            r"\b(c/|calle|avda?\.?|avenida|carrera|cra\.?|cll\.?|diagonal|transversal|"
+            r"pol[íi]gono|carrer|r[úu]a|jir[óo]n|jr\.?|street|road|avenue|ave\.?|blvd|"
+            r"boulevard)\b[^\d\n]{0,25}\d{1,4}", re.I)
+        _ctx_blobs = []
+        try:
+            for adr in soup.find_all("address"):
+                _ctx_blobs.append(adr.get_text(" ", strip=True))
+            for foot in soup.find_all("footer"):
+                _ctx_blobs.append(foot.get_text(" ", strip=True))
+            # bloque cercano a una palabra de dirección
+            for m in re.finditer(r"(direcci[óo]n|nuestra sede|oficinas?|ub[íi]canos|"
+                                 r"encu[ée]ntranos|vis[íi]tanos|c[óo]mo llegar|headquarters|"
+                                 r"our address|find us)", text, re.I):
+                _ctx_blobs.append(text[m.start():m.start() + 160])
+        except Exception:  # noqa: BLE001
+            pass
+        for _blob in _ctx_blobs:
+            if _street_re.search(_blob or ""):
+                l_addr = True
+                break
 
     lang = ""
     htmltag = soup.find("html")

@@ -1174,10 +1174,12 @@
     if(!ai.available&&meta.has_address==null&&meta.has_phone==null)return null;
     var types=(op.schema&&op.schema.types)||meta.schema_types||[];
     var lb=types.some(function(t){return /localbusiness|professionalservice/.test(t);});
-    var gbp=ai.gbp,rev=ai.gbp_reviews_n||0;
+    var gbp=ai.gbp,rev=ai.gbp_reviews_n;  // rev null = no se pudo leer (distinto de 0)
+    var hasTest=!!meta.has_testimonials;
     var st=[],add=function(k,s,w){st.push({k:k,s:s,w:w});};
     add("gbp",gbp===true?"ok":(gbp===false?"bad":"warn"),24);
-    add("reviews",(gbp&&rev>0)?"ok":(gbp?"warn":"bad"),22);
+    // Reputación: reseñas reales de la ficha > testimonios visibles en la web > nada.
+    add("reviews",(gbp&&rev>0)?"ok":((hasTest||gbp)?"warn":"bad"),22);
     add("nap",(meta.has_address&&meta.has_phone)?"ok":((meta.has_address||meta.has_phone)?"warn":"bad"),16);
     add("map",(meta.has_map||meta.has_geo)?"ok":"warn",12);
     add("lb",lb?"ok":"warn",16);
@@ -1186,7 +1188,10 @@
     var val={ok:100,warn:55,bad:0},sw=0,ss=0;st.forEach(function(p){sw+=p.w;ss+=val[p.s]*p.w;});
     var score=sw?Math.round(ss/sw):0;
     var GOOD={gbp:P("tienes ficha de Google Business","you have a Google Business profile"),reviews:P("tienes reseñas ("+rev+")","you have reviews ("+rev+")"),nap:P("tu dirección y teléfono están claros","your address and phone are clear"),map:P("incrustas un mapa en tu web","you embed a map on your site"),lb:P("marcas tu negocio con datos estructurados","you mark up your business with structured data"),hours:P("publicas tus horarios","you publish your opening hours"),categoria:P("tu ficha tiene categoría definida","your profile has a set category")};
-    var BAD={gbp:P("no encontramos tu ficha de Google Business","we couldn't find your Google Business profile"),reviews:(gbp?P("tu ficha no tiene reseñas","your profile has no reviews"):P("no tienes reseñas visibles","you have no visible reviews")),nap:((meta.has_address||meta.has_phone)?P("faltan datos de contacto (dirección o teléfono)","contact details are incomplete (address or phone)"):P("no muestras dirección ni teléfono","you show no address or phone")),map:P("no incrustas un mapa en tu web","you don't embed a map on your site"),lb:P("no marcas tu negocio con datos estructurados (LocalBusiness)","you don't mark up your business (LocalBusiness)"),hours:P("no publicas tus horarios de atención","you don't publish opening hours"),categoria:P("tu ficha no tiene una categoría clara","your profile has no clear category")};
+    // reviews en BAD: distingue "muestras testimonios en tu web (falta marcarlos)" de
+    // "no tienes reseñas visibles"; y no afirma "0 reseñas" si no se pudo leer la ficha.
+    var revBad=gbp?(rev===0?P("tu ficha no tiene reseñas","your profile has no reviews"):(hasTest?P("muestras testimonios en tu web, márcalos como reseñas (Review)","you show testimonials on your site, mark them up as reviews (Review)"):P("aún no confirmamos reseñas en tu ficha","we couldn't confirm reviews on your profile"))):(hasTest?P("muestras testimonios en tu web, pero sin ficha ni marcado de reseñas","you show testimonials on your site, but no profile or review markup"):P("no tienes reseñas visibles","you have no visible reviews"));
+    var BAD={gbp:P("no encontramos tu ficha de Google Business","we couldn't find your Google Business profile"),reviews:revBad,nap:((meta.has_address||meta.has_phone)?P("faltan datos de contacto (dirección o teléfono)","contact details are incomplete (address or phone)"):P("no muestras dirección ni teléfono","you show no address or phone")),map:P("no incrustas un mapa en tu web","you don't embed a map on your site"),lb:P("no marcas tu negocio con datos estructurados (LocalBusiness)","you don't mark up your business (LocalBusiness)"),hours:P("no publicas tus horarios de atención","you don't publish opening hours"),categoria:P("tu ficha no tiene una categoría clara","your profile has no clear category")};
     var desc=mkDesc(st,GOOD,BAD,P("Buena presencia local: ficha, reseñas y ubicación en orden.","Good local presence: profile, reviews and location in order."));
     return {score:score,desc:desc,points:st};
   }
@@ -1195,7 +1200,7 @@
     if(!ai.available&&meta.has_address==null&&meta.has_phone==null)return out;
     var types=(op.schema&&op.schema.types)||meta.schema_types||[];
     var lb=types.some(function(t){return /localbusiness|professionalservice/.test(t);});
-    var rev=ai.gbp_reviews_n||0;
+    var rev=ai.gbp_reviews_n;  // null = no se pudo leer (distinto de 0 reseñas reales)
     if(ai.gbp===false)out.push({sev:"critico",t:P("No encontramos tu ficha de Google Business","We couldn't find your Google Business profile"),d:P("Sin ficha no apareces en el mapa ni en las búsquedas locales, y pierdes las reseñas que Google y la IA usan para recomendarte. Una ficha activa y bien completa (categoría, dirección, teléfono, horario, fotos) es de lo que más mueve tu visibilidad local.","Without a profile you don't appear on the map or in local searches, and you lose the reviews Google and AI use to recommend you. Create it for free and complete it (category, address, phone, hours, photos).")});
     else if(ai.gbp===true&&rev===0)out.push({sev:"op",t:P("Tu ficha de Google no tiene reseñas","Your Google profile has no reviews"),d:P("Las reseñas son de lo que más miran los clientes y la IA para elegir. Pide reseñas a tus clientes contentos: suben tu posición local y tu confianza.","Reviews are one of the things customers and AI look at most when choosing. Ask your happy customers for reviews: they boost your local ranking and trust.")});
     if(!(meta.has_address&&meta.has_phone))out.push({sev:"op",t:P("Faltan datos de contacto claros (NAP)","Missing clear contact details (NAP)"),d:P("No mostramos "+(!meta.has_address?P("tu dirección","your address"):P("tu teléfono","your phone"))+" de forma clara. El nombre, la dirección y el teléfono (NAP) deben aparecer iguales en la web y en tu ficha para que Google y la IA confíen en ti.","We couldn't clearly find "+(!meta.has_address?P("your address","your address"):P("your phone","your phone"))+". Your name, address and phone (NAP) should appear the same on the site and your profile so Google and AI trust you.")});

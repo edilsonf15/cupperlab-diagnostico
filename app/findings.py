@@ -47,6 +47,13 @@ def perf_findings(r, P):
     inf = pf.get("infra") or {}
     D = pf.get("desktop") or {}
     dmx = D.get("metrics") or {}
+    # Regla del cliente: si la velocidad GENERAL está bien en móvil Y escritorio (>=80),
+    # NO ensuciamos los hallazgos con avisos de velocidad, aunque una submétrica (p.ej.
+    # LCP) puntúe bajo. Las tarjetas de dimensión ya muestran el detalle fino.
+    _ms = M.get("score")
+    _ds = D.get("score")
+    if (_ms is not None and _ms >= 80) and (_ds is not None and _ds >= 80):
+        return []
     out = []
 
     def sv(s):
