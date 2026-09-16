@@ -1028,18 +1028,31 @@ async def _engine_probe(client, eng, brand, domain, q_mem, q_brand, cat_prompt, 
     web = bool(eng.get("always_web"))
     # Consulta de MARCA CON búsqueda en vivo (prueba real: qué dice de ti + fuentes) y la
     # medición de categoría. 2 llamadas por motor.
+    # 3 consultas por motor:
+    #  - q_mem  (SIN búsqueda): ¿te reconoce DE MEMORIA? -> reconocimiento real.
+    #  - q_brand(CON búsqueda): prueba de cómo te cita + fuentes.
+    #  - cat_prompt (CON búsqueda): ¿apareces cuando piden tu servicio? (X/N).
     try:
-        brand_ans, combo = await asyncio.gather(
+        mem_ans, brand_ans, combo = await asyncio.gather(
+            _ask(client, prov, key, model, q_mem, max_tokens=200, grounded=False),
             _ask(client, prov, key, strong, q_brand, max_tokens=240, grounded=True, sink=srcs),
             _ask(client, prov, key, strong, cat_prompt, max_tokens=900, grounded=True),
             return_exceptions=True)
     except Exception:  # noqa: BLE001
-        brand_ans, combo = Exception("e"), Exception("e")
-    if isinstance(brand_ans, Exception) and isinstance(combo, Exception):
+        mem_ans, brand_ans, combo = Exception("e"), Exception("e"), Exception("e")
+    if isinstance(brand_ans, Exception) and isinstance(combo, Exception) and isinstance(mem_ans, Exception):
         return {"name": eng["name"], "provider": prov, "failed": True}
+    mem_ans = _strip_cites(mem_ans).strip() if isinstance(mem_ans, str) else ""
     brand_ans = _strip_cites(brand_ans).strip() if isinstance(brand_ans, str) else ""
-    knows = bool(brand_ans) and "no_lo_se" not in brand_ans.lower() and len(brand_ans) > 15
-    recognition = "strong" if knows else "none"
+
+    def _affirms(a: str) -> bool:
+        a = (a or "").lower()
+        return bool(a) and "no_lo_se" not in a and "no lo s" not in a and "no tengo" not in a and len(a) > 25
+
+    knows_mem = _affirms(mem_ans)        # te conoce por su cuenta (de memoria)
+    knows_web = _affirms(brand_ans)      # lo encuentra buscando / con el dominio
+    knows = knows_mem or knows_web
+    recognition = "strong" if knows_mem else ("weak" if knows_web else "none")
     combo = combo if isinstance(combo, str) else ""
     questions, appears, valid, comps = _measure_appearances(combo, cat_queries, brand, domain)
     _own = (domain or "").split("/")[0].replace("www.", "").lower()
