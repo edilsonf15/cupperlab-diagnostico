@@ -395,33 +395,28 @@ def schema_findings(r, P):
     out = []
     if not by["org"]:
         out.append({"sev": "critico", "t": P("Falta el marcado de tu empresa (Organization)", "Missing company markup (Organization)"),
-                    "d": P("El Schema Organization le dice a Google y a la IA tu nombre, logo, contacto y perfiles oficiales. Es la base para que te reconozcan como entidad. Añádelo en todo el sitio.",
-                           "Organization Schema tells Google and AI your name, logo, contact and official profiles. It's the base for being recognized as an entity. Add it site-wide.")})
-    if not by["website"]:
-        out.append({"sev": "op", "t": P("Falta WebSite + búsqueda del sitio (SearchAction)", "Missing WebSite + SearchAction"),
-                    "d": P("El marcado WebSite con SearchAction permite que Google muestre tu buscador interno en los resultados. Un extra que da imagen de marca sólida.",
-                           "WebSite markup with SearchAction lets Google show your internal search box in results. An extra that signals a solid brand.")})
+                    "d": P("Los datos estructurados son etiquetas invisibles en el código que le explican a Google y a la IA qué es tu negocio (nombre, logo, contacto). Sin la etiqueta de empresa (Organization), no te reconocen como una marca real y fiable.",
+                           "Structured data are invisible tags in the code that tell Google and AI what your business is (name, logo, contact). Without the company tag (Organization), you're not recognized as a real, trustworthy brand.")})
     if not by["prodserv"]:
-        out.append({"sev": "op", "t": P("Falta marcar tus productos o servicios", "Product/Service markup missing"),
-                    "d": P("Marcar cada servicio o producto con Schema ayuda a Google y a la IA a saber exactamente qué ofreces y a mostrarte cuando lo buscan.",
-                           "Marking each service or product with Schema helps Google and AI know exactly what you offer and show you when it's searched.")})
+        out.append({"sev": "op", "t": P("No marcas tus productos o servicios", "Products/services not marked up"),
+                    "d": P("No tienes las etiquetas invisibles que le dicen a Google y a la IA qué productos o servicios ofreces, así que no saben exactamente qué vendes cuando alguien lo busca.",
+                           "You don't have the invisible tags that tell Google and AI which products or services you offer, so they don't know exactly what you sell when someone searches.")})
     if not by["review"]:
-        # Solo hecho verificable: NO hay Schema Review/AggregateRating. No afirmamos si
-        # "tiene testimonios" o no (detectarlos por HTML es poco fiable y daba falsos).
-        out.append({"sev": "op", "t": P("Falta marcar reseñas y valoraciones (Review)", "Missing Review/Rating markup"),
-                    "d": P("Si tienes reseñas o valoraciones de clientes, márcalas con Schema Review/AggregateRating: Google puede mostrar tus estrellas en los resultados y la IA lo usa como señal de confianza.",
-                           "If you have customer reviews or ratings, mark them up with Review/AggregateRating Schema: Google can show your stars in results and AI uses it as a trust signal.")})
+        # Solo hecho verificable: NO hay Schema Review/AggregateRating.
+        out.append({"sev": "op", "t": P("Tus reseñas no aparecen como estrellas en Google", "Your reviews don't show as stars on Google"),
+                    "d": P("No tienes la etiqueta invisible de valoraciones (Review). Es la que hace que Google pueda mostrar las estrellas doradas junto a tu web en los resultados, y la IA la usa como señal de confianza.",
+                           "You don't have the invisible reviews tag (Review). It's what lets Google show the gold stars next to your site in results, and AI uses it as a trust signal.")})
     sch = (r.get("onpage") or {}).get("schema") or {}
     errs = sch.get("errors") or 0
     incompl = sch.get("incomplete") or []
     if errs > 0:
-        out.append({"sev": "op", "t": P("Tus datos estructurados tienen errores de formato", "Your structured data has format errors"),
-                    "d": P("Detectamos " + str(errs) + " bloque(s) de datos estructurados que no son JSON válido, así que Google los ignora. Corrige el formato para que cuenten.",
-                           "We found " + str(errs) + " structured-data block(s) that aren't valid JSON, so Google ignores them. Fix the format so they count.")})
+        out.append({"sev": "op", "t": P("Tus datos estructurados tienen errores y Google los ignora", "Your structured data has errors and Google ignores it"),
+                    "d": P("Detectamos " + str(errs) + " bloque(s) de esas etiquetas invisibles mal escritas (no son código válido), así que Google no las lee y no te sirven de nada.",
+                           "We found " + str(errs) + " block(s) of those invisible tags written incorrectly (not valid code), so Google can't read them and they're useless.")})
     if incompl:
-        out.append({"sev": "op", "t": P("A tus datos estructurados les faltan datos", "Your structured data is incomplete"),
-                    "d": P("Algunas de tus etiquetas (" + ", ".join(str(x.get("type")) for x in incompl[:3]) + ") no traen toda la información que Google pide, así que no te darán los resultados destacados (estrellas, imágenes, precios). Conviene completarlas para que cuenten.",
-                           "Some of your tags (" + ", ".join(str(x.get("type")) for x in incompl[:3]) + ") don't carry all the info Google asks for, so they won't earn rich results (stars, images, prices). Completing them makes them count.")})
+        out.append({"sev": "op", "t": P("A tus etiquetas invisibles les falta información", "Your invisible tags are incomplete"),
+                    "d": P("Algunas de tus etiquetas (" + ", ".join(str(x.get("type")) for x in incompl[:3]) + ") no traen todos los datos que Google pide, así que no consigues los resultados llamativos (estrellas, fotos, precios) que atraen clics.",
+                           "Some of your tags (" + ", ".join(str(x.get("type")) for x in incompl[:3]) + ") don't carry all the data Google asks for, so you don't get the eye-catching results (stars, photos, prices) that attract clicks.")})
     return out
 
 
