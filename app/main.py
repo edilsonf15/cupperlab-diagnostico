@@ -454,6 +454,10 @@ async def _pipeline(job_id: str, url: str, lang: str) -> None:
         own = domain.replace("www.", "")
         for e in (sr["google"].get("competitors_full") or []):
             d = e["domain"]
+            # Solo competidores CONSISTENTES en Google (aparecen en >=2 de las búsquedas
+            # de la categoría = jugadores reales del mercado), no un dominio suelto/débil.
+            if (e.get("hits") or 0) < 2:
+                continue
             if d in known or d == own or any(d.endswith(s) for s in (
                     "google.com", "facebook.com", "instagram.com", "youtube.com", "wikipedia.org",
                     "linkedin.com", "tiktok.com", "amazon.es", "amazon.com", "mercadolibre.com.co")):

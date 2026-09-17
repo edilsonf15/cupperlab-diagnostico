@@ -704,9 +704,14 @@ async def run_geo(identity: dict, lang: str = "es") -> dict:
                               cites=len([s for s in srcs if not s["own"]]), sources=srcs[:8], proof=desc)
 
     # ---- Competidores citados de verdad por las IAs ----
+    # Preferimos los FUERTES y consistentes: los que varios motores repiten (los líderes
+    # que dominan la respuesta), no menciones sueltas de marcas pequeñas/artesanales
+    # (que salían y parecían "los más malos"). Si hay pocos fuertes, completamos por fuerza.
     comps = sorted(comp_agg.values(), key=lambda c: (-len(c["cited_by"]), -c["hits"]))
+    strong = [c for c in comps if len(c["cited_by"]) >= 2 or c["hits"] >= 2]
+    chosen = strong if len(strong) >= 3 else comps[:6]
     competitors = [{"name": c["name"], "domain": c["domain"] or None, "cited_by": sorted(c["cited_by"]),
-                    "hits": c["hits"], "source": "ai"} for c in comps[:8]]
+                    "hits": c["hits"], "source": "ai"} for c in chosen[:6]]
 
     # ---- Agregados ----
     share = (brand_mentions / total_mentions) if total_mentions else None

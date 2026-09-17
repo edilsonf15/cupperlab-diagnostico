@@ -483,6 +483,20 @@ def detect_country(html: str, domain: str) -> dict:
         # pais. Sin esto, koaj.co (Colombia) se confundia con España.
         add("co", 1.8, "tld")
 
+    # 2c) Identificadores FISCALES (footer / aviso legal): señal MUY fuerte del país
+    #     real de operación, incluso en dominios .com. Cada país tiene el suyo.
+    _TAXID = [
+        ("es", r"\b(?:C\.?I\.?F|N\.?I\.?F)\b[\s.:]*[A-Z]?\-?\d"),          # España CIF/NIF
+        ("co", r"\bNIT\b[\s.:]*\d"),                                        # Colombia NIT
+        ("mx", r"\bRFC\b[\s.:]*[A-Z&Ñ]{3,4}\d"),                            # México RFC
+        ("pe", r"\bRUC\b[\s.:]*\d{11}"),                                    # Perú RUC (11 díg)
+        ("ar", r"\bCUIT\b[\s.:]*\d"),                                       # Argentina CUIT
+        ("cl", r"\b(?:R\.?U\.?T)\b[\s.:]*\d{1,2}\.\d{3}\.\d{3}"),           # Chile RUT (con puntos)
+    ]
+    for gl, pat in _TAXID:
+        if re.search(pat, h, re.I):
+            add(gl, 3.5, "identificador fiscal")
+
     # 3) Menciones de contenido: el NOMBRE del pais pesa mucho; ciudades, menos.
     for gl, (name, kws) in _GEO_HINTS.items():
         score = 0.0

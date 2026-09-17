@@ -154,10 +154,12 @@ async def resolve(brand: str, domain: str, city_hint: str = "", country_hint_cc:
                     # Si la ficha enlaza OTRA web, NO es la del cliente (evita falsos positivos).
                     web_conflict = bool(web and not same_web)
                     score = (3 if same_web else 0) + sim + (0.5 if same_city else 0)
-                    # SOLO se acepta con evidencia fuerte: web coincidente (fiable al 100%) o
-                    # nombre casi idéntico + misma ciudad + sin web en conflicto. Nada de
-                    # aceptar por nombre parecido a secas (eso daba "tiene ficha" en falso).
-                    accept = same_web or (sim >= 0.92 and same_city and not web_conflict)
+                    # Se acepta con: web coincidente (fiable al 100%) O nombre muy parecido
+                    # EN LA MISMA CIUDAD que detectamos del sitio (muchas fichas legítimas
+                    # solo tienen el nombre, sin web; la misma ciudad la hace casi seguro
+                    # suya) siempre que la ficha no enlace OTRA web distinta. Sin ciudad
+                    # coincidente NO aceptamos por nombre (evita el cruce entre ciudades).
+                    accept = same_web or (sim >= 0.85 and same_city and not web_conflict)
                     if accept and (best is None or score > best[0]):
                         best = (score, p, name, web, city, cc, q)
                 if best and best[0] >= 3:
