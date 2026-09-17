@@ -682,7 +682,7 @@
     perf_kick:["01 · Rendimiento","01 · Performance"],
     perf_h:["Velocidad y experiencia de carga","Speed and loading experience"],
     cls_critico:["Crítico","Critical"],cls_mejorable:["Mejorable","Needs work"],cls_optimo:["Óptimo","Optimal"],
-    hall_title:["Hallazgos de tu sitio","Findings on your site"],
+    hall_title:["Hallazgos principales","Key findings"],
     next_kick:["El siguiente paso","The next step"],
     next_h:["Repasémoslo juntos en 30 minutos","Let's review it together in 30 minutes"],
     next_p:["En una videollamada corta te enseñamos, sobre tu propia web, los cambios que más te van a mover para vender más. Gratis y sin compromiso.","In a short video call we show you, on your own site, the changes that will move you most to sell more. Free, no commitment."],
@@ -1398,23 +1398,43 @@
     document.getElementById("hallTitle").textContent=t("hall_title");
     function hc(x){var isC=x.sev==="critico";var nfo=findInfo(x.t+" "+(x.d||""));var info=nfo?'<span class="info" tabindex="0" aria-label="'+esc(nfo)+'"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6v.1"/></svg><span class="tip">'+esc(nfo)+'</span></span>':'';return '<div class="hcard'+(isC?"":" op")+'"><span class="htag">'+(isC?t("tag_critico"):t("tag_oportunidad"))+'</span><p class="hti">'+esc(x.t)+info+'</p><p class="hd2">'+esc(x.d)+'</p></div>';}
     var hgroups=[
-      {ic:"ai",c:P("Visibilidad en la IA (GEO)","AI visibility (GEO)"),f:geoFindings(r)},
-      {ic:"speed",c:P("Velocidad y rendimiento","Speed & performance"),f:perfFindings(r)},
-      {ic:"seo",c:P("SEO on-page","On-page SEO"),f:onpageFindings(r)},
-      {ic:"content",c:P("Contenido y relevancia","Content & relevance"),f:contentFindings(r)},
-      {ic:"tech",c:P("Salud técnica e indexación","Technical & indexing"),f:techFindings(r)},
-      {ic:"geo",c:P("Datos estructurados (Schema)","Structured data (Schema)"),f:schemaFindings(r)},
-      {ic:"geo",c:P("Presencia local y reputación","Local presence & reputation"),f:localFindings(r)},
-      {ic:"shield",c:P("Seguridad","Security"),f:securityFindings(r)}
+      {ic:"ai",k:"geo",c:P("Visibilidad en la IA (GEO)","AI visibility (GEO)"),f:geoFindings(r)},
+      {ic:"speed",k:"perf",c:P("Velocidad y rendimiento","Speed & performance"),f:perfFindings(r)},
+      {ic:"seo",k:"seo",c:P("SEO on-page","On-page SEO"),f:onpageFindings(r)},
+      {ic:"content",k:"content",c:P("Contenido y relevancia","Content & relevance"),f:contentFindings(r)},
+      {ic:"tech",k:"tech",c:P("Salud técnica e indexación","Technical & indexing"),f:techFindings(r)},
+      {ic:"geo",k:"schema",c:P("Datos estructurados (Schema)","Structured data (Schema)"),f:schemaFindings(r)},
+      {ic:"geo",k:"local",c:P("Presencia local y reputación","Local presence & reputation"),f:localFindings(r)},
+      {ic:"shield",k:"sec",c:P("Seguridad","Security"),f:securityFindings(r)}
     ];
-    var hh="";
+    // Web = vistazo rápido: solo los hallazgos principales (críticos primero, luego los de las dimensiones más flojas).
+    // El detalle completo (hasta 6 por bloque) va en el PDF que se envía por correo.
+    var TOP_FINDINGS=6;
+    var dimScore={};dims.forEach(function(d){if(d.score!=null&&d.grp){dimScore[d.grp]=(dimScore[d.grp]==null)?d.score:Math.min(dimScore[d.grp],d.score);}});
+    var pool=[],total=0;
     hgroups.forEach(function(g){
-      var items=(g.f||[]).slice().sort(function(a,b){return (a.sev==="critico"?0:1)-(b.sev==="critico"?0:1);}).slice(0,6);
-      if(!items.length)return;
-      var nc=items.filter(function(x){return x.sev==="critico";}).length;
-      hh+='<div class="hcat"><span class="di" style="width:20px;height:20px;border-radius:6px;background:var(--cyd);color:var(--cy-d);display:inline-flex;align-items:center;justify-content:center">'+icon(g.ic)+'</span>'+esc(g.c)+'<span class="hcn">'+items.length+(nc?" · "+nc+" "+P("crítico"+(nc>1?"s":""),"critical"):"")+'</span></div>';
-      hh+='<div class="dgrid" style="margin-bottom:8px">'+items.map(hc).join("")+'</div>';
+      var items=(g.f||[]);total+=items.length;
+      items.forEach(function(x,idx){pool.push({x:x,c:g.c,ic:g.ic,idx:idx,sc:(dimScore[g.k]!=null?dimScore[g.k]:60)});});
     });
+    pool.sort(function(a,b){
+      var ca=a.x.sev==="critico"?0:1,cb=b.x.sev==="critico"?0:1;
+      if(ca!==cb)return ca-cb;            // críticos primero
+      if(a.sc!==b.sc)return a.sc-b.sc;    // dimensión más floja primero
+      return a.idx-b.idx;                 // orden original dentro del bloque
+    });
+    // máximo 2 por bloque para que no se coma todo una sola dimensión
+    var perCat={},top=[];
+    pool.forEach(function(e){if(top.length>=TOP_FINDINGS)return;perCat[e.c]=(perCat[e.c]||0);if(perCat[e.c]>=2)return;perCat[e.c]++;top.push(e);});
+    var hh="";
+    if(top.length){
+      var nc=top.filter(function(e){return e.x.sev==="critico";}).length;
+      hh+='<div class="hcat">'+P("Lo más importante","What matters most")+'<span class="hcn">'+top.length+(nc?" · "+nc+" "+P("crítico"+(nc>1?"s":""),"critical"):"")+'</span></div>';
+      hh+='<div class="dgrid" style="margin-bottom:8px">'+top.map(function(e){
+        return hc(e.x).replace('<span class="htag">','<span class="htag" style="display:inline-flex;align-items:center;gap:6px"><span class="di" style="width:16px;height:16px;border-radius:4px;background:var(--cyd);color:var(--cy-d);display:inline-flex;align-items:center;justify-content:center">'+icon(e.ic)+'</span>'+esc(e.c)+' · ');
+      }).join("")+'</div>';
+      var rest=total-top.length;
+      if(rest>0)hh+='<p style="font-size:.86rem;color:var(--mut3);margin:10px 0 0">'+P("Hay "+rest+" hallazgo"+(rest>1?"s":"")+" más, con el detalle técnico y el plan de acción, en el informe PDF que te enviamos por correo.","There are "+rest+" more finding"+(rest>1?"s":"")+", with technical detail and the action plan, in the PDF report we're emailing you.")+'</p>';
+    }
     var hg=document.getElementById("hallGrid");hg.className="";hg.innerHTML=hh;
 
     var dd=r.domain||P("tu web","your site");
