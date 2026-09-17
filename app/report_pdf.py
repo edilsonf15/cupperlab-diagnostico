@@ -1811,6 +1811,7 @@ def build_report_html(r: dict, contact: dict, name: str = "") -> str:
 
 <section class="pg">
   {_ai_section(r)}
+  {_google_section(r)}
 </section>
 
 <section class="pg">
@@ -1820,12 +1821,7 @@ def build_report_html(r: dict, contact: dict, name: str = "") -> str:
 
 {(f'''<section class="pg">
   {_local_section(r)}
-  {_content_section(r)}
-</section>''') if (_local_section(r) or _content_section(r)) else ''}
-
-{(f'''<section class="pg">
-  {_google_section(r)}
-</section>''') if _google_section(r) else ''}
+</section>''') if _local_section(r) else ''}
 
 <section class="pg">
   <div class="keep">
