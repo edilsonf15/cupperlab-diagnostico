@@ -40,6 +40,25 @@ def _root(u: str) -> str:
         return ""
 
 
+# Dominios que NO son competidores reales de un negocio: plataformas, redes, medios,
+# marketplaces, directorios y gigantes globales genéricos. Se excluyen de "quién sale en
+# tu lugar" y de la lista de competidores (el cliente quiere ver competencia de verdad).
+_NOT_COMPETITOR = (
+    "youtube.", "facebook.", "instagram.", "linkedin.", "twitter.", "x.com", "tiktok.",
+    "pinterest.", "reddit.", "quora.", "wikipedia.", "wordpress.", "blogspot.", "medium.",
+    "google.", "bing.", "amazon.", "mercadolibre.", "aliexpress.", "ebay.", "temu.", "shein.",
+    "canva.", "notion.", "github.", "gitlab.", "spotify.", "netflix.", "apple.", "microsoft.",
+    "lenovo.", "sap.", "oracle.", "ibm.", "dell.", "hp.com", "intel.", "cisco.", "adobe.",
+    "shopify.", "wix.", "godaddy.", "cloudflare.", "hostinger.", "yelp.", "tripadvisor.",
+    "booking.", "glassdoor.", "indeed.", "crunchbase.", "trustpilot.", "paginasamarillas",
+    "cylex", "europages", "einforma", "empresite", "gov", ".edu", "slideshare.", "issuu.",
+    "scribd.", "coursera.", "udemy.", "gartner.", "forbes.", "statista.")
+
+
+def _is_competitor(d: str) -> bool:
+    return bool(d) and not any(s in d for s in _NOT_COMPETITOR)
+
+
 def _position(domain: str, results: list[str]) -> int | None:
     dr = domain.replace("www.", "").lower()
     for i, d in enumerate(results, 1):
@@ -134,13 +153,15 @@ async def run(domain: str, brand: str, category_queries: list[str], gl: str = "e
     for i, q in enumerate(cats, start=1):
         o = organic(res[i])
         doms = [_root(x["link"]) for x in o]
+        # "quién sale en tu lugar": SOLO competidores reales (fuera plataformas/gigantes).
+        top_real = [x for x in o if _is_competitor(_root(x["link"])) and _root(x["link"]) != dr]
         google["category"].append({
             "query": q, "position": _position(dr, doms),
-            "top": [d for d in doms[:5] if d],
+            "top": [_root(x["link"]) for x in top_real[:5]],
             "top_full": [{"title": x.get("title", ""), "link": x.get("link", ""), "domain": _root(x["link"])}
-                         for x in o[:5]],
+                         for x in top_real[:5]],
         })
-        for x in o[:6]:
+        for x in top_real[:6]:
             d = _root(x["link"])
             if d and d != dr and not d.endswith("." + dr):
                 e = comp.setdefault(d, {"domain": d, "title": x.get("title", ""), "hits": 0})

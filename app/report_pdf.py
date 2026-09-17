@@ -999,31 +999,16 @@ def _crawl_structure_block(r: dict) -> str:
 
 
 def _index_block(r: dict) -> str:
-    ix = r.get("indexation")
-    if not ix:
-        return ""
-    n = ix.get("sample_count", 0)
-    tot = ix.get("sitemap_total", 0)
-    prov = ix.get("provider", L("el buscador", "the search engine"))
-    if not ix.get("indexed") and not isinstance(ix.get("indexed_estimate"), int):
-        # medición con buscador proxy poco fiable: NO afirmamos que no estás indexado
-        return ('<div class="block callout o"><b>' + L("Indexación.", "Indexing.") + '</b> ' + L("No pudimos confirmar tu indexación de forma automática (medimos con un buscador proxy, no con Google directo). El número exacto de páginas que Google tiene indexadas se confirma en Search Console (Cobertura), que activamos al empezar.", "We couldn't confirm your indexing automatically (we measure with a proxy engine, not Google directly). The exact number of pages Google has indexed is confirmed in Search Console (Coverage), which we enable at the start.") + '</div>')
-    est = ix.get("indexed_estimate")
-    concl = ix.get("conclusion") or ""
-    extra = f' {L("Tu mapa del sitio lista", "Your sitemap lists")} {tot} URLs.' if tot else ""
-    est_txt = f' {L("El buscador indexa del orden de", "The search engine indexes around")} <b>{est}</b> {L("páginas.", "pages.")}' if isinstance(est, int) else ""
+    # La "indexación por site:" solo da una muestra (no el total): no la afirmamos en el
+    # informe. SOLO mostramos el hecho útil: páginas YA indexadas por Google que dan 404.
+    ix = r.get("indexation") or {}
     bi = ix.get("broken_indexed") or []
-    base = ('<div class="block callout o"><b>' + L("Indexación (comprobada con navegador propio via site:).", "Indexing (checked with our own browser via site:).") + '</b> '
-            + f'{L("Rastreamos", "We crawled")} {_esc(prov)} {L("página por página.", "page by page.")}{est_txt}{extra}'
-            + (f' {_esc(concl)}' if concl else ' ' + L("El número exacto se confirma con Search Console.", "The exact number is confirmed with Search Console."))
-            + '</div>')
-    if bi:
-        trs = "".join(f'<tr><td class="u">{_esc(b["url"])}</td><td class="c">{b["status"]}</td></tr>' for b in bi[:6])
-        base += ('<div class="block callout r"><b>' + L("Páginas indexadas que dan error (404).", "Indexed pages returning an error (404).") + '</b> ' + L("Google las tiene "
-                 "indexadas pero ya no existen: hay que redirigirlas o recuperarlas.", "Google has them "
-                 "indexed but they no longer exist: they must be redirected or restored.") + '</div>'
-                 f'<table class="t"><thead><tr><th>{L("Página indexada", "Indexed page")}</th><th class="c">{L("Estado", "Status")}</th></tr></thead><tbody>{trs}</tbody></table>')
-    return base
+    if not bi:
+        return ""
+    trs = "".join(f'<tr><td class="u">{_esc(b["url"])}</td><td class="c">{b["status"]}</td></tr>' for b in bi[:6])
+    return ('<div class="block callout r"><b>' + L("Páginas indexadas que dan error (404).", "Indexed pages returning an error (404).") + '</b> ' +
+            L("Google tiene indexadas páginas que ya no existen.", "Google has indexed pages that no longer exist.") + '</div>'
+            f'<table class="t"><thead><tr><th>{L("Página indexada", "Indexed page")}</th><th class="c">{L("Estado", "Status")}</th></tr></thead><tbody>{trs}</tbody></table>')
 
 
 _SEC_EXPLAIN = [
@@ -1117,15 +1102,15 @@ def _local_section(r: dict) -> str:
                      L("Sin ficha no sales en el mapa ni en búsquedas locales", "Without a listing you do not show on the map or in local searches")))
     if has_phone is not None or has_addr is not None:
         nap_ok = bool(has_phone and has_addr)
-        rows.append((L("Datos de contacto (NAP)", "Contact info (NAP)"), "OK" if nap_ok else L("Incompleto", "Incomplete"),
+        rows.append((L("Datos de contacto (NAP) en tu web", "Contact info (NAP) on your site"), "OK" if nap_ok else L("Incompleto", "Incomplete"),
                      "ok" if nap_ok else "med",
-                     L("Nombre, dirección y teléfono visibles", "Name, address and phone visible") if nap_ok else L("Falta teléfono o dirección clara", "Missing phone or clear address")))
+                     L("Dirección y teléfono visibles en tu web", "Address and phone visible on your site") if nap_ok else L("Tu web no muestra teléfono o dirección clara", "Your site doesn't show a clear phone or address")))
     if has_map is not None:
-        rows.append((L("Mapa de ubicación", "Location map"), "OK" if has_map else L("Falta", "Missing"), "ok" if has_map else "med",
-                     L("Google Maps incrustado", "Google Maps embedded") if has_map else L("Sin mapa en contacto: ayuda a llegar y refuerza lo local", "No map on contact: it helps people arrive and reinforces local signal")))
+        rows.append((L("Mapa incrustado en tu web", "Map embedded on your site"), "OK" if has_map else L("Falta", "Missing"), "ok" if has_map else "med",
+                     L("Google Maps incrustado en tu página", "Google Maps embedded on your page") if has_map else L("Tu web no incrusta un mapa en la página de contacto", "Your site doesn't embed a map on the contact page")))
     if has_hours is not None:
-        rows.append((L("Horario de atención", "Opening hours"), "OK" if has_hours else L("Falta", "Missing"), "ok" if has_hours else "med",
-                     L("Horario publicado", "Hours published") if has_hours else L("Sin horario visible", "No visible hours")))
+        rows.append((L("Horario en tu web", "Opening hours on your site"), "OK" if has_hours else L("Falta", "Missing"), "ok" if has_hours else "med",
+                     L("Horario publicado en tu web", "Hours published on your site") if has_hours else L("Tu web no muestra el horario de atención", "Your site doesn't show opening hours")))
     if not rows:
         return ""
     return f"""
