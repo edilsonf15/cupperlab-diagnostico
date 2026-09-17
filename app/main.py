@@ -205,6 +205,11 @@ async def api_analyze(request: Request):
     phone = (body.get("phone") or "").strip()[:40]
     company = (body.get("company") or "").strip()[:120]
     lang = "en" if (body.get("lang") or "es").strip().lower().startswith("en") else "es"
+    # País elegido por el usuario en el formulario (código ISO de 2 letras). Es
+    # AUTORITATIVO: el análisis de IA/competencia se hace en ESE país (fin de adivinar).
+    forced_cc = re.sub(r"[^a-z]", "", (body.get("country") or "").strip().lower())[:2]
+    if forced_cc and places.country_name(forced_cc).upper() == forced_cc.upper():
+        forced_cc = ""   # código de país desconocido: se ignora (se detecta como antes)
     if not url:
         return JSONResponse({"error": "Escribe la direccion de tu web."}, status_code=400)
     if not EMAIL_RE.match(email):
@@ -213,8 +218,8 @@ async def api_analyze(request: Request):
     job_id = uuid.uuid4().hex
     store.job_create(job_id, url, lang, "Conectando con tu web...")
     lead = {"ts": datetime.now(timezone.utc).isoformat(), "name": name, "email": email,
-            "phone": phone, "company": company, "ip": ip, "lang": lang}
-    task = asyncio.create_task(_run_job(job_id, url, email, name, lead, lang))
+            "phone": phone, "company": company, "ip": ip, "lang": lang, "country": forced_cc}
+    task = asyncio.create_task(_run_job(job_id, url, email, name, lead, lang, forced_cc))
     _bg_tasks.add(task)
     task.add_done_callback(_bg_tasks.discard)
     return JSONResponse({"job_id": job_id})
@@ -288,11 +293,12 @@ def _scope(meta: dict, pl: dict | None, home_html_low: str) -> str:
     return "pais"
 
 
-async def _run_job(job_id: str, url: str, email: str, name: str, lead: dict, lang: str = "es") -> None:
+async def _run_job(job_id: str, url: str, email: str, name: str, lead: dict, lang: str = "es",
+                   forced_cc: str = "") -> None:
     global _ANALYSES_SINCE_CLEANUP
     i18n.set_lang(lang)
     dom_key = _domain_key(url)
-    ck = store.cache_key(dom_key, lang)
+    ck = store.cache_key(dom_key + ("|" + forced_cc if forced_cc else ""), lang)
     cached = store.cache_get(ck)
     if cached:
         data, ai = cached
@@ -305,7 +311,7 @@ async def _run_job(job_id: str, url: str, email: str, name: str, lead: dict, lan
     async with _sem:
         tick = asyncio.create_task(_progress_ticker(job_id))
         try:
-            await asyncio.wait_for(_pipeline(job_id, url, lang), timeout=HARD_TIMEOUT + 15)
+            await asyncio.wait_for(_pipeline(job_id, url, lang, forced_cc), timeout=HARD_TIMEOUT + 15)
         except asyncio.TimeoutError:
             print(f"[job] tope global superado ({HARD_TIMEOUT}s)")
             if not store.job_is_done(job_id):
@@ -328,7 +334,7 @@ async def _run_job(job_id: str, url: str, email: str, name: str, lead: dict, lan
         store.cleanup()
 
 
-async def _pipeline(job_id: str, url: str, lang: str) -> None:
+async def _pipeline(job_id: str, url: str, lang: str, forced_cc: str = "") -> None:
     t0 = time.monotonic()
     not_measured: list[dict] = []
 
@@ -357,11 +363,14 @@ async def _pipeline(job_id: str, url: str, lang: str) -> None:
 
     # Identidad medida: marca (crawl) + ciudad/país (crawl) -> Places confirma/corrige
     brand = geo_ai.derive_brand(meta, domain) or domain
-    # País por PRIORIDAD DE HECHOS: 1) ccTLD (un .co ES Colombia, un .es ES España: manda
-    # sobre cualquier señal de contenido, que se equivoca con idioma/moneda), 2) Places
-    # (dirección real de Google, más abajo), 3) detección por contenido, 4) nunca la IA.
+    # País: 0) el que ELIGIÓ el usuario en el formulario MANDA sobre todo (fin de adivinar
+    # y de errores tipo "colombiana -> Australia"). Si no lo eligió: 1) ccTLD, 2) Places
+    # (dirección real), 3) detección por contenido (identificador fiscal/teléfono), 4) nunca IA.
     cc_tld = geo_ai.country_from_domain(domain)
-    if cc_tld:
+    if forced_cc:
+        gl = forced_cc
+        country = places.country_name(forced_cc)
+    elif cc_tld:
         country, gl = cc_tld
     else:
         country = (meta.get("country") or "").strip()
@@ -376,7 +385,7 @@ async def _pipeline(job_id: str, url: str, lang: str) -> None:
         # salvo que el ccTLD ya fije el país (un .co es Colombia, sin discusión).
         if pl.get("city"):
             city_hint = pl["city"]
-        if pl.get("country_code") and not cc_tld:
+        if pl.get("country_code") and not cc_tld and not forced_cc:
             country, gl = pl.get("country") or places.country_name(pl["country_code"]), pl["country_code"].lower()
         meta["city"] = city_hint
     meta["country"], meta["gl"] = country, gl or (geo_ai.gl_from_name(country) if country else "")

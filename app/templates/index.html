@@ -509,6 +509,27 @@
       <div>
         <form id="diagForm" class="frm">
           <input id="url" name="url" type="text" required placeholder="Tu web (tunegocio.com)" data-i18n-ph="ph_site" autocomplete="url">
+          <select id="country" name="country" required aria-label="País del negocio"
+                  style="width:100%;padding:14px;border:1px solid var(--line,#d9dee3);border-radius:12px;background:#fff;font:inherit;color:inherit;-webkit-appearance:none;appearance:none;background-image:url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2212%22 height=%2212%22 viewBox=%220 0 12 12%22><path d=%22M2 4l4 4 4-4%22 fill=%22none%22 stroke=%22%23888%22 stroke-width=%221.5%22/></svg>');background-repeat:no-repeat;background-position:right 14px center">
+            <option value="" disabled selected data-i18n="ph_country">¿En qué país está tu negocio?</option>
+            <option value="co">Colombia</option>
+            <option value="mx">México</option>
+            <option value="es">España</option>
+            <option value="ar">Argentina</option>
+            <option value="cl">Chile</option>
+            <option value="pe">Perú</option>
+            <option value="ec">Ecuador</option>
+            <option value="pa">Panamá</option>
+            <option value="cr">Costa Rica</option>
+            <option value="gt">Guatemala</option>
+            <option value="do">República Dominicana</option>
+            <option value="uy">Uruguay</option>
+            <option value="py">Paraguay</option>
+            <option value="bo">Bolivia</option>
+            <option value="ve">Venezuela</option>
+            <option value="us">Estados Unidos</option>
+            <option value="pt">Portugal</option>
+          </select>
           <div class="two">
             <input id="name" name="name" type="text" required placeholder="Tu nombre" data-i18n-ph="ph_name" autocomplete="name">
             <input id="phone" name="phone" type="tel" required placeholder="Teléfono" data-i18n-ph="ph_phone" autocomplete="tel">
@@ -1299,13 +1320,14 @@
   /* ===== submit + polling ===== */
   form.addEventListener("submit",function(e){
     e.preventDefault();err.style.display="none";
-    var url=document.getElementById("url").value.trim(),name=document.getElementById("name").value.trim(),email=document.getElementById("email").value.trim(),phone=document.getElementById("phone").value.trim();
+    var url=document.getElementById("url").value.trim(),name=document.getElementById("name").value.trim(),email=document.getElementById("email").value.trim(),phone=document.getElementById("phone").value.trim(),country=document.getElementById("country").value.trim();
     if(!url){err.textContent=P("Falta la dirección de tu sitio.","Your site address is missing.");err.style.display="inline";return;}
+    if(!country){err.textContent=P("Elige el país de tu negocio.","Choose your business country.");err.style.display="inline";return;}
     if(!name){err.textContent=P("Falta tu nombre.","Your name is missing.");err.style.display="inline";return;}
     if(!/.+@.+\..+/.test(email)){err.textContent=P("Necesitamos un correo válido para enviarte el resultado.","We need a valid email to send you the result.");err.style.display="inline";return;}
     if(!phone){err.textContent=P("Falta tu teléfono.","Your phone is missing.");err.style.display="inline";return;}
     if(!document.getElementById("consent").checked){err.textContent=P("Marca la casilla para que podamos analizar tu web.","Tick the box so we can analyze your site.");err.style.display="inline";return;}
-    var payload={url:url,email:email,name:name,phone:phone,company:"",lang:LANG};
+    var payload={url:url,email:email,name:name,phone:phone,company:"",lang:LANG,country:country};
     submitBtn.disabled=true;submitBtn.textContent=P("Analizando…","Analyzing…");
     startConsole(url.trim().replace(/^https?:\/\//i,"").replace(/^www\./i,"").split(/[\/?#]/)[0].toLowerCase());
     goToForm();
