@@ -64,7 +64,13 @@ _NOT_COMPETITOR = (
     "academy", ".academy",
     # Herramientas/plataformas globales que no son competencia del cliente
     "docusign.", "kimi.ai", "manychat.", "zapier.", "n8n.", "make.com", "dialogflow.",
-    "openai.", "anthropic.", "perplexity.", "deepseek.", "mistral.")
+    "openai.", "anthropic.", "perplexity.", "deepseek.", "mistral.",
+    # Prensa y medios (rankean por artículos, no son competencia). ES + LatAm + globales.
+    "eltiempo.", "elespectador.", "semana.com", "larepublica.co", "portafolio.co", "dinero.com",
+    "publimetro.", "pulzo.", "infobae.", "lasillavacia.", "elcolombiano.", "elheraldo.co",
+    "vanguardia.com", "laopinion.", "elpais.", "elmundo.es", "abc.es", "20minutos.",
+    "lanacion.", "clarin.", "eluniverso.", "elcomercio.", "lavanguardia.", "expansion.",
+    "marca.com", "msn.com", "yahoo.", "medium.com", "revista", "news.", "noticias.")
 
 
 # Títulos que delatan un artículo/listículo/guía, NO un competidor real. "Quién sale en
