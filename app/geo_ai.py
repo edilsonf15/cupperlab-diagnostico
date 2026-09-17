@@ -355,13 +355,16 @@ def prompt_p1(idt: dict, lang: str) -> str:
             f"- Scope: {'city' if scope == 'ciudad' else 'country'}   (city = local business; country = sells/serves nationwide)\n"
             f"- Text from its website: \"{idt.get('snippet', '')}\"\n\n"
             "Return JSON with:\n"
-            "- \"categoria\": what a customer would call this kind of business, 2-5 words, lowercase, no marketing "
-            "adjectives and no brand name (a generic industry category, not a slogan).\n"
+            "- \"categoria\": what a customer would call this kind of business, 2-6 words, lowercase, no brand name. "
+            "Be SPECIFIC about the style, segment and price tier if the text shows it (e.g. \"affordable casual "
+            "youth fashion\", \"men's formal wear\", \"jeans and streetwear\", \"fast-food restaurant\"), so competitors "
+            "match its SAME tier; avoid an over-generic category and slogans.\n"
             f"- \"busquedas\": exactly 3 different sentences, 5 to 12 words, exactly as a customer in {idt.get('country') or 'that country'} "
             f"would type them into an AI chat. If scope is city, all 3 include \"{idt.get('city')}\"; if country, none includes a city and "
-            f"at most one mentions \"{idt.get('country')}\". One of the three must explicitly ask for recommendations of the "
-            "best-known / leading brands in the sector (\"recommend me the best brands of…\", \"which are the most recognized\", "
-            "\"what are the leading brands of…\"). Do not use the brand or phrases from its website.")
+            f"at most one mentions \"{idt.get('country')}\". One of the three must ask for recommendations of good brands or "
+            "businesses of that SAME type, style and price range (\"recommend me good brands of…\", \"which shops of … do you "
+            "suggest\", \"what are good options for …\"): direct competitors at its same tier, NOT luxury/designer if the brand "
+            "isn't, NOR much smaller businesses. Do not use the brand or phrases from its website.")
     return (
         "Eres un cliente potencial, no un analista. Con los datos de abajo, escribe cómo buscaría un cliente "
         "este tipo de negocio en un asistente de IA si NO conociera la marca.\n\n"
@@ -372,13 +375,16 @@ def prompt_p1(idt: dict, lang: str) -> str:
         f"- Ámbito: {scope}   (ciudad = negocio local; pais = vende/atiende en todo el país)\n"
         f"- Texto de su web: \"{idt.get('snippet', '')}\"\n\n"
         "Devuelve JSON con:\n"
-        "- \"categoria\": cómo llamaría un cliente a este tipo de negocio, en 2-5 palabras, en minúsculas, sin "
-        "adjetivos publicitarios ni la marca (una categoría genérica del sector, no un eslogan).\n"
+        "- \"categoria\": cómo llamaría un cliente a este tipo de negocio, en 2-6 palabras, en minúsculas, sin la marca. "
+        "Sé ESPECÍFICO con el estilo, el segmento y el nivel de precio si se nota en el texto (p. ej. \"moda casual "
+        "juvenil asequible\", \"ropa formal de hombre\", \"jeans y ropa urbana\", \"restaurante de comida rápida\"), "
+        "para acertar con competidores de su MISMO nivel; evita una categoría demasiado genérica y los eslóganes.\n"
         f"- \"busquedas\": exactamente 3 frases distintas, de 5 a 12 palabras, tal y como las escribiría un cliente en "
         f"{idt.get('country') or 'ese país'} en un chat de IA. Si el ámbito es \"ciudad\", las 3 incluyen \"{idt.get('city')}\"; "
         f"si es \"pais\", ninguna incluye ciudad y como mucho una menciona \"{idt.get('country')}\". Una de las tres debe pedir "
-        "explícitamente recomendaciones de las marcas o empresas más conocidas/líderes del sector "
-        "(\"recomiéndame las mejores marcas de…\", \"cuáles son las más reconocidas\", \"qué marcas líderes de…\"). "
+        "recomendaciones de buenas marcas o negocios de ESE MISMO tipo, estilo y rango de precio "
+        "(\"recomiéndame buenas marcas de…\", \"qué tiendas de … me recomiendas\", \"cuáles son buenas opciones de …\"): "
+        "competidores directos a su mismo nivel, NI de lujo/diseñador si la marca no lo es, NI negocios mucho más pequeños. "
         "No uses la marca ni frases de su web.")
 
 
