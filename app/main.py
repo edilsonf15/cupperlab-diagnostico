@@ -491,9 +491,12 @@ async def _pipeline(job_id: str, url: str, lang: str, forced_cc: str = "") -> No
             if 2 <= len(first) <= 22 and ft and (ft in _tok(root) or _tok(root) in ft):
                 return first
             return root[:1].upper() + root[1:]
+        # Solo se AÑADEN por Google los que rankean en 2+ búsquedas de la categoría: eso es un
+        # jugador REAL del mercado. Un medio/artículo suele rankear de rebote en una sola (hits=1),
+        # así que queda fuera. (Los que la IA confirma con su dominio ya entraron arriba.)
         google_only = [{"name": _brand_from(g), "domain": g["domain"],
                         "cited_by": ["Google"], "hits": g["hits"], "source": "google"}
-                       for g in gdoms if g["domain"] not in used][:5]
+                       for g in gdoms if g["domain"] not in used and g["hits"] >= 2][:5]
         ai_only = [c for c in comps if c not in confirmed]
         # Orden: confirmados por IA+Google → reales de Google → resto de la IA (marcas de nicho
         # que Google no listó pero pueden ser reales). Dedup por nombre normalizado.
@@ -504,6 +507,21 @@ async def _pipeline(job_id: str, url: str, lang: str, forced_cc: str = "") -> No
                 continue
             seen.add(k)
             final.append(c)
+        # Respaldo: si quedan muy pocos, completamos con dominios de Google de una sola
+        # búsqueda (hits=1) para no dejar la sección vacía en marcas con poca señal.
+        if len(final) < 3:
+            for g in gdoms:
+                if g["domain"] in used or g["hits"] >= 2:
+                    continue
+                nm2 = _brand_from(g)
+                k = _tok(nm2)
+                if not k or k in seen:
+                    continue
+                seen.add(k)
+                final.append({"name": nm2, "domain": g["domain"], "cited_by": ["Google"],
+                              "hits": g["hits"], "source": "google"})
+                if len(final) >= 4:
+                    break
         ai["competitors"] = final[:8]
     else:
         data["google"], data["indexation"] = None, None
