@@ -537,7 +537,11 @@ async def _pipeline(job_id: str, url: str, lang: str, forced_cc: str = "") -> No
     data["elapsed_total"] = round(time.monotonic() - t0, 1)
     data["from_cache"] = False
 
-    store.cache_put(store.cache_key(_domain_key(url), lang), data, ai)
+    # La clave de ESCRITURA debe ser IDÉNTICA a la de LECTURA de _run_job (incluye
+    # el país elegido): si no, con país seleccionado la caché nunca acierta, el sitio
+    # se re-analiza en cada vista y el score baila (73 en pantalla, 78 en el correo).
+    _wkey = _domain_key(url) + ("|" + forced_cc if forced_cc else "")
+    store.cache_put(store.cache_key(_wkey, lang), data, ai)
     store.job_progress(job_id, 98, L("Preparando tu diagnóstico...", "Preparing your report..."))
     store.job_finish(job_id, data)
     print(f"[job] {domain} listo en {data['elapsed_total']}s · dims={len(data['dims'])} "
