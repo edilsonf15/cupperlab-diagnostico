@@ -52,7 +52,11 @@ _NOT_COMP_NAME = (
     "aws", "amazon", "meta ", "notion", "monday", "slack", "zendesk", "freshworks", "intercom",
     "docusign", "dialogflow", "watson", "einstein", "upwork", "freelancer", "fiverr", "canva",
     "kimi", "deepseek", "mistral", "perplexity", "wordpress", "shopify", "wix", "odoo",
-    "manychat", "zapier", "n8n", "whatsapp", "telegram", "whatsapp business")
+    "manychat", "zapier", "n8n", "whatsapp", "telegram", "whatsapp business",
+    # Marketplaces / canales de venta: NO son competencia (son donde se vende), aunque la IA
+    # los liste. Un negocio no "compite" con Mercado Libre o Amazon, vende a través de ellos.
+    "mercado libre", "mercadolibre", "amazon", "ebay", "aliexpress", "temu", "shein",
+    "linio", "wish", "alibaba", "walmart", "ripley", "coppel")
 _GENERIC_COMP = {
     "", "ia", "ai", "crm", "erp", "chatbot", "chatbots", "bot", "software", "saas",
     "agente de ia", "agentes de ia", "inteligencia artificial", "dialogflow",

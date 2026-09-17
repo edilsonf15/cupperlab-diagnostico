@@ -25,7 +25,7 @@ from pathlib import Path
 # los resultados viejos dejan de servirse (sin tener que borrar nada a mano).
 # _CACHE_REV es un salto de versión DEL CÓDIGO: subirlo invalida TODA la caché sin
 # depender de la variable de entorno (arranca todos los análisis limpios).
-_CACHE_REV = "r13-2026-09-17"
+_CACHE_REV = "r14-2026-09-17"
 ENGINE_VERSION = os.getenv("ENGINE_VERSION", "v2.1")
 CACHE_TTL = float(os.getenv("RESULT_CACHE_TTL", str(24 * 3600)))
 JOB_TTL = float(os.getenv("JOB_TTL", str(6 * 3600)))
