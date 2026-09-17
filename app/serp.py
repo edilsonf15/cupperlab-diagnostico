@@ -131,16 +131,32 @@ async def run(domain: str, brand: str, category_queries: list[str], gl: str = "e
     google["competitors"] = [e["domain"] for e in ranked][:6]
     google["competitors_full"] = ranked[:8]
 
-    # 3) Indexación
+    # 3) Indexación (site:dominio). El batch a veces devuelve vacío la consulta con
+    #    operador site:, así que si viene sin resultados, la relanzamos suelta.
+    def _parse_total(r: dict):
+        si = r.get("searchInformation") or {}
+        tr = si.get("totalResults")
+        if tr is None:
+            tr = r.get("totalResults")   # por si viene en la raíz
+        try:
+            return int(re.sub(r"[^\d]", "", str(tr))) if tr not in (None, "") else None
+        except Exception:  # noqa: BLE001
+            return None
+
     s = res[-1]
+    site_dbg = {"organic_n": len(organic(s)), "total_raw": (s.get("searchInformation") or {}).get("totalResults"),
+                "keys": list(s.keys())[:12], "requery": False}
     urls = [o["link"] for o in organic(s) if dr in _root(o["link"])]
-    est = None
-    try:
-        tr = (s.get("searchInformation") or {}).get("totalResults")
-        if tr is not None:
-            est = int(str(tr).replace(",", "").replace(".", ""))
-    except Exception:  # noqa: BLE001
-        est = None
+    est = _parse_total(s)
+    if not urls and est is None:
+        # relanzar la consulta site: sola (num alto) para asegurar la indexación
+        s2 = await _batch([{"q": f"site:{dr}", "gl": gl, "hl": hl, "num": 20}])
+        if s2:
+            s = s2[0]
+            site_dbg.update(requery=True, organic_n2=len(organic(s)),
+                            total_raw2=(s.get("searchInformation") or {}).get("totalResults"))
+            urls = [o["link"] for o in organic(s) if dr in _root(o["link"])]
+            est = _parse_total(s)
     idx = est if isinstance(est, int) else len(urls)
     broken: list[dict] = []
     if check_broken and urls:
@@ -172,7 +188,8 @@ async def run(domain: str, brand: str, category_queries: list[str], gl: str = "e
         conclusion = f"Google tiene indexadas del orden de {idx} páginas de tu sitio."
     indexation = {"indexed": bool(urls) or bool(idx), "sample_count": len(urls),
                   "indexed_urls": urls[:10], "indexed_estimate": idx, "broken_indexed": broken,
-                  "sitemap_total": sitemap_total, "conclusion": conclusion, "provider": "Google (Serper)"}
+                  "sitemap_total": sitemap_total, "conclusion": conclusion, "provider": "Google (Serper)",
+                  "_debug": site_dbg}
     out.update(status="ok", google=google, indexation=indexation,
                elapsed_ms=round((time.monotonic() - t0) * 1000))
     return out
