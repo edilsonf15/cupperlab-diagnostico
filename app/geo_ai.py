@@ -745,10 +745,13 @@ async def run_geo(identity: dict, lang: str = "es") -> dict:
     # que dominan la respuesta), no menciones sueltas de marcas pequeñas/artesanales
     # (que salían y parecían "los más malos"). Si hay pocos fuertes, completamos por fuerza.
     comps = sorted(comp_agg.values(), key=lambda c: (-len(c["cited_by"]), -c["hits"]))
-    strong = [c for c in comps if len(c["cited_by"]) >= 2 or c["hits"] >= 2]
-    chosen = strong if len(strong) >= 3 else comps[:6]
+    # SOLO competencia con CONSENSO real: citada por 2+ motores de IA. Nada de menciones
+    # sueltas de una sola IA (suelen ser marcas diminutas o inventadas: el ruido que hacía
+    # que la lista pareciera floja). Si no hay consenso, la lista se completa después con
+    # quien REALMENTE rankea en Google para la categoría (main.py), que es competencia real.
+    strong = [c for c in comps if len(c["cited_by"]) >= 2]
     competitors = [{"name": c["name"], "domain": c["domain"] or None, "cited_by": sorted(c["cited_by"]),
-                    "hits": c["hits"], "source": "ai"} for c in chosen[:6]]
+                    "hits": c["hits"], "source": "ai"} for c in strong[:6]]
 
     # ---- Agregados ----
     share = (brand_mentions / total_mentions) if total_mentions else None
