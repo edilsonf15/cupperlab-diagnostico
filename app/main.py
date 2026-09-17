@@ -450,42 +450,51 @@ async def _pipeline(job_id: str, url: str, lang: str, forced_cc: str = "") -> No
                 "detail": L(f"Google tiene indexadas páginas que ya no existen: {ex}. Hay que redirigirlas o recuperarlas.",
                             f"Google has indexed pages that no longer exist: {ex}. Redirect or restore them."),
                 "severity": "alto"})
-        # Competencia: IA (citada de verdad) + Google top 5. Dominios de la IA sin web -> Serper.
-        # Para el ámbito país usamos el país (no la ciudad de la sede) al resolver dominios.
+        # Competencia: cruce IA + Google. Los dominios REALES que rankean en Google para las
+        # búsquedas de la categoría (ya filtrados de listículos/gigantes) son la columna
+        # vertebral de "competencia verificable". Emparejamos los nombres que citó la IA con
+        # esos dominios: si coinciden (Studio F ↔ studiof.com.co) es competencia CONFIRMADA por
+        # las dos fuentes; lo que la IA nombra pero nadie confirma (posible invento) queda al final.
         comps = list(ai.get("competitors") or [])
-        _place = country if (identity.get("scope") == "pais") else (identity.get("city") or country)
-        missing = [c["name"] for c in comps if not c.get("domain")][:8]
-        if missing:
-            found, _ = await _stage(serp.find_domains(missing, _place, gl or "es"), 10, "Dominios")
-            for c in comps:
-                if not c.get("domain") and found and c["name"] in found:
-                    c["domain"] = found[c["name"]]
         own = domain.replace("www.", "")
-        # Fiabilidad: una marca REAL tiene web encontrable. Los nombres que ni Serper resuelve
-        # suelen ser ruido/alucinación de la IA (marcas pequeñas inventadas): van al final y
-        # solo se muestran si hacen falta para llegar a un mínimo.
-        with_dom = [c for c in comps if c.get("domain")]
-        without_dom = [c for c in comps if not c.get("domain")]
-        known = {c.get("domain") for c in with_dom}
-        google_comps = []
+        _tok = lambda s: re.sub(r"[^a-z0-9]", "", (s or "").lower())
+        gdoms = []
         for e in (sr["google"].get("competitors_full") or []):
-            d = e["domain"]
-            # Solo competidores CONSISTENTES en Google (aparecen en >=2 de las búsquedas
-            # de la categoría = jugadores reales del mercado), no un dominio suelto/débil.
-            if (e.get("hits") or 0) < 2:
-                continue
-            if d in known or d == own or any(d.endswith(s) for s in (
+            d = e.get("domain") or ""
+            if not d or d == own or any(d.endswith(s) for s in (
                     "google.com", "facebook.com", "instagram.com", "youtube.com", "wikipedia.org",
                     "linkedin.com", "tiktok.com", "amazon.es", "amazon.com", "mercadolibre.com.co")):
                 continue
-            google_comps.append({"name": (e.get("title") or d).split(" - ")[0].split(" | ")[0][:48], "domain": d,
-                                 "cited_by": ["Google"], "hits": e["hits"], "source": "google"})
-            known.add(d)
-        # Primero marcas verificables (IA con web + Google real); los sin web, solo de relleno.
-        ranked = with_dom + google_comps
-        if len(ranked) < 4:
-            ranked += without_dom
-        ai["competitors"] = ranked[:8]
+            gdoms.append({"domain": d, "title": (e.get("title") or d), "hits": e.get("hits") or 1})
+        confirmed, used = [], set()
+        for c in comps:
+            t = _tok(c.get("name"))
+            if len(t) < 3:
+                continue
+            for g in gdoms:
+                if g["domain"] in used:
+                    continue
+                groot = _tok(g["domain"].split(".")[0])
+                if groot and (t in groot or groot in t):
+                    c["domain"] = g["domain"]
+                    c["source"] = "ai+google"
+                    confirmed.append(c)
+                    used.add(g["domain"])
+                    break
+        google_only = [{"name": g["title"].split(" - ")[0].split(" | ")[0][:48], "domain": g["domain"],
+                        "cited_by": ["Google"], "hits": g["hits"], "source": "google"}
+                       for g in gdoms if g["domain"] not in used][:5]
+        ai_only = [c for c in comps if c not in confirmed]
+        # Orden: confirmados por IA+Google → reales de Google → resto de la IA (marcas de nicho
+        # que Google no listó pero pueden ser reales). Dedup por nombre normalizado.
+        final, seen = [], set()
+        for c in confirmed + google_only + ai_only:
+            k = _tok(c.get("name"))
+            if not k or k in seen:
+                continue
+            seen.add(k)
+            final.append(c)
+        ai["competitors"] = final[:8]
     else:
         data["google"], data["indexation"] = None, None
         note = (sr or {}).get("note") if isinstance(sr, dict) else sr_err
