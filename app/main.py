@@ -357,21 +357,26 @@ async def _pipeline(job_id: str, url: str, lang: str) -> None:
 
     # Identidad medida: marca (crawl) + ciudad/país (crawl) -> Places confirma/corrige
     brand = geo_ai.derive_brand(meta, domain) or domain
-    country = (meta.get("country") or "").strip()
-    gl = (meta.get("gl") or "").strip()
+    # País por PRIORIDAD DE HECHOS: 1) ccTLD (un .co ES Colombia, un .es ES España: manda
+    # sobre cualquier señal de contenido, que se equivoca con idioma/moneda), 2) Places
+    # (dirección real de Google, más abajo), 3) detección por contenido, 4) nunca la IA.
     cc_tld = geo_ai.country_from_domain(domain)
-    if not country and cc_tld:
+    if cc_tld:
         country, gl = cc_tld
+    else:
+        country = (meta.get("country") or "").strip()
+        gl = (meta.get("gl") or "").strip()
     city_hint = (meta.get("city") or "").strip()
     store.job_progress(job_id, 22, L("Buscando tu ficha de Google...", "Looking up your Google listing..."))
     pl_res, pl_err = await _stage(places.resolve(brand, domain, city_hint, gl, lang), B_PLACES, "Places")
     pl = (pl_res or {}).get("data") if isinstance(pl_res, dict) else None
     data["places"] = pl_res or {"status": "failed", "source": "places_api", "note": pl_err, "data": {"found": None}}
     if pl and pl.get("found"):
-        # La ficha manda en ciudad/país cuando el crawl no tenía evidencia o discrepa
+        # La ficha (dirección real de Google) MANDA sobre la detección por contenido,
+        # salvo que el ccTLD ya fije el país (un .co es Colombia, sin discusión).
         if pl.get("city"):
             city_hint = pl["city"]
-        if pl.get("country_code") and not country:
+        if pl.get("country_code") and not cc_tld:
             country, gl = pl.get("country") or places.country_name(pl["country_code"]), pl["country_code"].lower()
         meta["city"] = city_hint
     meta["country"], meta["gl"] = country, gl or (geo_ai.gl_from_name(country) if country else "")

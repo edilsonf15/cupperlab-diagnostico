@@ -406,17 +406,11 @@ def schema_findings(r, P):
                     "d": P("Marcar cada servicio o producto con Schema ayuda a Google y a la IA a saber exactamente qué ofreces y a mostrarte cuando lo buscan.",
                            "Marking each service or product with Schema helps Google and AI know exactly what you offer and show you when it's searched.")})
     if not by["review"]:
-        _has_test = bool((r.get("meta") or {}).get("has_testimonials"))
-        if _has_test:
-            # La web SÍ muestra testimonios/opiniones, pero no están marcados como Review:
-            # no digas "no tienes valoraciones", di que las marques para ganar estrellas.
-            out.append({"sev": "op", "t": P("Tienes testimonios pero no están marcados (Review)", "You have testimonials but no Review markup"),
-                        "d": P("Tu web muestra testimonios u opiniones de clientes, pero no llevan el Schema Review/AggregateRating. Márcalos para que Google pueda mostrar tus estrellas en los resultados y para que la IA los use como señal de confianza al recomendarte.",
-                               "Your site shows customer testimonials, but they lack Review/AggregateRating Schema. Mark them up so Google can show your stars in results and AI uses them as a trust signal when recommending you.")})
-        else:
-            out.append({"sev": "op", "t": P("Falta marcar reseñas y valoraciones (Review)", "Missing Review/Rating markup"),
-                        "d": P("El Schema Review/AggregateRating puede mostrar tus estrellas en Google y es una señal que la IA usa para recomendarte. Márcalo si tienes valoraciones.",
-                               "Review/AggregateRating Schema can show your stars in Google and is a signal AI uses to recommend you. Mark it up if you have ratings.")})
+        # Solo hecho verificable: NO hay Schema Review/AggregateRating. No afirmamos si
+        # "tiene testimonios" o no (detectarlos por HTML es poco fiable y daba falsos).
+        out.append({"sev": "op", "t": P("Falta marcar reseñas y valoraciones (Review)", "Missing Review/Rating markup"),
+                    "d": P("Si tienes reseñas o valoraciones de clientes, márcalas con Schema Review/AggregateRating: Google puede mostrar tus estrellas en los resultados y la IA lo usa como señal de confianza.",
+                           "If you have customer reviews or ratings, mark them up with Review/AggregateRating Schema: Google can show your stars in results and AI uses it as a trust signal.")})
     sch = (r.get("onpage") or {}).get("schema") or {}
     errs = sch.get("errors") or 0
     incompl = sch.get("incomplete") or []

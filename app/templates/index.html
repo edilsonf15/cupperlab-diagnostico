@@ -1174,11 +1174,10 @@
     var types=(op.schema&&op.schema.types)||meta.schema_types||[];
     var lb=types.some(function(t){return /localbusiness|professionalservice/.test(t);});
     var gbp=ai.gbp,rev=ai.gbp_reviews_n;  // rev null = no se pudo leer (distinto de 0)
-    var hasTest=!!meta.has_testimonials;
     var st=[],add=function(k,s,w){st.push({k:k,s:s,w:w});};
     add("gbp",gbp===true?"ok":(gbp===false?"bad":"warn"),24);
-    // Reputación: reseñas reales de la ficha > testimonios visibles en la web > nada.
-    add("reviews",(gbp&&rev>0)?"ok":((hasTest||gbp)?"warn":"bad"),22);
+    // Reputación: SOLO reseñas reales de la ficha de Google (dato fiable).
+    add("reviews",(gbp&&rev>0)?"ok":(gbp?"warn":"bad"),22);
     add("nap",(meta.has_address&&meta.has_phone)?"ok":((meta.has_address||meta.has_phone)?"warn":"bad"),16);
     add("map",(meta.has_map||meta.has_geo)?"ok":"warn",12);
     add("lb",lb?"ok":"warn",16);
@@ -1187,9 +1186,8 @@
     var val={ok:100,warn:55,bad:0},sw=0,ss=0;st.forEach(function(p){sw+=p.w;ss+=val[p.s]*p.w;});
     var score=sw?Math.round(ss/sw):0;
     var GOOD={gbp:P("tienes ficha de Google Business","you have a Google Business profile"),reviews:P("tienes reseñas ("+rev+")","you have reviews ("+rev+")"),nap:P("tu dirección y teléfono están claros","your address and phone are clear"),map:P("incrustas un mapa en tu web","you embed a map on your site"),lb:P("marcas tu negocio con datos estructurados","you mark up your business with structured data"),hours:P("publicas tus horarios","you publish your opening hours"),categoria:P("tu ficha tiene categoría definida","your profile has a set category")};
-    // reviews en BAD: distingue "muestras testimonios en tu web (falta marcarlos)" de
-    // "no tienes reseñas visibles"; y no afirma "0 reseñas" si no se pudo leer la ficha.
-    var revBad=gbp?(rev===0?P("tu ficha no tiene reseñas","your profile has no reviews"):(hasTest?P("muestras testimonios en tu web, márcalos como reseñas (Review)","you show testimonials on your site, mark them up as reviews (Review)"):P("aún no confirmamos reseñas en tu ficha","we couldn't confirm reviews on your profile"))):(hasTest?P("muestras testimonios en tu web, pero sin ficha ni marcado de reseñas","you show testimonials on your site, but no profile or review markup"):P("no tienes reseñas visibles","you have no visible reviews"));
+    // reviews en BAD: solo el hecho fiable de la ficha de Google (no afirma "0" si no se leyó).
+    var revBad=gbp?(rev===0?P("tu ficha no tiene reseñas","your profile has no reviews"):P("aún no confirmamos reseñas en tu ficha","we couldn't confirm reviews on your profile")):P("no encontramos reseñas en Google","we found no reviews on Google");
     var BAD={gbp:P("no encontramos tu ficha de Google Business","we couldn't find your Google Business profile"),reviews:revBad,nap:((meta.has_address||meta.has_phone)?P("faltan datos de contacto (dirección o teléfono)","contact details are incomplete (address or phone)"):P("no muestras dirección ni teléfono","you show no address or phone")),map:P("no incrustas un mapa en tu web","you don't embed a map on your site"),lb:P("no marcas tu negocio con datos estructurados (LocalBusiness)","you don't mark up your business (LocalBusiness)"),hours:P("no publicas tus horarios de atención","you don't publish opening hours"),categoria:P("tu ficha no tiene una categoría clara","your profile has no clear category")};
     var desc=mkDesc(st,GOOD,BAD,P("Buena presencia local: ficha, reseñas y ubicación en orden.","Good local presence: profile, reviews and location in order."));
     return {score:score,desc:desc,points:st};

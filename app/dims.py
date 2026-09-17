@@ -167,15 +167,12 @@ def _local(data) -> int | None:
     lb = _rx(types, r"localbusiness|professionalservice")
     gbp = ai.get("gbp")
     rev = ai.get("gbp_reviews_n")  # None = no se pudo leer (distinto de 0)
-    has_test = bool(meta.get("has_testimonials"))
-    # Reputación: reseñas reales en la ficha (mejor señal) > testimonios visibles en la web
-    # (señal parcial) > ficha sin reseñas legibles > nada. None (no legible) no baja a "bad".
+    # Reputación: SOLO el dato fiable = reseñas reales de la ficha de Google (Places).
+    # Ya no usamos "testimonios detectados en el HTML" (era poco fiable y daba falsos).
     if gbp is True and isinstance(rev, int) and rev > 0:
         rev_st = "ok"
-    elif has_test:
-        rev_st = "warn"   # la web muestra opiniones aunque no haya reseñas GBP verificadas
     elif gbp:
-        rev_st = "warn"
+        rev_st = "warn"   # tiene ficha pero sin reseñas legibles
     else:
         rev_st = "bad"
     st = [("gbp", "ok" if gbp is True else ("bad" if gbp is False else "warn"), 24),

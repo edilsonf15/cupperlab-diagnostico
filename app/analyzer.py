@@ -115,6 +115,39 @@ async def _get(client: httpx.AsyncClient, url: str, timeout: float, method: str 
         return exc, 0.0
 
 
+def html_text(r) -> str:
+    """Decodifica el HTML con el charset CORRECTO. httpx `.text` adivina mal cuando el
+    servidor no declara charset y produce mojibake (últimas -> �ltimas), que luego rompe
+    la detección de títulos/H1/textos. Prioriza: charset del header -> <meta charset> del
+    propio HTML -> UTF-8. Es la forma fiable de leer páginas con acentos."""
+    try:
+        raw = r.content
+    except Exception:  # noqa: BLE001
+        return r.text if hasattr(r, "text") else ""
+    if not raw:
+        return ""
+    enc = None
+    _CHARSET = re.compile(r"charset=['\"]?([\w-]+)", re.I)
+    m = _CHARSET.search(r.headers.get("content-type", ""))
+    if m:
+        enc = m.group(1)
+    if not enc:
+        head = raw[:4096].decode("ascii", "ignore")
+        mm = _CHARSET.search(head)
+        enc = mm.group(1) if mm else "utf-8"
+    if enc.lower() in ("iso-8859-1", "latin-1", "latin1", "ascii", "us-ascii"):
+        # muchos servidores declaran latin-1 por defecto sirviendo UTF-8 real: si el
+        # contenido decodifica limpio como UTF-8, ese es el bueno.
+        try:
+            return raw.decode("utf-8")
+        except UnicodeDecodeError:
+            pass
+    try:
+        return raw.decode(enc, errors="replace")
+    except (LookupError, TypeError):
+        return raw.decode("utf-8", errors="replace")
+
+
 async def fetch_home(client: httpx.AsyncClient, url: str):
     # Reintenta https ANTES de caer a http: un fallo transitorio (timeout, corte
     # de red) no significa que el sitio no tenga SSL. Sin esto, un timeout
@@ -138,7 +171,7 @@ async def fetch_text(client: httpx.AsyncClient, url: str):
     r, _ = await _get(client, url, FILE_TIMEOUT)
     if isinstance(r, Exception):
         return None, None
-    return r.status_code, (r.text if r.status_code < 400 else None)
+    return r.status_code, (html_text(r) if r.status_code < 400 else None)
 
 
 async def check_status(client: httpx.AsyncClient, url: str):
@@ -959,7 +992,7 @@ async def analyze(raw_url: str) -> Result:
 
         res.reachable = True
         res.final_url = str(home.url)
-        home_html = home.text
+        home_html = html_text(home)
         home_status = home.status_code
         home_time = dt
         https_ok = str(home.url).lower().startswith("https://")

@@ -60,6 +60,34 @@ def _norm(u: str) -> str:
     return (u or "").split("#")[0].rstrip("/").lower()
 
 
+_CHARSET_RE = re.compile(r"charset=['\"]?([\w-]+)", re.I)
+
+
+def _html_text(r) -> str:
+    """Decodifica el HTML con el charset correcto (evita mojibake tipo últimas->�ltimas
+    cuando el servidor no declara charset). header charset -> <meta charset> -> UTF-8."""
+    try:
+        raw = r.content
+    except Exception:  # noqa: BLE001
+        return getattr(r, "text", "") or ""
+    if not raw:
+        return ""
+    m = _CHARSET_RE.search(r.headers.get("content-type", ""))
+    enc = m.group(1) if m else None
+    if not enc:
+        mm = _CHARSET_RE.search(raw[:4096].decode("ascii", "ignore"))
+        enc = mm.group(1) if mm else "utf-8"
+    if enc.lower() in ("iso-8859-1", "latin-1", "latin1", "ascii", "us-ascii"):
+        try:
+            return raw.decode("utf-8")
+        except UnicodeDecodeError:
+            pass
+    try:
+        return raw.decode(enc, errors="replace")
+    except (LookupError, TypeError):
+        return raw.decode("utf-8", errors="replace")
+
+
 # --- Análisis de contenido (frecuencia de términos, duplicados, frescura) ---
 _STOP = set((
     "de la que el en y a los del se las por un para con no una su al es lo como mas pero "
@@ -416,7 +444,7 @@ async def _fetch(client, url, sem, base_net):
             r = await client.get(url, timeout=PAGE_TIMEOUT, follow_redirects=True)
             if "html" not in (r.headers.get("content-type") or "").lower():
                 return None
-            return _parse_page(str(r.url), r.text, r.status_code, base_net)
+            return _parse_page(str(r.url), _html_text(r), r.status_code, base_net)
         except Exception:  # noqa: BLE001
             return None
 
@@ -483,13 +511,18 @@ def _aggregate(pages: list[dict], norm_home: str = "") -> dict:
                 desc_bad.append({"url": u, "len": p["desc_len"]})
         if not p["og_ok"]:
             og_missing.append(u)
-        if p["h1_count"] == 0:
+        # ¿Página legible por el rastreo estático? Muchas webs renderizan el H1/el texto
+        # con JavaScript; nuestro rastreo multipágina es sin JS, así que una página que
+        # llega casi vacía es una "cáscara" SPA, NO una página "sin H1" ni "thin". Solo
+        # juzgamos H1/contenido cuando hay texto server-side suficiente (>=50 palabras).
+        _readable = p["word_count"] >= 50
+        if _readable and p["h1_count"] == 0:
             h1_missing.append(u)
         elif p["h1_count"] > 1:
             h1_multi.append({"url": u, "n": p["h1_count"]})
-        if p["h2_count"] == 0:
+        if _readable and p["h2_count"] == 0:
             h2_missing.append(u)
-        if p["word_count"] < THIN_WORDS:
+        if _readable and p["word_count"] < THIN_WORDS:
             thin.append({"url": u, "words": p["word_count"]})
         if not p["canonical"]:
             canon_missing.append(u)
@@ -716,7 +749,7 @@ async def audit(url: str, home_html: str | None = None,
             if home_html is None:
                 try:
                     r = await client.get(url, timeout=PAGE_TIMEOUT, follow_redirects=True)
-                    home_html, url = r.text, str(r.url)
+                    home_html, url = _html_text(r), str(r.url)
                     base_net = urlparse(url).netloc
                 except Exception:  # noqa: BLE001
                     return None
