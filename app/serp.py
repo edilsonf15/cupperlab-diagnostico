@@ -77,6 +77,24 @@ async def _batch(queries: list[dict]) -> list[dict] | None:
     return None
 
 
+async def _search_one(query: dict) -> dict | None:
+    """Una sola consulta a Serper como OBJETO (no array). Devuelve el dict crudo (incluye
+    'error' si Serper lo reporta) o None si la conexión falla."""
+    key = os.getenv("SERPER_API_KEY", "").strip()
+    if not key:
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=TIMEOUT) as c:
+            r = await c.post(SERPER_URL, json=query,
+                             headers={"X-API-KEY": key, "Content-Type": "application/json"})
+            if r.status_code == 200:
+                d = r.json()
+                return d if isinstance(d, dict) else (d[0] if isinstance(d, list) and d else None)
+            return {"error": f"HTTP {r.status_code}: {r.text[:160]}"}
+    except Exception as exc:  # noqa: BLE001
+        return {"error": str(exc)[:160]}
+
+
 async def run(domain: str, brand: str, category_queries: list[str], gl: str = "es",
               sitemap_total: int = 0, check_broken: bool = True) -> dict:
     """Ejecuta todas las consultas de Google de un análisis en UNA petición."""
@@ -92,7 +110,7 @@ async def run(domain: str, brand: str, category_queries: list[str], gl: str = "e
     cats = [q for q in (category_queries or []) if q][:3]
     qs = [{"q": brand, "gl": gl, "hl": hl, "num": 10}]
     qs += [{"q": q, "gl": gl, "hl": hl, "num": 10} for q in cats]
-    qs.append({"q": f"site:{dr}", "gl": gl, "hl": hl, "num": 20})
+    qs.append({"q": f"site:{dr}", "gl": gl, "hl": hl, "num": 10})
 
     res = await _batch(qs)
     out["elapsed_ms"] = round((time.monotonic() - t0) * 1000)
@@ -145,16 +163,19 @@ async def run(domain: str, brand: str, category_queries: list[str], gl: str = "e
 
     s = res[-1]
     site_dbg = {"organic_n": len(organic(s)), "total_raw": (s.get("searchInformation") or {}).get("totalResults"),
-                "keys": list(s.keys())[:12], "requery": False}
+                "keys": list(s.keys())[:12], "error": str(s.get("error"))[:200] if s.get("error") else None,
+                "site_q": f"site:{dr}", "requery": False}
     urls = [o["link"] for o in organic(s) if dr in _root(o["link"])]
     est = _parse_total(s)
     if not urls and est is None:
-        # relanzar la consulta site: sola (num alto) para asegurar la indexación
-        s2 = await _batch([{"q": f"site:{dr}", "gl": gl, "hl": hl, "num": 20}])
-        if s2:
-            s = s2[0]
+        # relanzar la consulta site: SOLA, como objeto único (no array) por si el batch
+        # es lo que la rechaza. Capturamos también su error.
+        s2 = await _search_one({"q": f"site:{dr}", "gl": gl, "hl": hl, "num": 10})
+        if isinstance(s2, dict):
+            s = s2
             site_dbg.update(requery=True, organic_n2=len(organic(s)),
-                            total_raw2=(s.get("searchInformation") or {}).get("totalResults"))
+                            total_raw2=(s.get("searchInformation") or {}).get("totalResults"),
+                            error2=str(s.get("error"))[:200] if s.get("error") else None)
             urls = [o["link"] for o in organic(s) if dr in _root(o["link"])]
             est = _parse_total(s)
     idx = est if isinstance(est, int) else len(urls)
