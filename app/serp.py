@@ -52,11 +52,34 @@ _NOT_COMPETITOR = (
     "shopify.", "wix.", "godaddy.", "cloudflare.", "hostinger.", "yelp.", "tripadvisor.",
     "booking.", "glassdoor.", "indeed.", "crunchbase.", "trustpilot.", "paginasamarillas",
     "cylex", "europages", "einforma", "empresite", "gov", ".edu", "slideshare.", "issuu.",
-    "scribd.", "coursera.", "udemy.", "gartner.", "forbes.", "statista.")
+    "scribd.", "coursera.", "udemy.", "gartner.", "forbes.", "statista.",
+    # Directorios de software / reseñas / comparadores (no son competidores del cliente)
+    "capterra.", "getapp.", "g2.com", "softwareadvice.", "trustradius.", "clutch.co",
+    "goodfirms.", "sortlist.", "appvizer.", "producthunt.",
+    # Suites/gigantes SaaS que salen en cualquier búsqueda genérica
+    "salesforce.", "hubspot.", "zoho.", "creatio.", "forcemanager.", "zendesk.", "freshworks.",
+    "monday.com", "pipedrive.", "odoo.", "sap.com", "orsys.",
+    # Portales de empleo / formación (salen en búsquedas de servicios)
+    "computrabajo.", "elempleo.", "infojobs.", "bumeran.", "occ.com", "academia.",
+    "academy", ".academy")
 
 
-def _is_competitor(d: str) -> bool:
-    return bool(d) and not any(s in d for s in _NOT_COMPETITOR)
+# Títulos que delatan un artículo/listículo/guía, NO un competidor real. "Quién sale en
+# tu lugar" debe ser una empresa rival, no un post "Top 5 mejores…" ni una guía de precios.
+_LISTICLE_RX = re.compile(
+    r"(\btop\s*\d+|\b\d+\s+mejores|\bmejores\b|\branking\b|\bcomparativa\b|\bgu[ií]as?\b|"
+    r"\btipos\s+de\b|\bqu[eé]\s+es\b|\bc[oó]mo\s+funciona|\bpor\s+qu[eé]\b|\bventajas\b|"
+    r"\bprecios?\b|\bejemplos?\b|\bofertas?\s+de\s+(trabajo|empleo)|\bempleo\b|\bvacante|"
+    r"\bcurso\b|\bglosario\b|\bdirectorio\b|\blistado\b|\bimprescindibles\b|\bdestacad)",
+    re.I)
+
+
+def _is_listicle(title: str) -> bool:
+    return bool(_LISTICLE_RX.search(str(title or "")))
+
+
+def _is_competitor(d: str, title: str = "") -> bool:
+    return bool(d) and not any(s in d for s in _NOT_COMPETITOR) and not _is_listicle(title)
 
 
 def _position(domain: str, results: list[str]) -> int | None:
@@ -154,7 +177,7 @@ async def run(domain: str, brand: str, category_queries: list[str], gl: str = "e
         o = organic(res[i])
         doms = [_root(x["link"]) for x in o]
         # "quién sale en tu lugar": SOLO competidores reales (fuera plataformas/gigantes).
-        top_real = [x for x in o if _is_competitor(_root(x["link"])) and _root(x["link"]) != dr]
+        top_real = [x for x in o if _is_competitor(_root(x["link"]), x.get("title", "")) and _root(x["link"]) != dr]
         google["category"].append({
             "query": q, "position": _position(dr, doms),
             "top": [_root(x["link"]) for x in top_real[:5]],

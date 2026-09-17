@@ -41,7 +41,7 @@ AI_BUDGET = float(os.getenv("AI_GEO_BUDGET", "45"))          # tope global del b
 CALL_TIMEOUT = float(os.getenv("AI_CALL_TIMEOUT", "30"))      # tope por llamada
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")      # mini: P1/P3/P4 y P2 en ChatGPT
 OPENAI_MODEL_STRONG = os.getenv("OPENAI_MODEL_STRONG", OPENAI_MODEL)
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
 PERPLEXITY_MODEL = os.getenv("PERPLEXITY_MODEL", "sonar")
 ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
 # Motores que "responden al cliente" (P2). Por defecto 2 para contener coste; añade

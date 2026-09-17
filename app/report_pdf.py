@@ -745,6 +745,42 @@ def _geo_plan_block(r: dict) -> str:
             + f'<ul class="chk">{tac_lis}</ul></div>')
 
 
+def _competitors_chart(r: dict) -> str:
+    """Barras: cuántas veces nombra la IA a cada competidor real cuando piden tu
+    servicio, frente a ti. Da una imagen inmediata de dónde estás vs la competencia
+    y rellena el hueco de la sección de IA con un dato visual, no con espacio muerto."""
+    ai = r.get("geo_ai") or {}
+    comps = [c for c in (ai.get("competitors") or []) if isinstance(c, dict) and c.get("name")][:5]
+    if not comps:
+        return ""
+    brand = ai.get("brand") or (r.get("domain", "").split(".")[0].capitalize())
+
+    def wt(c):
+        return max(int(c.get("hits") or 0), len(c.get("cited_by") or []))
+
+    rows = [(c["name"], wt(c), False) for c in comps]
+    rows.append((brand + L(" · tú", " · you"), int(ai.get("reco_hits") or 0), True))
+    rows.sort(key=lambda x: (-x[1], x[2]))
+    mx = max([v for _, v, _ in rows] + [1])
+    bars = ""
+    for name, v, mine in rows:
+        pct = max(round(100 * v / mx), 2)
+        col = OR if mine else CY6
+        bars += (f'<div style="display:flex;align-items:center;gap:8px;margin:5px 0">'
+                 f'<div style="width:33%;font-size:9px;font-weight:{700 if mine else 600};color:{INK9 if mine else "#41505f"};text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{_esc(name)}</div>'
+                 f'<div style="flex:1;height:12px;background:#eef2f6;border-radius:7px;overflow:hidden"><div style="width:{pct}%;height:100%;background:{col};border-radius:7px"></div></div>'
+                 f'<div style="width:30px;font-size:9px;font-weight:700;color:{col}">{v}</div></div>')
+    _tot = ai.get("reco_total")
+    sub = ((L("Veces que la IA los nombra en ", "Times AI names each across ") + f"{_tot}" +
+            L(" búsquedas reales de tu servicio (sin nombrar marcas). Tú apareces en ", " real searches for your service (without naming brands). You appear in ") +
+            f"{int(ai.get('reco_hits') or 0)}.") if _tot
+           else L("Veces que la IA los nombra cuando piden tu servicio.", "Times AI names each when your service is requested."))
+    return (f'<div class="block" style="border:1px solid #dee3e9;border-radius:12px;padding:13px 15px;margin-top:10px">'
+            f'<div class="sectic" style="margin-bottom:9px">{L("Cuánto te nombra la IA frente a tu competencia", "How much AI names you vs your competition")}</div>'
+            f'{bars}'
+            f'<div style="font-size:8px;color:#7b8694;margin-top:8px;line-height:1.4">{sub}</div></div>')
+
+
 def _ai_section(r: dict) -> str:
     ai = r.get("geo_ai") or {}
     answered = ai.get("answered_names") or []
@@ -901,7 +937,8 @@ def _ai_section(r: dict) -> str:
     {card1}
     {card2}
     {q_block}
-    </div>"""
+    </div>
+    {_competitors_chart(r)}"""
 
 
 def _ai_matrix(r: dict) -> str:
@@ -1554,8 +1591,8 @@ def build_report_html(r: dict, contact: dict, name: str = "") -> str:
     {_font_faces()}
     *{{box-sizing:border-box;margin:0;padding:0}}
     html{{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
-    body{{font-family:"Plus Jakarta Sans",sans-serif;color:#283038;font-size:11px;line-height:1.55;background:#fff;-webkit-font-smoothing:antialiased}}
-    @page{{size:A4;margin:16mm 15mm 14mm}}
+    body{{font-family:"Plus Jakarta Sans",sans-serif;color:#283038;font-size:11px;line-height:1.55;background:#fff;-webkit-font-smoothing:antialiased;orphans:3;widows:3}}
+    @page{{size:A4;margin:14mm 14mm 12mm}}
     @page:first{{margin:0}}
     .disp{{font-family:"Sora",sans-serif}}
     .cover{{position:relative;height:297mm;background:#fff;overflow:hidden;padding:15mm 18mm}}
@@ -1594,9 +1631,10 @@ def build_report_html(r: dict, contact: dict, name: str = "") -> str:
     h2.sec{{font-family:"Sora",sans-serif;font-weight:800;font-size:27px;letter-spacing:-.02em;color:{INK9};line-height:1.1;margin:0 0 5px;break-after:avoid}}
     .sub{{font-size:11.5px;color:#7b8694;margin-bottom:15px;break-after:avoid}}
     .eyebrow+h2.sec,h2.sec+.sub{{break-before:avoid}}
-    .keep{{break-inside:avoid}}
+    .keep{{break-inside:avoid;break-after:avoid}}
+    .sub{{break-after:avoid}}
     p{{margin:0 0 9px}}
-    .block{{margin-bottom:11px;break-inside:avoid}}
+    .block{{margin-bottom:10px;break-inside:avoid}}
     .two{{display:grid;grid-template-columns:1fr 1fr;gap:14px}}
     .sectic{{font-family:"JetBrains Mono",monospace;font-size:8px;letter-spacing:.05em;color:#7b8694;text-transform:uppercase;margin-bottom:8px}}
     .scorewrap{{display:grid;grid-template-columns:176px 1fr;gap:20px;align-items:center;border:1px solid #dee3e9;border-radius:16px;padding:16px 18px;background:#f6f9fb}}
