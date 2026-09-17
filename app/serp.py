@@ -61,7 +61,10 @@ _NOT_COMPETITOR = (
     "monday.com", "pipedrive.", "odoo.", "sap.com", "orsys.",
     # Portales de empleo / formación (salen en búsquedas de servicios)
     "computrabajo.", "elempleo.", "infojobs.", "bumeran.", "occ.com", "academia.",
-    "academy", ".academy")
+    "academy", ".academy",
+    # Herramientas/plataformas globales que no son competencia del cliente
+    "docusign.", "kimi.ai", "manychat.", "zapier.", "n8n.", "make.com", "dialogflow.",
+    "openai.", "anthropic.", "perplexity.", "deepseek.", "mistral.")
 
 
 # Títulos que delatan un artículo/listículo/guía, NO un competidor real. "Quién sale en

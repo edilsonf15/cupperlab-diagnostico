@@ -41,7 +41,30 @@ AI_BUDGET = float(os.getenv("AI_GEO_BUDGET", "45"))          # tope global del b
 CALL_TIMEOUT = float(os.getenv("AI_CALL_TIMEOUT", "30"))      # tope por llamada
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")      # mini: P1/P3/P4 y P2 en ChatGPT
 OPENAI_MODEL_STRONG = os.getenv("OPENAI_MODEL_STRONG", OPENAI_MODEL)
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
+
+# La IA a veces nombra como "competidor" a gigantes globales o herramientas genéricas
+# (Salesforce, HubSpot, Zoho, ChatGPT…) que NO son la competencia real del cliente.
+# Se filtran para que "quién capta tu demanda" sean rivales de su mismo tamaño y sector.
+_NOT_COMP_NAME = (
+    "salesforce", "hubspot", "zoho", "pipedrive", "microsoft", "dynamics", "sap", "oracle",
+    "ibm", "google", "openai", "chatgpt", "gpt-", "gemini", "copilot", "anthropic", "claude",
+    "aws", "amazon", "meta ", "notion", "monday", "slack", "zendesk", "freshworks", "intercom",
+    "docusign", "dialogflow", "watson", "einstein", "upwork", "freelancer", "fiverr", "canva",
+    "kimi", "deepseek", "mistral", "perplexity", "wordpress", "shopify", "wix", "odoo",
+    "manychat", "zapier", "n8n", "whatsapp", "telegram", "whatsapp business")
+_GENERIC_COMP = {
+    "", "ia", "ai", "crm", "erp", "chatbot", "chatbots", "bot", "software", "saas",
+    "agente de ia", "agentes de ia", "inteligencia artificial", "dialogflow",
+    "asistente virtual", "asistentes virtuales", "consultoría", "consultoria", "freelancers"}
+
+
+def _is_real_competitor(name: str) -> bool:
+    """True si el nombre parece una empresa rival real (no un gigante global ni un genérico)."""
+    n = (name or "").strip().lower()
+    if len(n) < 3 or n in _GENERIC_COMP:
+        return False
+    return not any(g in n for g in _NOT_COMP_NAME)
 PERPLEXITY_MODEL = os.getenv("PERPLEXITY_MODEL", "sonar")
 ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
 # Motores que "responden al cliente" (P2). Por defecto 2 para contener coste; añade
@@ -633,7 +656,7 @@ async def run_geo(identity: dict, lang: str = "es") -> dict:
                         pos = pos or k
                     else:
                         nm = (it.get("nombre") or "").strip()
-                        if nm:
+                        if nm and _is_real_competitor(nm):
                             named.append(nm)
                             key = _places._norm(nm)
                             c = comp_agg.setdefault(key, {"name": nm, "domain": _host(it.get("dominio") or ""),
