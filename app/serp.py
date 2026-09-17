@@ -161,16 +161,17 @@ async def run(domain: str, brand: str, category_queries: list[str], gl: str = "e
         except Exception:  # noqa: BLE001
             return None
 
+    NUM = 10
     s = res[-1]
     site_dbg = {"organic_n": len(organic(s)), "total_raw": (s.get("searchInformation") or {}).get("totalResults"),
                 "keys": list(s.keys())[:12], "error": str(s.get("error"))[:200] if s.get("error") else None,
                 "site_q": f"site:{dr}", "requery": False}
     urls = [o["link"] for o in organic(s) if dr in _root(o["link"])]
-    est = _parse_total(s)
+    est = _parse_total(s)          # total REAL de Google, si Serper lo trae
+    sample_n = len(organic(s))
     if not urls and est is None:
-        # relanzar la consulta site: SOLA, como objeto único (no array) por si el batch
-        # es lo que la rechaza. Capturamos también su error.
-        s2 = await _search_one({"q": f"site:{dr}", "gl": gl, "hl": hl, "num": 10})
+        # el batch no trajo nada: reintenta la consulta site: sola (objeto, no array)
+        s2 = await _search_one({"q": f"site:{dr}", "gl": gl, "hl": hl, "num": NUM})
         if isinstance(s2, dict):
             s = s2
             site_dbg.update(requery=True, organic_n2=len(organic(s)),
@@ -178,7 +179,34 @@ async def run(domain: str, brand: str, category_queries: list[str], gl: str = "e
                             error2=str(s.get("error"))[:200] if s.get("error") else None)
             urls = [o["link"] for o in organic(s) if dr in _root(o["link"])]
             est = _parse_total(s)
-    idx = est if isinstance(est, int) else len(urls)
+            sample_n = len(organic(s))
+    # ¿La muestra llegó al tope (num)? Entonces hay MÁS páginas y la muestra NO es el total.
+    capped = sample_n >= NUM
+    # Serper no siempre devuelve el total en site:; si está topado, pedimos una muestra
+    # mayor (num=100) para intentar el conteo real o al menos un rango mayor.
+    if est is None and capped:
+        s3 = await _search_one({"q": f"site:{dr}", "gl": gl, "hl": hl, "num": 100})
+        if isinstance(s3, dict):
+            n3 = len(organic(s3))
+            e3 = _parse_total(s3)
+            site_dbg.update(big=True, organic_n3=n3,
+                            total_raw3=(s3.get("searchInformation") or {}).get("totalResults"),
+                            error3=str(s3.get("error"))[:160] if s3.get("error") else None)
+            if e3 is not None:
+                est = e3
+            if n3 > sample_n:
+                sample_n = n3
+                if not urls:
+                    urls = [o["link"] for o in organic(s3) if dr in _root(o["link"])]
+            capped = (n3 >= 100) if n3 else capped
+    # idx = total real si lo hay; si la muestra está topada, DESCONOCIDO (None, no un
+    # número bajo falso); si no está topada, la muestra ES el nº real (pocas páginas).
+    if est is not None:
+        idx = est
+    elif capped:
+        idx = None
+    else:
+        idx = sample_n
     broken: list[dict] = []
     if check_broken and urls:
         async with httpx.AsyncClient(timeout=10.0, follow_redirects=True,
@@ -199,18 +227,24 @@ async def run(domain: str, brand: str, category_queries: list[str], gl: str = "e
             except asyncio.TimeoutError:
                 pass
     conclusion = ""
-    if sitemap_total and idx:
+    if isinstance(idx, int) and idx and sitemap_total:
+        # tenemos el TOTAL real de Google y el del sitemap: comparación fiable
         if idx < sitemap_total * 0.7:
             conclusion = (f"Tu mapa del sitio declara {sitemap_total} páginas y Google indexa unas {idx}: "
                           f"quedan del orden de {max(sitemap_total - idx, 0)} sin indexar.")
         else:
             conclusion = f"Google indexa unas {idx} de las {sitemap_total} páginas de tu mapa: buena cobertura."
-    elif idx:
+    elif isinstance(idx, int) and idx:
         conclusion = f"Google tiene indexadas del orden de {idx} páginas de tu sitio."
-    indexation = {"indexed": bool(urls) or bool(idx), "sample_count": len(urls),
-                  "indexed_urls": urls[:10], "indexed_estimate": idx, "broken_indexed": broken,
-                  "sitemap_total": sitemap_total, "conclusion": conclusion, "provider": "Google (Serper)",
-                  "_debug": site_dbg}
+    elif idx is None and (urls or capped):
+        # indexado confirmado por muestra, pero Google no nos da el total exacto por aquí
+        _n = max(sample_n, len(urls))
+        conclusion = (f"Google tiene tu sitio indexado (confirmamos una muestra de {_n}+ páginas). "
+                      f"El número exacto se revisa en Search Console.")
+    indexation = {"indexed": bool(urls) or bool(idx) or capped, "sample_count": len(urls),
+                  "indexed_urls": urls[:10], "indexed_estimate": idx, "count_capped": bool(idx is None and (urls or capped)),
+                  "broken_indexed": broken, "sitemap_total": sitemap_total, "conclusion": conclusion,
+                  "provider": "Google (Serper)", "_debug": site_dbg}
     out.update(status="ok", google=google, indexation=indexation,
                elapsed_ms=round((time.monotonic() - t0) * 1000))
     return out

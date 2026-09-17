@@ -74,11 +74,13 @@ def _tech(data) -> int | None:
         return None
     st = []
     pages = sig.get("pages_found") or 0
-    idx = ix.get("indexed_estimate") if ix.get("indexed_estimate") is not None else ((ix.get("sample_count") or 0) if ix.get("indexed") else 0)
-    # indexación medida con buscador proxy (no Google directo): solo puntúa si hay dato, y nunca "bad"
-    has_idx = bool(ix.get("indexed") or ix.get("indexed_estimate") is not None or (ix.get("sample_count") or 0) > 0)
-    if has_idx:
-        st.append(("index", "warn" if (pages > 0 and idx < pages * 0.3) else "ok", 20))
+    est = ix.get("indexed_estimate")
+    # Solo avisamos "poco indexado" si tenemos el TOTAL REAL de Google (est int) y es bajo.
+    # Si solo hay muestra topada (est=None pero indexado), es "ok": indexado, total desconocido.
+    if isinstance(est, int) and est > 0:
+        st.append(("index", "warn" if (pages > 0 and est < pages * 0.3) else "ok", 20))
+    elif ix.get("indexed") or ix.get("count_capped"):
+        st.append(("index", "ok", 20))
     comp = sig.get("sitemap_comp") or {}
     dirty = sig.get("sitemap") and (((comp.get("etiquetas") or 0) > (comp.get("paginas") or 0)) or ((comp.get("fichas") or 0) > (comp.get("paginas") or 0)))
     st.append(("sitemap", "bad" if not sig.get("sitemap") else ("warn" if dirty else "ok"), 14))

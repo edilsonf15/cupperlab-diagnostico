@@ -300,7 +300,7 @@ def tech_findings(r, P):
                     "d": P(str(w.get("broken_host")) + " da error en vez de redirigir a la versión buena. Si alguien la enlaza o la escribe, se encuentra un fallo. Configura una redirección 301 de " + str(w.get("broken_host")) + " a " + str(w.get("canonical_host") or host) + ".",
                            str(w.get("broken_host")) + " returns an error instead of redirecting to the good version. If someone links or types it, they hit a failure. Set a 301 redirect from " + str(w.get("broken_host")) + " to " + str(w.get("canonical_host") or host) + ".")})
     pages = sig.get("pages_found") or 0
-    idx = ix.get("indexed_estimate") if ix.get("indexed_estimate") is not None else ((ix.get("sample_count") or 0) if ix.get("indexed") else 0)
+    _est_idx = ix.get("indexed_estimate")  # nº REAL de Google (int) o None si solo hay muestra
     if sig.get("https") is False:
         out.append({"sev": "critico", "t": P("Tu web no tiene conexión segura (HTTPS)", "Your site has no secure connection (HTTPS)"),
                     "d": P("Los navegadores la marcan como 'no segura' y Google la penaliza. Es lo primero a corregir: instala el certificado SSL.",
@@ -358,11 +358,11 @@ def tech_findings(r, P):
             out.append({"sev": "op", "t": P("Tu robots.txt no declara el sitemap", "Your robots.txt doesn't declare the sitemap"),
                         "d": P("Añade la línea 'Sitemap:' con la URL de tu mapa del sitio en el robots.txt para que Google lo encuentre antes.",
                                "Add a 'Sitemap:' line with your sitemap URL in robots.txt so Google finds it sooner.")})
-    hasidx = ix.get("indexed") or ix.get("indexed_estimate") is not None or (ix.get("sample_count") or 0) > 0
-    if hasidx and pages > 0 and idx < pages * 0.3:
+    # Solo avisamos de "poca cobertura" si tenemos el TOTAL REAL de Google (no una muestra topada).
+    if isinstance(_est_idx, int) and _est_idx > 0 and pages > 0 and _est_idx < pages * 0.3:
         out.append({"sev": "op", "t": P("Revisa tu cobertura de indexación", "Review your indexing coverage"),
-                    "d": P("Rastreamos ~" + str(pages) + " páginas y en el buscador aparecen alrededor de " + str(idx) + ". La medición es orientativa (no consultamos Google directo); confírmalo en Search Console (Cobertura) y refuerza el sitemap y los enlaces internos.",
-                           "We crawled ~" + str(pages) + " pages and about " + str(idx) + " show in search. This is an estimate (we don't query Google directly); confirm it in Search Console (Coverage) and reinforce the sitemap and internal links.")})
+                    "d": P("Rastreamos ~" + str(pages) + " páginas y en Google aparecen alrededor de " + str(_est_idx) + ". Confírmalo en Search Console (Cobertura) y refuerza el sitemap y los enlaces internos.",
+                           "We crawled ~" + str(pages) + " pages and about " + str(_est_idx) + " show in Google. Confirm it in Search Console (Coverage) and reinforce the sitemap and internal links.")})
     if not meta.get("viewport"):
         out.append({"sev": "op", "t": P("No está preparada para móvil", "Not mobile-ready"),
                     "d": P("Falta la etiqueta viewport. Google indexa en modo móvil primero; sin esto se ve mal en el teléfono y pierdes posiciones.",
