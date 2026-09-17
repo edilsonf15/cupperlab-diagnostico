@@ -531,7 +531,9 @@ def _onpage_multi(r: dict) -> str:
     iss = op.get("issues") or {}
     if not iss:
         return ""
-    pages = op.get("pages_crawled") or (op.get("totals") or {}).get("pages") or (r.get("signals") or {}).get("pages_found") or 0
+    # UNA sola cifra de "páginas analizadas" en todo el informe (la misma que la pantalla):
+    # las páginas realmente parseadas. Evita el "39 aquí / 46 allá" que se contradecía.
+    pages = (op.get("totals") or {}).get("pages") or op.get("pages_crawled") or (r.get("signals") or {}).get("pages_found") or 0
 
     def ex(key, n=3):
         e = (iss.get(key) or {}).get("examples") or []
@@ -986,16 +988,17 @@ def _crawl_structure_block(r: dict) -> str:
     """Estructura del sitio medida por NUESTRO rastreo (fiable, no depende de
     buscadores): cuantas páginas tiene y cuantas revisamos una a una."""
     s = r.get("signals") or {}
-    pf = s.get("pages_found", 0)
+    op = r.get("onpage") or {}
+    pages = (op.get("totals") or {}).get("pages") or op.get("pages_crawled") or s.get("pages_found", 0)
     broken, checked, _ = _broken(r)
-    if not pf and not checked:
+    if not pages and not checked:
         return ""
     sm = s.get("sitemap_total", 0)
-    fuente = (f'{L("según tu mapa del sitio", "according to your sitemap")} ({sm} URLs)' if sm else L("por los enlaces internos de tu web", "from your site's internal links"))
-    rota = (f' {L("De ellas,", "Of those,")} <b>{broken}</b> {L("daban error 404.", "returned a 404 error.")}' if broken else L(" No encontramos enlaces rotos.", " We found no broken links."))
+    smx = f' {L("Tu mapa del sitio declara", "Your sitemap declares")} {sm} URLs.' if sm else ""
+    rota = (f' {L("De los enlaces internos comprobados,", "Of the internal links checked,")} <b>{broken}</b> {L("daban error 404.", "returned a 404 error.")}'
+            if broken else L(" No encontramos enlaces rotos.", " We found no broken links."))
     return (f'<div class="block callout o"><b>{L("Estructura de tu sitio (rastreo página por página).", "Your site structure (page-by-page crawl).")}</b> '
-            f'{L("Tu web tiene del orden de", "Your site has around")} <b>{pf}</b> {L("páginas", "pages")} {fuente}. {L("Revisamos", "We checked")} {checked} {L("una a una.", "one by one.")}{rota} '
-            f'{L("El número exacto que Google tiene indexado se confirma con Search Console (lo activamos al empezar).", "The exact number Google has indexed is confirmed with Search Console (we enable it at the start).")}</div>')
+            f'{L("Analizamos", "We analyzed")} <b>{pages}</b> {L("páginas de tu sitio, una a una.", "pages of your site, one by one.")}{smx}{rota}</div>')
 
 
 def _index_block(r: dict) -> str:
@@ -1712,7 +1715,9 @@ def build_report_html(r: dict, contact: dict, name: str = "") -> str:
     mob = (psi.get("mobile") or {})
     speed_bit = f' {L("Medimos la velocidad real en móvil y escritorio (móvil", "We measured real speed on mobile and desktop (mobile")} {mob.get("performance")}/100).' if mob.get("performance") is not None else ""
     n404, nchk, _ = _broken(r)
-    tec_bit = (f' {L("Rastreamos", "We crawled")} {nchk} {L("direcciones una a una", "addresses one by one")}'
+    _op = r.get("onpage") or {}
+    _pages = (_op.get("totals") or {}).get("pages") or _op.get("pages_crawled") or (r.get("signals") or {}).get("pages_found") or 0
+    tec_bit = (f' {L("Analizamos", "We analyzed")} {_pages} {L("páginas una a una", "pages one by one")}'
                + (f' {L("y encontramos", "and found")} {n404} {L("enlace(s) roto(s).", "broken link(s).")}' if n404 else L(" sin enlaces rotos.", " with no broken links.")))
     lede = (f'{L("Diagnóstico con <b>datos reales comprobados en vivo</b>: revisamos tu web por dentro, página a página.", "Diagnosis with <b>real data checked live</b>: we reviewed your site from the inside, page by page.")}{tec_bit}{ai_bit}{speed_bit} '
             f'{L("Aquí tienes lo que encontramos y el plan para que Google y la IA te encuentren y te recomienden.", "Here is what we found and the plan for Google and AI to find and recommend you.")}')
