@@ -1388,11 +1388,14 @@ def _estado_resumen(r: dict) -> str:
     an = s.get("analytics") or {}
     if not an.get("has_any"):
         weak.append(L("no detectamos analitica", "no analytics detected"))
-    weak_txt = ("; ".join(weak[:4]) + ".") if weak else L("no encontramos fallos graves; toca pulir y consolidar.", "we found no serious issues; it's about polishing and consolidating.")
+    # LIDERAR CON LO MALO (es lo que mueve al cliente a actuar): primero las carencias
+    # concretas y la peor dimensión; el punto fuerte, al final y en una línea.
+    weak_txt = ("; ".join(weak[:3]) + ".") if weak else L("no hay fallos graves, pero hay margen para destacar.", "no serious issues, but there's room to stand out.")
     return (f'<div class="block callout {"g" if named[worst] >= 60 else "o"}">'
-            f'<b>{L("En concreto para", "Specifically for")} {r.get("domain", L("tu web","your site"))}:</b> {L("tu punto más fuerte es", "your strongest point is")} <b>{best}</b> '
-            f'({named[best]}/100) {L("y donde más pierdes es", "and where you lose most is")} <b>{worst}</b> ({named[worst]}/100). '
-            f'{L("Lo que hay que corregir:", "What needs fixing:")} {weak_txt}</div>')
+            f'<b>{r.get("domain", L("Tu web","Your site"))} {L("está perdiendo visibilidad", "is losing visibility")}:</b> '
+            f'{L("lo más débil es", "the weakest area is")} <b>{worst}</b> ({named[worst]}/100). '
+            f'{L("A corregir ya:", "Fix now:")} {weak_txt} '
+            f'{L("Lo único que hoy juega a tu favor:", "The only thing working for you today:")} {best} ({named[best]}/100).</div>')
 
 
 def _fortalezas_block(r: dict) -> str:
@@ -1782,7 +1785,6 @@ def build_report_html(r: dict, contact: dict, name: str = "") -> str:
   </div>
   </div>
   {_estado_resumen(r)}
-  {_fortalezas_block(r)}
 </section>
 
 <section class="pg">
