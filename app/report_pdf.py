@@ -641,11 +641,20 @@ def _levels(r: dict) -> str:
     # Las MISMAS 9 dimensiones que ve el cliente en la pantalla (fuente única: dims.py)
     out = ""
     for d in (r.get("dims") or []):
-        val = d.get("score", 0)
+        val = d.get("score")
+        if not isinstance(val, (int, float)):
+            continue  # sin dato: se lista abajo como "no medido", nunca como 0
+        val = int(val)
         col = _color(val)  # mismos umbrales que la web
         out += (f'<div class="lv"><div class="top"><span class="nm">{_esc(d.get("name",""))}</span>'
                 f'<span class="vl" style="color:{col}">{val}</span></div>'
                 f'<div class="tr"><div class="fl" style="width:{max(2,val)}%;background:{col}"></div></div></div>')
+    # v2: lo que NO se pudo medir se dice, con el motivo (honestidad = confianza del cliente)
+    for x in (r.get("not_measured") or []):
+        out += (f'<div class="lv" style="opacity:.6"><div class="top"><span class="nm">{_esc(x.get("name",""))}</span>'
+                f'<span class="vl" style="color:#6b7683;font-size:10px">{L("No medido", "Not measured")}</span></div>'
+                f'<div class="tr"><div class="fl" style="width:0"></div></div>'
+                f'<div style="font-size:9px;color:#6b7683;margin-top:2px">{_esc((x.get("note") or "")[:120])}</div></div>')
     return out
 
 
@@ -1326,9 +1335,19 @@ def _competitors_block(r: dict) -> str:
     trs = ""
     for c in comps[:6]:
         dom = c.get("domain") or "—"
-        trs += (f'<tr><td><b>{c["name"]}</b></td>'
-                f'<td class="u">{dom}</td>'
-                f'<td>{L("La IA lo recomienda a un cliente que pide tu mismo servicio", "AI recommends it to a customer asking for your same service")}</td></tr>')
+        _by = c.get("cited_by") or []
+        if _by and c.get("source") == "google":
+            why = L("Sale en el top 5 de Google para las búsquedas de tu cliente",
+                    "Ranks in Google's top 5 for your customer's searches")
+        elif _by:
+            why = L("Lo recomienda " + " y ".join(_by) + " a un cliente que pide tu mismo servicio",
+                    " and ".join(_by) + " recommends it to a customer asking for your same service")
+        else:
+            why = L("La IA lo recomienda a un cliente que pide tu mismo servicio",
+                    "AI recommends it to a customer asking for your same service")
+        trs += (f'<tr><td><b>{_esc(c["name"])}</b></td>'
+                f'<td class="u">{_esc(dom)}</td>'
+                f'<td>{why}</td></tr>')
     return f"""
     <div class="eyebrow" style="margin-top:16px"><span class="bar"></span>{L('Quien capta hoy tu demanda', 'Who captures your demand today')}</div>
     <h2 class="sec">{L('Tu competencia real, la que la IA sí recomienda', 'Your real competition, the one AI does recommend')}</h2>
@@ -1341,7 +1360,7 @@ def _estado_resumen(r: dict) -> str:
     carencias concretas detectadas (para que ningun informe se lea igual a otro)."""
     s = r.get("signals", {}); m = r.get("meta", {})
     # punto fuerte / débil a partir de las MISMAS 9 dimensiones de la pantalla
-    dl = r.get("dims") or []
+    dl = [d for d in (r.get("dims") or []) if isinstance(d.get("score"), (int, float))]
     if dl:
         named = {d["name"].lower(): d["score"] for d in dl}
     else:
@@ -1711,7 +1730,7 @@ def build_report_html(r: dict, contact: dict, name: str = "") -> str:
             f'{L("Aquí tienes lo que encontramos y el plan para que Google y la IA te encuentren y te recomienden.", "Here is what we found and the plan for Google and AI to find and recommend you.")}')
 
     # Análisis dinamico para "Cómo está tu web hoy" — desde las 9 dimensiones reales
-    _dl = r.get("dims") or []
+    _dl = [d for d in (r.get("dims") or []) if isinstance(d.get("score"), (int, float))]
     if _dl:
         _areas = [(d["name"].lower(), d["score"]) for d in _dl]
     else:

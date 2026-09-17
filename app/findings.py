@@ -217,10 +217,20 @@ def geo_findings(r, P):
         return [{"sev": "op", "t": P("Consulta a la IA no completada", "AI query not completed"),
                  "d": P("En este análisis no pudimos completar la consulta en vivo a la IA (límite temporal del servicio). No significa que la IA no te conozca; se reintenta. El resto del diagnóstico es completo.",
                         "We couldn't complete the live AI query in this analysis (a temporary service limit). It does not mean AI doesn't know you; we'll retry. The rest of the diagnosis is complete.")}]
-    if not ai.get("available"):
+    if not ai.get("available") or ai.get("status") in ("failed", "skipped"):
         return out
     rec = ai.get("recognition")
-    comp = [c.get("name") for c in (ai.get("competitors") or []) if c.get("name")][:3]
+    comp = [c.get("name") for c in (ai.get("competitors") or [])
+            if isinstance(c, dict) and c.get("name") and c.get("source") != "google"][:3]
+    # v2: qué motores respondieron y qué preguntó el cliente (transparencia de la medición)
+    _eng = ai.get("answered_names") or []
+    _qs = [q.get("q") for q in (ai.get("questions") or []) if q.get("q")]
+    if _eng and _qs:
+        out.append({"sev": "op", "t": P("Cómo lo medimos", "How we measured it"),
+                    "d": P("Preguntamos a " + " y ".join(_eng) + " como lo haría un cliente, sin nombrarte: " +
+                           " · ".join("“" + q + "”" for q in _qs[:3]) + ".",
+                           "We asked " + " and ".join(_eng) + " the way a customer would, without naming you: " +
+                           " · ".join("“" + q + "”" for q in _qs[:3]) + ".")})
     if rec == "none":
         out.append({"sev": "critico", "t": P("La IA no sabe quién eres", "AI doesn't know who you are"),
                     "d": P("Le preguntamos por tu marca (con búsqueda web) y no te reconoce. Cada vez más clientes preguntan a la IA antes de decidir y hoy no apareces. Se corrige con entidad de marca (Schema Organization + perfiles), contenido citable y presencia en fuentes que la IA lee.",
@@ -487,6 +497,15 @@ def local_findings(r, P):
         out.append({"sev": "critico", "t": P("No encontramos tu ficha de Google Business", "We couldn't find your Google Business profile"),
                     "d": P("Sin ficha no apareces en el mapa ni en las búsquedas locales, y pierdes las reseñas que Google y la IA usan para recomendarte. Una ficha activa y bien completa (categoría, dirección, teléfono, horario, fotos) es de lo que más mueve tu visibilidad local.",
                            "Without a profile you don't appear on the map or in local searches, and you lose the reviews Google and AI use to recommend you. Create it for free and complete it (category, address, phone, hours, photos).")})
+    elif ai.get("gbp") is True and isinstance(rev, int) and rev > 0:
+        _rt = ai.get("gbp_rating")
+        out.append({"sev": "ok", "t": P("Ficha de Google verificada", "Google listing verified"),
+                    "d": P("Según Google (Places API): ficha activa con " + str(rev) + " reseñas" + (", valoración " + str(_rt) + "/5" if _rt else "") + (", categoría “" + ai.get("gbp_category") + "”" if ai.get("gbp_category") else "") + ".",
+                           "According to Google (Places API): active listing with " + str(rev) + " reviews" + (", rating " + str(_rt) + "/5" if _rt else "") + (", category “" + ai.get("gbp_category") + "”" if ai.get("gbp_category") else "") + ".")})
+    elif ai.get("gbp") is None:
+        out.append({"sev": "op", "t": P("Ficha de Google: no medida", "Google listing: not measured"),
+                    "d": P("No pudimos consultar Google Maps en este análisis, así que no afirmamos si tienes ficha o no. Lo revisamos contigo en la sesión.",
+                           "We couldn't query Google Maps in this analysis, so we make no claim about your listing. We'll review it with you in the session.")})
     elif ai.get("gbp") is True and rev == 0:
         out.append({"sev": "op", "t": P("Tu ficha de Google no tiene reseñas", "Your Google profile has no reviews"),
                     "d": P("Las reseñas son de lo que más miran los clientes y la IA para elegir. Pide reseñas a tus clientes contentos: suben tu posición local y tu confianza.",

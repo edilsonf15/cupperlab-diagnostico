@@ -35,13 +35,22 @@ def _geo(data) -> int | None:
     ai = data.get("geo_ai") or {}
     sig = data.get("signals") or {}
     meta = data.get("meta") or {}
-    if not ai.get("available") or ai.get("limited"):
+    if not ai.get("available") or ai.get("limited") or ai.get("status") in ("failed", "skipped"):
         return None  # sin datos fiables de IA (o cuota agotada): no puntuamos GEO
+    if not (ai.get("reco_total") or 0) and not ai.get("knows_brand"):
+        return None  # ningún motor respondió: "no medido", no un 0 falso
     rec = ai.get("recognition")
     st = []
     st.append(("know", "ok" if rec == "strong" else ("warn" if rec == "weak" else "bad"), 20))
+    # ¿Apareces cuando el cliente pregunta? share_of_voice (v2) o el veredicto agregado.
+    sov = ai.get("share_of_voice")
     reco = ai.get("recommended")
-    st.append(("reco", "ok" if reco is True else ("warn" if reco is None else "bad"), 20))
+    if isinstance(sov, (int, float)) and (ai.get("reco_total") or 0) > 0:
+        hits, tot = ai.get("reco_hits") or 0, ai.get("reco_total") or 1
+        frac = hits / tot
+        st.append(("reco", "ok" if frac >= 0.5 else ("warn" if frac > 0 else "bad"), 20))
+    else:
+        st.append(("reco", "ok" if reco is True else ("warn" if reco is None else "bad"), 20))
     srcs = ai.get("sources") or []
     ext = [s for s in srcs if not (isinstance(s, dict) and s.get("own"))]
     st.append(("sources", "ok" if len(ext) > 0 else ("warn" if len(srcs) > 0 else "bad"), 10))

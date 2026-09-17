@@ -1,58 +1,63 @@
 """
-Consulta REAL a la IA (GEO / LLMO) — replica el termómetro de la skill de
-Cupperlab: le preguntamos directamente a un modelo de IA por la marca y por su
-categoria de servicio, y medimos si la IA la conoce y si la recomienda.
+geo_ai v2 — Test GEO/LLMO: ¿qué contesta la IA cuando un cliente pregunta?
 
-Se activa solo si hay ANTHROPIC_API_KEY en el entorno. Sin key, devuelve None y
-el informe usa las senales GEO heuristicas (schema, llms.txt, etc.).
+Qué cambia respecto a v1 (y por qué):
+  * La IA ya NO es fuente de hechos. Ficha de Google, reseñas, categoría, ciudad y
+    país llegan MEDIDOS (places.py + crawl) en `identity`. Aquí solo se pregunta lo
+    que únicamente la IA puede responder: qué dice de la marca y a quién recomienda.
+  * La pregunta a la IA es la del CLIENTE (P2), texto libre, sin "actúa como analista"
+    ni formatos. Una llamada por búsqueda y por motor: así cada respuesta es real y
+    distinta (en v1 iban las 3 en una llamada y el modelo copiaba la misma lista).
+  * La estructuración se hace después, con un modelo mini y JSON con esquema (P3).
+    Se acaban los parsers por regex sobre texto con citas y markdown.
+  * Reconocimiento (P4) con JSON: `conoce` solo cuenta si el sector y el país que la
+    IA cree coinciden con los medidos (evita homónimos).
+  * Competidores = los que las IAs citaron de verdad (+ Google real vía serp.py en
+    main). Ninguna lista "de memoria".
+  * Presupuesto de tiempo por llamada y global. Cada motor que falla se marca
+    "sin respuesta" y no arrastra a los demás.
+
+Salida: mantiene TODAS las claves que leen pantalla, PDF y correo (ver ARQUITECTURA.md)
+y añade `share_of_voice`, `by_engine`, `status`, `prompts_version`.
+
+Prompts: P1..P4 abajo (y en PROMPTS.md). Sin ejemplos con marcas reales: anclan.
 """
-
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import re
+import time
 from urllib.parse import urlparse
 
 import httpx
 
-from i18n import L, is_en  # idioma del analisis (ES/EN)
+from i18n import L
+import places as _places
 
-ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
+PROMPTS_VERSION = "2.0"
+AI_BUDGET = float(os.getenv("AI_GEO_BUDGET", "45"))          # tope global del bloque IA
+CALL_TIMEOUT = float(os.getenv("AI_CALL_TIMEOUT", "30"))      # tope por llamada
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")      # mini: P1/P3/P4 y P2 en ChatGPT
+OPENAI_MODEL_STRONG = os.getenv("OPENAI_MODEL_STRONG", OPENAI_MODEL)
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+PERPLEXITY_MODEL = os.getenv("PERPLEXITY_MODEL", "sonar")
 ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
-# OJO: 'gemini-flash-latest' apunta al modelo más nuevo (3.8), que en cuentas de pago
-# recientes sigue capado a free-tier (20/día -> 429). 'gemini-3.6-flash' SÍ tiene cuota
-# de pago y buena calidad. Se puede sobreescribir con GEMINI_MODEL en Dokploy.
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
-AI_BUDGET = float(os.getenv("AI_GEO_BUDGET", "30"))  # grounded necesita margen, pero son 2 rondas: 30s equilibra veracidad y <2min
-_LAST_GROUNDING: dict = {}  # debug temporal: estado del último grounding
+# Motores que "responden al cliente" (P2). Por defecto 2 para contener coste; añade
+# gemini en AI_ENGINES si quieres la matriz de 3.
+DEFAULT_ENGINES = "openai,perplexity"
 
-
-def _provider() -> tuple[str, str, str]:
-    """Devuelve (proveedor, key, modelo). Gemini (capa gratis) tiene prioridad."""
-    gk = os.getenv("GEMINI_API_KEY", "").strip()
-    if gk:
-        return "gemini", gk, GEMINI_MODEL
-    ak = os.getenv("ANTHROPIC_API_KEY", "").strip()
-    if ak:
-        return "anthropic", ak, ANTHROPIC_MODEL
-    return "", "", ""
-
-STOP = {
-    "inicio", "home", "bienvenido", "bienvenida", "web", "sitio", "oficial",
-    "the", "and", "para", "empresa", "servicios", "productos",
-}
-
-# Marcas/textos de páginas de RETO o bloqueo (Cloudflare, WAF, errores). Si el
-# título de la home es una de estas, NO es la marca del cliente: se ignora para
-# no analizar (ni preguntarle a la IA) por "Cloudflare" en vez del negocio real.
-_JUNK_BRAND = (
-    "cloudflare", "just a moment", "attention required", "access denied",
-    "acceso denegado", "checking your browser", "please wait", "un momento",
-    "403 forbidden", "forbidden", "error 1", "ddos", "security check",
-    "are you human", "captcha", "site not found", "account suspended",
-    "under construction", "sucuri", "imperva", "incapsula",
-)
+# --------------------------------------------------------------------------- #
+# Marca (se conserva de v1: funciona bien)
+# --------------------------------------------------------------------------- #
+STOP = {"inicio", "home", "bienvenido", "bienvenida", "web", "sitio", "oficial",
+        "the", "and", "para", "empresa", "servicios", "productos"}
+_JUNK_BRAND = ("cloudflare", "just a moment", "attention required", "access denied",
+               "acceso denegado", "checking your browser", "please wait", "un momento",
+               "403 forbidden", "forbidden", "error 1", "ddos", "security check",
+               "are you human", "captcha", "site not found", "account suspended",
+               "under construction", "sucuri", "imperva", "incapsula")
 
 
 def _is_junk_brand(s: str) -> bool:
@@ -62,16 +67,18 @@ def _is_junk_brand(s: str) -> bool:
 
 def _looks_like_domain(s: str) -> bool:
     s = (s or "").strip().lower()
-    return bool(re.match(r"^(https?://)?(www\.)?[a-z0-9-]+\.[a-z]{2,}", s)) or " " not in s and "." in s
+    return bool(re.match(r"^(https?://)?(www\.)?[a-z0-9-]+\.[a-z]{2,}", s)) or (" " not in s and "." in s)
 
 
 def derive_brand(meta: dict, domain: str) -> str:
-    # raíz del dominio (nafnaf.com.co -> "nafnaf") para reconocer qué trozo del título
-    # es la marca de verdad.
     root = urlparse("https://" + domain).netloc or domain
     root = re.sub(r"^www\.", "", root).split(".")[0]
     root_norm = re.sub(r"[^a-z0-9]", "", root.lower())
-
+    # 1) Organization.name del JSON-LD si el crawl lo trajo
+    for k in ("org_name", "schema_org_name"):
+        v = (meta.get(k) or "").strip()
+        if v and not _is_junk_brand(v) and 2 <= len(v) <= 40:
+            return v
     osn = (meta.get("og_site_name") or "").strip()
     if osn and not _looks_like_domain(osn) and not _is_junk_brand(osn):
         return osn
@@ -81,16 +88,9 @@ def derive_brand(meta: dict, domain: str) -> str:
         parts = [p.strip() for p in parts if p.strip() and not _is_junk_brand(p)
                  and p.strip().lower() not in STOP]
         if parts:
-            # 1) El trozo cuya forma normalizada coincide con la raíz del dominio ES la
-            #    marca (p.ej. "NAF NAF Tienda de Ropa..." casa con "nafnaf"; el eslogan
-            #    "Tendencias en Moda Femenina" no). Antes cogíamos el trozo más corto y
-            #    salía el eslogan como si fuera el nombre.
             for p in parts:
                 pn = re.sub(r"[^a-z0-9]", "", p.lower())
                 if root_norm and (root_norm in pn or pn in root_norm):
-                    # Recorta al prefijo mínimo de palabras que ya cubre la raíz del
-                    # dominio: "NAF NAF Tienda de Ropa Online" -> "NAF NAF" (nafnaf),
-                    # sin arrastrar la coletilla descriptiva.
                     words = p.split()
                     acc = ""
                     for i, w in enumerate(words):
@@ -102,201 +102,13 @@ def derive_brand(meta: dict, domain: str) -> str:
                     cand = " ".join(words[:4])
                     if 2 <= len(cand) <= 40:
                         return cand
-            # 2) Sin coincidencia con el dominio: el primer trozo (no el más corto).
             cand = parts[0]
             if 2 <= len(cand) <= 40:
                 return cand
-    # Sin marca fiable: usa el nombre del dominio (mejor que "Cloudflare").
     return root.capitalize()
 
 
-def derive_service(meta: dict) -> str:
-    desc = (meta.get("description") or "").strip()
-    if desc and not _is_junk_brand(desc):
-        return desc[:160]
-    title = (meta.get("title") or "").strip()
-    if title and not _is_junk_brand(title):
-        return title[:120]
-    return ""
-
-
-async def _ask(client: httpx.AsyncClient, provider: str, key: str, model: str,
-               prompt: str, max_tokens: int = 700, grounded: bool = False,
-               sink: list | None = None) -> str:
-    """Si `sink` es una lista y la llamada usa búsqueda web, se le añaden las URLs de
-    las FUENTES que la IA citó (para 'con qué fuentes te cita')."""
-    if provider == "gemini":
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-
-        async def _call(use_grounding: bool):
-            body = {"contents": [{"parts": [{"text": prompt}]}],
-                    "generationConfig": {"maxOutputTokens": max_tokens, "temperature": 0,
-                                         "thinkingConfig": {"thinkingBudget": 0}}}  # sin "thinking": mucho más rápido
-            if use_grounding:
-                body["tools"] = [{"google_search": {}}]   # busca en vivo, como la app de Gemini
-            return await client.post(url, params={"key": key}, json=body, timeout=AI_BUDGET)
-
-        async def _call_retry(use_grounding: bool):
-            r_ = None
-            for i in range(3):
-                r_ = await _call(use_grounding)
-                if r_.status_code not in (429, 500, 502, 503):
-                    return r_
-                await asyncio.sleep(1.2 * (i + 1))   # transitorio: reintenta con espera
-            return r_
-
-        r = await _call_retry(grounded)
-        if grounded:
-            _LAST_GROUNDING["status"] = r.status_code
-            _LAST_GROUNDING["fell_back"] = (r.status_code != 200)
-        if grounded and r.status_code != 200:
-            # el grounding puede estar limitado: reintenta sin busqueda en vivo
-            r = await _call_retry(False)
-        r.raise_for_status()
-        data = r.json()
-        if sink is not None:
-            try:
-                gm = (data.get("candidates", [{}])[0] or {}).get("groundingMetadata", {}) or {}
-                for ch in (gm.get("groundingChunks") or []):
-                    w = ch.get("web") or {}
-                    if w.get("uri"):
-                        sink.append({"url": w.get("uri"), "title": w.get("title") or ""})
-            except Exception:  # noqa: BLE001
-                pass
-        parts = data.get("candidates", [{}])[0].get("content", {}).get("parts", [])
-        return "".join(p.get("text", "") for p in parts).strip()
-
-    if provider == "openai":
-        headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
-        if grounded:
-            # Responses API con busqueda web en vivo (como la app de ChatGPT)
-            r = await client.post("https://api.openai.com/v1/responses", headers=headers,
-                                  json={"model": model, "tools": [{"type": "web_search"}],
-                                        "input": prompt}, timeout=AI_BUDGET)
-            r.raise_for_status()
-            data = r.json()
-            txt = ""
-            for o in data.get("output", []):
-                for c in (o.get("content") or []):
-                    if c.get("type") == "output_text":
-                        txt += c.get("text", "")
-                    if sink is not None:
-                        for a in (c.get("annotations") or []):
-                            u = a.get("url") or (a.get("url_citation") or {}).get("url")
-                            if u:
-                                sink.append({"url": u, "title": a.get("title") or ""})
-            return txt.strip()
-        r = await client.post("https://api.openai.com/v1/chat/completions", headers=headers,
-                              json={"model": model, "messages": [{"role": "user", "content": prompt}],
-                                    "max_tokens": max_tokens, "temperature": 0}, timeout=AI_BUDGET)
-        r.raise_for_status()
-        return r.json()["choices"][0]["message"]["content"].strip()
-
-    if provider == "perplexity":
-        # Perplexity (sonar) SIEMPRE busca en la web en vivo y devuelve citas: es un
-        # buscador con IA real, ideal para medir visibilidad GEO. `grounded` se ignora.
-        headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
-        r = await client.post("https://api.perplexity.ai/chat/completions", headers=headers,
-                              json={"model": model, "messages": [{"role": "user", "content": prompt}],
-                                    "max_tokens": max_tokens, "temperature": 0}, timeout=AI_BUDGET)
-        r.raise_for_status()
-        data = r.json()
-        if sink is not None:
-            for u in (data.get("citations") or []):
-                if u:
-                    sink.append({"url": u, "title": ""})
-            for sr in (data.get("search_results") or []):
-                if sr.get("url"):
-                    sink.append({"url": sr["url"], "title": sr.get("title", "")})
-        return ((data.get("choices") or [{}])[0].get("message", {}).get("content") or "").strip()
-
-    # anthropic
-    headers = {"x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json"}
-    body = {"model": model, "max_tokens": max_tokens,
-            "messages": [{"role": "user", "content": prompt}]}
-    r = await client.post(ANTHROPIC_URL, json=body, headers=headers, timeout=AI_BUDGET)
-    r.raise_for_status()
-    data = r.json()
-    return "".join(b.get("text", "") for b in data.get("content", [])).strip()
-
-
-# Económico por defecto: gpt-4o-mini para todo (barato y suficientemente preciso
-# para esta tarea estructurada: extraer sector, listar competidores reales, medir
-# apariciones). Si algún día se quiere más precisión, subir OPENAI_MODEL_STRONG a
-# 'gpt-4o' en Dokploy (más caro). Ambos se pueden sobreescribir por env.
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-OPENAI_MODEL_STRONG = os.getenv("OPENAI_MODEL_STRONG", "gpt-4o-mini")
-# Perplexity (buscador con IA real, con citas). sonar / sonar-pro / sonar-reasoning.
-PERPLEXITY_MODEL = os.getenv("PERPLEXITY_MODEL", "sonar")
-
-# Sectores para enfocar la competencia (belleza vs abogados vs marketing...).
-_SECTOR_HINTS = [
-    ("clínica/consulta de salud", ["clínica", "clinica", "médico", "medico", "dentista", "odontolog", "fisioterap",
-                                    "psicólog", "psicolog", "nutrición", "nutricion", "acupuntura", "naturópat",
-                                    "naturopat", "salud", "consulta", "terapia", "podólog", "fisio"]),
-    ("centro de estética/belleza", ["estética", "estetica", "belleza", "peluquería", "peluqueria", "spa", "uñas",
-                                     "maquillaje", "depilación", "depilacion", "barbería", "barberia", "salón de belleza",
-                                     "micropigment", "manicura"]),
-    ("bufete de abogados", ["abogad", "bufete", "jurídic", "juridic", "notaría", "notaria", "despacho legal", "letrado"]),
-    ("agencia de marketing", ["marketing", "publicidad", "agencia", "posicionamiento", "branding", "diseño web",
-                              "community manager", "redes sociales para empresas"]),
-    ("inmobiliaria", ["inmobiliaria", "pisos", "propiedades", "bienes raíces", "raices", "venta de casas", "alquiler de"]),
-    ("restaurante/hostelería", ["restaurante", "cafetería", "cafeteria", "catering", "menú del día", "bar de", "gastro"]),
-    # Moda/ropa ANTES del ecommerce genérico: una tienda de ropa NO debe caer en
-    # "tienda online" (daba competidores de electrónica en vez de moda).
-    ("tienda de ropa / moda", ["ropa", "moda", "vestido", "vestidos", "jeans", "jean", "camisa", "camiseta",
-                                "blusa", "pantal", "falda", "chaqueta", "abrigo", "prendas", "colección",
-                                "coleccion", "outfit", "fashion", "boutique", "moda femenina", "moda masculina",
-                                "ropa urbana", "streetwear", "denim"]),
-    ("calzado / zapatería", ["calzado", "zapatos", "zapatillas", "tenis", "sneakers", "botas", "sandalias"]),
-    ("joyería / accesorios", ["joyería", "joyeria", "joyas", "relojes", "bisutería", "bisuteria", "accesorios de moda"]),
-    ("tienda online / ecommerce", ["tienda online", "comprar", "envío", "carrito", "añadir a la cesta", "producto"]),
-    ("reformas/construcción", ["reformas", "construcción", "construccion", "fontaner", "electricista", "albañil", "obra"]),
-    ("academia/formación", ["academia", "curso", "formación", "formacion", "escuela de", "clases de", "máster", "oposicion"]),
-    ("taller/automoción", ["taller", "mecánic", "mecanic", "neumátic", "chapa y pintura", "vehículos", "coches"]),
-    ("gimnasio/fitness", ["gimnasio", "entrenador", "fitness", "yoga", "pilates", "crossfit", "entrenamiento"]),
-    ("asesoría/gestoría", ["asesoría", "asesoria", "gestoría", "gestoria", "contable", "fiscal", "laboral", "seguros"]),
-    ("hotel/turismo", ["hotel", "alojamiento", "turismo", "apartamentos turísticos", "casa rural", "hostal"]),
-]
-
-
-def derive_sector(meta: dict) -> str:
-    """Adivina el sector del negocio por el contenido (rápido, sin llamar a la IA).
-    Se usa como respaldo; la IA lo afina entrando al sitio."""
-    blob = " ".join([str(meta.get("title") or ""), str(meta.get("description") or ""),
-                     " ".join(meta.get("schema_raw_types") or []),
-                     str(meta.get("og_title") or "")]).lower()
-    best, hits = "", 0
-    for label, kws in _SECTOR_HINTS:
-        n = sum(1 for k in kws if k in blob)
-        if n > hits:
-            best, hits = label, n
-    return best
-
-
-def short_category(meta: dict) -> str:
-    """Categoría CORTA y genérica para las búsquedas de cliente (p. ej. 'agentes de
-    IA', 'ropa urbana', 'clínica dental'). NUNCA la descripción/eslogan completo del
-    sitio: si usamos el eslogan del propio negocio, la IA siempre lo incluye y el
-    '¿apareces?' da un falso positivo. Preferimos el sector; si no, la primera frase
-    corta de la descripción."""
-    sec = derive_sector(meta or {})
-    if sec:
-        return sec
-    d = (meta.get("description") or meta.get("title") or "").strip()
-    if _is_junk_brand(d):   # página de reto/bloqueo: no es una categoría real
-        return ""
-    # Corta en el primer separador o conector: deja solo el núcleo (categoría).
-    d = re.split(r"[,.;:\-–—|]|\bque\b|\bpara\b|\bcon\b|\bsin\b", d, 1, flags=re.I)[0].strip()
-    words = d.split()[:6]
-    # No dejar conectores colgando al final (…'a la', …'de').
-    _stop = {"a", "la", "el", "de", "del", "en", "y", "o", "u", "con", "para",
-             "los", "las", "un", "una", "que", "al", "por"}
-    while words and words[-1].lower() in _stop:
-        words.pop()
-    return " ".join(words) if words else ""
-
-# ccTLD -> (nombre de pais, codigo gl). El pais se toma del dominio real.
+# ccTLD -> (país, gl)
 CCTLD = {
     "es": ("España", "es"), "mx": ("México", "mx"), "ar": ("Argentina", "ar"),
     "cl": ("Chile", "cl"), "co": ("Colombia", "co"), "pe": ("Perú", "pe"),
@@ -308,8 +120,6 @@ CCTLD = {
     "br": ("Brasil", "br"), "fr": ("Francia", "fr"), "it": ("Italia", "it"),
     "de": ("Alemania", "de"), "uk": ("Reino Unido", "gb"), "gb": ("Reino Unido", "gb"),
 }
-
-
 _NAME_GL = {
     "españa": "es", "spain": "es", "méxico": "mx", "mexico": "mx", "argentina": "ar",
     "chile": "cl", "colombia": "co", "perú": "pe", "peru": "pe", "uruguay": "uy",
@@ -321,1197 +131,612 @@ _NAME_GL = {
 }
 
 
-def _gl_from_name(name: str) -> str:
-    n = (name or "").strip().lower()
-    return _NAME_GL.get(n, "")
+def gl_from_name(name: str) -> str:
+    return _NAME_GL.get((name or "").strip().lower(), "")
 
 
-def _country_from_domain(domain: str) -> tuple[str, str] | None:
-    """Detecta (pais, codigo) por el TLD de pais. None si es un TLD generico."""
+def country_from_domain(domain: str) -> tuple[str, str] | None:
     host = (domain or "").strip().lower().split("/")[0].split(":")[0]
     tld = host.rsplit(".", 1)[-1] if "." in host else ""
-    if tld in CCTLD and tld not in ("com", "net", "org"):
+    if tld in CCTLD:
         return CCTLD[tld]
     return None
 
 
-def _openai_engine() -> dict | None:
-    """ChatGPT (OpenAI) con busqueda web en vivo."""
-    ok = os.getenv("OPENAI_API_KEY", "").strip()
-    if not ok:
-        return None
-    return {"name": "ChatGPT", "provider": "openai", "key": ok,
-            "model": OPENAI_MODEL, "strong": OPENAI_MODEL_STRONG, "grounded": True}
-
-
-def _gemini_engine() -> dict | None:
-    gk = os.getenv("GEMINI_API_KEY", "").strip()
-    if not gk:
-        return None
-    return {"name": "Gemini", "provider": "gemini", "key": gk,
-            "model": GEMINI_MODEL, "strong": GEMINI_MODEL, "grounded": True}
-
-
-def _perplexity_engine() -> dict | None:
-    pk = os.getenv("PERPLEXITY_API_KEY", "").strip()
-    if not pk:
-        return None
-    return {"name": "Perplexity", "provider": "perplexity", "key": pk,
-            "model": PERPLEXITY_MODEL, "strong": PERPLEXITY_MODEL, "grounded": True,
-            "always_web": True}
-
-
-_ENGINE_BUILDERS = {"openai": _openai_engine, "gemini": _gemini_engine, "perplexity": _perplexity_engine}
-
-
-def _pick_engines() -> list[dict]:
-    """Lista de motores de IA activos para la matriz multi-IA, en orden (el 1º es el
-    'primario' que hace el briefing). Se controla con AI_ENGINES (coma), p. ej.
-    'openai,perplexity,gemini'. Si no está, usa AI_PROVIDER o todos los que tengan clave."""
-    names = [n.strip().lower() for n in os.getenv("AI_ENGINES", "").split(",") if n.strip()]
-    if not names:
-        # Sin AI_ENGINES: usa TODOS los motores que tengan clave (matriz automática).
-        # AI_PROVIDER (si nombra uno) solo decide cuál va primero (el del briefing).
-        names = ["openai", "perplexity", "gemini"]
-        pref = os.getenv("AI_PROVIDER", "").strip().lower()
-        if pref in names:
-            names = [pref] + [n for n in names if n != pref]
-    out, seen = [], set()
+# --------------------------------------------------------------------------- #
+# Motores
+# --------------------------------------------------------------------------- #
+def _engines() -> list[dict]:
+    names = [n.strip().lower() for n in os.getenv("AI_ENGINES", DEFAULT_ENGINES).split(",") if n.strip()]
+    out = []
     for n in names:
-        b = _ENGINE_BUILDERS.get(n)
-        if not b or n in seen:
-            continue
-        eng = b()
-        if eng:
-            out.append(eng)
-            seen.add(n)
+        if n == "openai" and os.getenv("OPENAI_API_KEY", "").strip():
+            out.append({"name": "ChatGPT", "provider": "openai", "key": os.getenv("OPENAI_API_KEY").strip(),
+                        "model": OPENAI_MODEL_STRONG})
+        elif n == "perplexity" and os.getenv("PERPLEXITY_API_KEY", "").strip():
+            out.append({"name": "Perplexity", "provider": "perplexity",
+                        "key": os.getenv("PERPLEXITY_API_KEY").strip(), "model": PERPLEXITY_MODEL})
+        elif n == "gemini" and os.getenv("GEMINI_API_KEY", "").strip():
+            out.append({"name": "Gemini", "provider": "gemini", "key": os.getenv("GEMINI_API_KEY").strip(),
+                        "model": GEMINI_MODEL})
     return out
 
 
-async def _pick_working_engine() -> dict | None:
-    """Motor de IA. Se elige con AI_PROVIDER: 'openai' (ChatGPT, por defecto),
-    'gemini', o 'auto' (usa el que tenga clave, OpenAI primero). ChatGPT es el motor
-    activo: económico y con búsqueda web en vivo por la Responses API."""
-    pref = os.getenv("AI_PROVIDER", "openai").strip().lower()
-    if pref == "gemini":
-        return _gemini_engine() or _openai_engine()
-    if pref == "openai":
-        return _openai_engine() or _gemini_engine()
-    # auto: OpenAI primero, luego Gemini
-    oe = _openai_engine()
-    if oe:
+def _mini() -> dict | None:
+    """Modelo barato para P1/P3/P4 (sin búsqueda). OpenAI > Gemini > Anthropic."""
+    if os.getenv("OPENAI_API_KEY", "").strip():
+        return {"provider": "openai", "key": os.getenv("OPENAI_API_KEY").strip(), "model": OPENAI_MODEL}
+    if os.getenv("GEMINI_API_KEY", "").strip():
+        return {"provider": "gemini", "key": os.getenv("GEMINI_API_KEY").strip(), "model": GEMINI_MODEL}
+    if os.getenv("ANTHROPIC_API_KEY", "").strip():
+        return {"provider": "anthropic", "key": os.getenv("ANTHROPIC_API_KEY").strip(), "model": ANTHROPIC_MODEL}
+    return None
+
+
+def _strip_schema_for_gemini(schema: dict) -> dict:
+    """Gemini no acepta additionalProperties ni algunos keywords."""
+    if isinstance(schema, dict):
+        return {k: _strip_schema_for_gemini(v) for k, v in schema.items()
+                if k not in ("additionalProperties", "$schema", "strict")}
+    if isinstance(schema, list):
+        return [_strip_schema_for_gemini(x) for x in schema]
+    return schema
+
+
+def _json_from_text(txt: str):
+    txt = (txt or "").strip()
+    txt = re.sub(r"^```(?:json)?\s*|\s*```$", "", txt, flags=re.I | re.M)
+    try:
+        return json.loads(txt)
+    except Exception:  # noqa: BLE001
+        m = re.search(r"\{.*\}", txt, re.S)
+        if m:
+            try:
+                return json.loads(m.group(0))
+            except Exception:  # noqa: BLE001
+                return None
+    return None
+
+
+async def _call(client: httpx.AsyncClient, eng: dict, prompt: str, *, grounded: bool = False,
+                schema: dict | None = None, schema_name: str = "out", max_tokens: int = 700) -> dict:
+    """Llamada uniforme. Devuelve {text, json, citations[], error}.
+    grounded=True -> búsqueda web en vivo (texto libre). schema -> salida JSON validada."""
+    prov, key, model = eng["provider"], eng["key"], eng["model"]
+    out = {"text": "", "json": None, "citations": [], "error": None}
+    try:
+        if prov == "openai":
+            headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+            body = {"model": model, "input": prompt, "max_output_tokens": max_tokens}
+            if grounded:
+                body["tools"] = [{"type": "web_search"}]
+            if schema:
+                body["text"] = {"format": {"type": "json_schema", "name": schema_name,
+                                           "schema": schema, "strict": True}}
+            r = await client.post("https://api.openai.com/v1/responses", headers=headers, json=body,
+                                  timeout=CALL_TIMEOUT)
+            r.raise_for_status()
+            data = r.json()
+            txt = ""
+            for o in data.get("output", []):
+                for c in (o.get("content") or []):
+                    if c.get("type") == "output_text":
+                        txt += c.get("text", "")
+                        for a in (c.get("annotations") or []):
+                            u = a.get("url") or (a.get("url_citation") or {}).get("url")
+                            if u:
+                                out["citations"].append({"url": u, "title": a.get("title") or ""})
+            out["text"] = txt.strip()
+        elif prov == "perplexity":
+            headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+            body = {"model": model, "messages": [{"role": "user", "content": prompt}],
+                    "max_tokens": max_tokens, "temperature": 0}
+            if schema:
+                body["response_format"] = {"type": "json_schema", "json_schema": {"schema": schema}}
+            r = await client.post("https://api.perplexity.ai/chat/completions", headers=headers, json=body,
+                                  timeout=CALL_TIMEOUT)
+            r.raise_for_status()
+            data = r.json()
+            out["text"] = ((data.get("choices") or [{}])[0].get("message", {}).get("content") or "").strip()
+            for u in (data.get("citations") or []):
+                out["citations"].append({"url": u, "title": ""})
+            for sr in (data.get("search_results") or []):
+                if sr.get("url"):
+                    out["citations"].append({"url": sr["url"], "title": sr.get("title", "")})
+        elif prov == "gemini":
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+            gen = {"maxOutputTokens": max_tokens, "temperature": 0}
+            body = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": gen}
+            if grounded:
+                body["tools"] = [{"google_search": {}}]
+            elif schema:
+                gen["responseMimeType"] = "application/json"
+                gen["responseSchema"] = _strip_schema_for_gemini(schema)
+            r = await client.post(url, params={"key": key}, json=body, timeout=CALL_TIMEOUT)
+            r.raise_for_status()
+            data = r.json()
+            cand = (data.get("candidates") or [{}])[0]
+            parts = (cand.get("content") or {}).get("parts") or []
+            out["text"] = "".join(p.get("text", "") for p in parts).strip()
+            gm = cand.get("groundingMetadata") or {}
+            for ch in (gm.get("groundingChunks") or []):
+                w = ch.get("web") or {}
+                if w.get("uri"):
+                    out["citations"].append({"url": w["uri"], "title": w.get("title") or ""})
+        elif prov == "anthropic":
+            headers = {"x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json"}
+            p = prompt + ("\n\nResponde ÚNICAMENTE con el JSON, sin texto alrededor." if schema else "")
+            body = {"model": model, "max_tokens": max_tokens, "temperature": 0,
+                    "messages": [{"role": "user", "content": p}]}
+            r = await client.post("https://api.anthropic.com/v1/messages", json=body, headers=headers,
+                                  timeout=CALL_TIMEOUT)
+            r.raise_for_status()
+            out["text"] = "".join(b.get("text", "") for b in r.json().get("content", [])).strip()
+        else:
+            out["error"] = f"proveedor desconocido: {prov}"
+            return out
+        if schema:
+            out["json"] = _json_from_text(out["text"])
+            if out["json"] is None:
+                out["error"] = "json inválido"
+    except httpx.HTTPStatusError as exc:
+        code = exc.response.status_code
+        out["error"] = f"HTTP {code}" + (" (límite/cuota)" if code in (401, 403, 429) else "")
         try:
-            async with httpx.AsyncClient() as c:
-                r = await c.get("https://api.openai.com/v1/models",
-                                headers={"Authorization": f"Bearer {oe['key']}"}, timeout=8)
-                if r.status_code == 200:
-                    return oe
+            out["error"] += ": " + exc.response.text[:160].replace("\n", " ")
         except Exception:  # noqa: BLE001
             pass
-    return oe or _gemini_engine()
-
-
-def _strip_cites(s: str) -> str:
-    """Quita citas/markdown que la búsqueda web añade: [texto](url), (dominio.com),
-    URLs sueltas y corchetes. Deja texto limpio."""
-    s = s or ""
-    s = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", s)                        # [texto](url) -> texto
-    s = re.sub(r"\(\s*(?:https?://|www\.)[^)]*\)", "", s)                  # (url)
-    s = re.sub(r"\(\s*[a-z0-9][a-z0-9.\-]*\.[a-z]{2,}[^)]*\)", "", s, flags=re.I)  # (dominio.com ...)
-    s = re.sub(r"https?://\S+", "", s)                                     # url suelta
-    s = re.sub(r"[\[\]]", "", s)                                           # corchetes sueltos
-    s = re.sub(r"\(\s*\)", "", s)                                          # parentesis vacios
-    s = re.sub(r"[ \t]+", " ", s)   # colapsa espacios/tabs pero CONSERVA los saltos de línea
-    return s.strip(" .-|,(")
-
-
-_PREAMBLES = [
-    r"s[ií],?\s*", r"claro,?\s*", r"por supuesto,?\s*",
-    r"he\s+podido\s+acceder[^:.]*[:.]\s*", r"he\s+accedido[^:.]*[:.]\s*",
-    r"(?:el|al)\s+sitio\s+web[^:.]*[:.]\s*", r"tras\s+(?:acceder|visitar)[^:.]*[:.]\s*",
-    r"en\s+una\s+o?\s*dos?\s+frases?[^:]*:\s*", r"aqu[ií]\s+(?:tienes|va)[^:]*:\s*",
-    r"a\s+continuaci[oó]n[^:]*:\s*", r"lo\s+que\s+se\s+observa[^:]*:\s*",
-    r"seg[uú]n\s+(?:el|lo)\s+(?:sitio|que)[^:]*:\s*", r"esta\s+empresa\s+es\s*:?\s*",
-]
-_PRE_RE = re.compile(r"^(?:" + "|".join(_PREAMBLES) + r")+", re.I)
-
-
-def _clean_zona(s: str) -> str:
-    """Deja la zona como 'Ciudad, País' o 'País', sin parentesis ni clausulas
-    ('Colombia (con expansión a Centroamérica...)' -> 'Colombia')."""
-    s = _strip_cites(s or "")
-    s = re.sub(r"\(.*?\)", "", s)                    # (con expansión...)
-    s = re.split(r"(?i)\s+(?:con\s+expansi|con\s+alcance|para\s+todo|y\s+alrededores|"
-                 r"y\s+resto|;|·|–|—)", s)[0]
-    s = re.sub(r"\s+", " ", s).strip(" .,-")
-    # como mucho 'ciudad, país'
-    parts = [p.strip() for p in s.split(",") if p.strip()]
-    if len(parts) > 2:
-        parts = [parts[0], parts[-1]]
-    return ", ".join(parts)[:50]
-
-
-def _clean_desc(s: str) -> str:
-    """Limpia una descripcion de la IA: quita markdown, citas, preambulos del
-    modelo ('he podido acceder...', 'en una o dos frases...') y palabras repetidas."""
-    s = _strip_cites(s or "")
-    s = re.sub(r"[*_`#>]+", "", s)                      # markdown
-    for _ in range(3):
-        s2 = _PRE_RE.sub("", s).strip(" \"'“”.:;-–—")
-        if s2 == s:
-            break
-        s = s2
-    s = re.sub(r"\b(\w{2,})\s+\1\b", r"\1", s, flags=re.I)  # 'con con' -> 'con'
-    s = re.sub(r"\s+", " ", s).strip(" \"'“”.:;-–—")
-    return s
-
-
-def _parse_know(txt: str) -> tuple[bool, str]:
-    txt = (txt or "").strip()
-    knows = bool(txt) and "NO_LA_CONOZCO" not in txt.upper()
-    return knows, re.sub(r"\s+", " ", txt)[:600]
-
-
-_DOM_RE = re.compile(r"([a-z0-9][a-z0-9\-]{1,}\.[a-z]{2,}(?:\.[a-z]{2,})?)", re.I)
-
-
-def _parse_reco(txt: str, brand: str) -> tuple[bool | None, list[dict], str]:
-    """Parsea competidores como {name, domain}. Espera lineas 'Nombre | dominio.com'."""
-    included = None
-    m = re.search(r"INCLUIDA:\s*(SI|SÍ|NO)", txt or "", re.I)
-    if m:
-        included = m.group(1).upper().startswith("S")
-    body = re.split(r"\bINCLUIDA:", txt or "", 1)[0].strip()
-    comps = []
-    seen = set()
-    for line in body.splitlines():
-        line = re.sub(r"^\s*\d+[\.\)]\s*", "", line).strip(" .-*•\t")
-        if not line or len(line) < 3:
-            continue
-        dm = _DOM_RE.search(line)
-        domain = dm.group(1).lower() if dm else None
-        # nombre = lo que va antes del separador o del dominio
-        name = re.split(r"\s*[|\-–—:]\s*", line)[0].strip()
-        if domain and domain in name:
-            name = name.replace(domain, "").strip(" |-–—:")
-        name = re.sub(r"\(.*?\)", "", name).strip(" .|-–—:")
-        if not name or len(name) > 48 or brand.lower() in name.lower():
-            continue
-        key = name.lower()
-        if key in seen:
-            continue
-        seen.add(key)
-        comps.append({"name": name, "domain": domain})
-        if len(comps) >= 5:
-            break
-    return included, comps, re.sub(r"\s+", " ", body)[:400]
-
-
-def _parse_companies(body: str) -> list[dict]:
-    """Parsea TODAS las empresas de la lista (incluida la marca si aparece).
-    Formato esperado por linea: 'Nombre | dominio.com'. Devuelve {name, domain}."""
-    out, seen = [], set()
-    body = "".join(" " if ord(ch) in (0xa0,0x202f,0x2009,0x2007,0x2008,0x2002,0x2003,0x2060) else ch for ch in (body or ""))  # normaliza espacios raros
-    for line in body.splitlines():
-        line = re.sub(r"^\s*\d+[\.\)]\s*", "", line).strip(" .-*•\t")
-        if not line or len(line) < 3:
-            continue
-        dm = _DOM_RE.search(line)
-        domain = dm.group(1).lower() if dm else None
-        name = re.split(r"\s*[|\-–—:]\s*", line)[0].strip()
-        if domain and domain in name:
-            name = name.replace(domain, "").strip(" |-–—:")
-        name = re.sub(r"\*+", "", name)                # quita ** de markdown
-        name = re.sub(r"\(.*?\)", "", name).strip(" .|-–—:*_`")
-        if not name or len(name) > 48:
-            continue
-        key = name.lower()
-        if key in seen:
-            continue
-        seen.add(key)
-        out.append({"name": name, "domain": domain})
+    except Exception as exc:  # noqa: BLE001
+        out["error"] = f"{type(exc).__name__}: {str(exc)[:120]}"
     return out
 
 
-_GENERIC_WORDS = {
-    "acupuntura", "fisioterapia", "clínica", "clinica", "estética", "estetica", "belleza",
-    "abogados", "abogado", "marketing", "publicidad", "agencia", "restaurante", "hotel",
-    "seguros", "salud", "medicina", "consulta", "centro", "servicios", "spa", "peluquería",
-    "peluqueria", "dentista", "odontología", "nutrición", "psicología", "terapia", "masajes",
-    "gimnasio", "reformas", "inmobiliaria", "taller", "academia", "tienda", "empresa",
-}
+# --------------------------------------------------------------------------- #
+# Prompts
+# --------------------------------------------------------------------------- #
+SCHEMA_P1 = {"type": "object", "additionalProperties": False,
+             "properties": {"categoria": {"type": "string"},
+                            "busquedas": {"type": "array", "items": {"type": "string"},
+                                          "minItems": 3, "maxItems": 3}},
+             "required": ["categoria", "busquedas"]}
+
+SCHEMA_P3 = {"type": "object", "additionalProperties": False,
+             "properties": {"respuestas": {"type": "array", "items": {
+                 "type": "object", "additionalProperties": False,
+                 "properties": {"id": {"type": "integer"},
+                                "negocios": {"type": "array", "items": {
+                                    "type": "object", "additionalProperties": False,
+                                    "properties": {"nombre": {"type": "string"},
+                                                   "dominio": {"type": ["string", "null"]}},
+                                    "required": ["nombre", "dominio"]}}},
+                 "required": ["id", "negocios"]}}},
+             "required": ["respuestas"]}
+
+SCHEMA_P4 = {"type": "object", "additionalProperties": False,
+             "properties": {"conoce": {"type": "boolean"}, "descripcion": {"type": "string"},
+                            "sector": {"type": "string"}, "pais": {"type": "string"},
+                            "confianza": {"type": "string", "enum": ["alta", "media", "baja"]}},
+             "required": ["conoce", "descripcion", "sector", "pais", "confianza"]}
 
 
-def _looks_generic(name: str) -> bool:
-    """True si 'name' parece una categoría/término genérico y no una empresa real
-    (p. ej. 'Acupuntura', 'Fisioterapia Medellín', 'Clínica')."""
-    n = (name or "").strip().lower()
-    if not n or len(n) < 3:
+def prompt_p1(idt: dict, lang: str) -> str:
+    scope = idt.get("scope") or "pais"
+    if lang == "en":
+        return (
+            "You are a potential customer, not an analyst. Using the data below, write how a customer "
+            "would search for this kind of business in an AI assistant if they did NOT know the brand.\n\n"
+            "Measured data (do not question it):\n"
+            f"- Business: {idt['brand']}\n"
+            f"- Category according to Google: {idt.get('category') or 'unknown'}\n"
+            f"- Location: {idt.get('city') or '-'}, {idt.get('country') or '-'}\n"
+            f"- Scope: {'city' if scope == 'ciudad' else 'country'}   (city = local business; country = sells/serves nationwide)\n"
+            f"- Text from its website: \"{idt.get('snippet', '')}\"\n\n"
+            "Return JSON with:\n"
+            "- \"categoria\": what a customer would call this kind of business, 2-5 words, lowercase, no marketing "
+            "adjectives and no brand name (a generic industry category, not a slogan).\n"
+            f"- \"busquedas\": exactly 3 different sentences, 5 to 12 words, exactly as a customer in {idt.get('country') or 'that country'} "
+            f"would type them into an AI chat. If scope is city, all 3 include \"{idt.get('city')}\"; if country, none includes a city and "
+            f"at most one mentions \"{idt.get('country')}\". One of the three must explicitly ask for recommendations "
+            "(\"recommend me\", \"which are the best\", \"where can I\"). Do not use the brand or phrases from its website.")
+    return (
+        "Eres un cliente potencial, no un analista. Con los datos de abajo, escribe cómo buscaría un cliente "
+        "este tipo de negocio en un asistente de IA si NO conociera la marca.\n\n"
+        "Datos medidos (no los cuestiones):\n"
+        f"- Negocio: {idt['brand']}\n"
+        f"- Categoría según Google: {idt.get('category') or 'desconocida'}\n"
+        f"- Ubicación: {idt.get('city') or '-'}, {idt.get('country') or '-'}\n"
+        f"- Ámbito: {scope}   (ciudad = negocio local; pais = vende/atiende en todo el país)\n"
+        f"- Texto de su web: \"{idt.get('snippet', '')}\"\n\n"
+        "Devuelve JSON con:\n"
+        "- \"categoria\": cómo llamaría un cliente a este tipo de negocio, en 2-5 palabras, en minúsculas, sin "
+        "adjetivos publicitarios ni la marca (una categoría genérica del sector, no un eslogan).\n"
+        f"- \"busquedas\": exactamente 3 frases distintas, de 5 a 12 palabras, tal y como las escribiría un cliente en "
+        f"{idt.get('country') or 'ese país'} en un chat de IA. Si el ámbito es \"ciudad\", las 3 incluyen \"{idt.get('city')}\"; "
+        f"si es \"pais\", ninguna incluye ciudad y como mucho una menciona \"{idt.get('country')}\". Una de las tres debe pedir "
+        "explícitamente recomendaciones (\"recomiéndame\", \"cuáles son los mejores\", \"dónde puedo\"). "
+        "No uses la marca ni frases de su web.")
+
+
+def prompt_p2(query: str, where: str, lang: str) -> str:
+    # La pregunta del cliente, tal cual. Sin instrucciones ni formato: así responde la IA de verdad.
+    if lang == "en":
+        return f"I'm in {where}. {query}" if where else query
+    return f"Estoy en {where}. {query}" if where else query
+
+
+def prompt_p3(answers: list[str], lang: str) -> str:
+    numbered = "\n\n".join(f"[{i + 1}]\n{a[:2500]}" for i, a in enumerate(answers))
+    if lang == "en":
+        return (
+            "Below are answers from AI assistants to a customer's questions. Extract the specific businesses, brands "
+            "or professionals each answer recommends or mentions, in order of appearance.\n\nRules:\n"
+            "- Only named entities (companies, stores, brands, professionals). Do not include categories, cities, "
+            "review platforms or directories (maps, social networks, generic marketplaces) unless the answer recommends "
+            "them as the business itself.\n"
+            "- If the answer gives a domain or URL for that business, put it in \"dominio\" without protocol or www. "
+            "Otherwise null. Never invent domains.\n"
+            "- If an answer recommends no specific business (only generic advice), return an empty list for it.\n"
+            "- Keep names as written. Return one entry per answer id, ids 1.." + str(len(answers)) + ".\n\n"
+            f"Answers:\n{numbered}")
+    return (
+        "Te paso respuestas de asistentes de IA a preguntas de un cliente. Extrae los negocios, marcas o profesionales "
+        "concretos que cada respuesta recomienda o menciona, en el orden en que aparecen.\n\nReglas:\n"
+        "- Solo entidades con nombre propio (empresas, tiendas, marcas, profesionales). No incluyas categorías, ciudades, "
+        "plataformas de reseñas ni directorios (mapas, redes sociales, marketplaces genéricos) salvo que la respuesta los "
+        "recomiende como el negocio en sí.\n"
+        "- Si la respuesta da un dominio o URL para ese negocio, inclúyelo en \"dominio\" sin protocolo ni www. Si no, null. "
+        "No inventes dominios.\n"
+        "- Si una respuesta no recomienda ningún negocio concreto (solo consejos genéricos), devuelve una lista vacía para ella.\n"
+        f"- Respeta el nombre tal y como aparece. Devuelve una entrada por respuesta, ids 1..{len(answers)}.\n\n"
+        f"Respuestas:\n{numbered}")
+
+
+def prompt_p4(brand: str, domain: str, lang: str, grounded: bool) -> str:
+    if lang == "en":
+        pre = "Use web search. " if grounded else "Without using web search, only from what you already know: "
+        return (
+            f"{pre}Do you know the company \"{brand}\" whose website is {domain}?\n\nAnswer in JSON:\n"
+            "- \"conoce\": true only if you have concrete information about THAT company (not another one with a similar name). "
+            "false if you don't know it or could only guess from the name.\n"
+            f"- \"descripcion\": if conoce=true, one sentence of at most 30 words about what it does, starting with \"{brand}\". "
+            "If false, empty string.\n"
+            "- \"sector\": in 2-4 words, what it does according to what you know. Empty if unknown.\n"
+            "- \"pais\": country where it operates according to what you know. Empty if unknown.\n"
+            "- \"confianza\": \"alta\", \"media\" or \"baja\".\n"
+            "Do not invent. conoce=false is better than a guess.")
+    pre = "Usa búsqueda web. " if grounded else "Sin usar búsqueda web, solo con lo que ya sabes: "
+    return (
+        f"{pre}¿Conoces la empresa \"{brand}\" cuyo sitio web es {domain}?\n\nResponde en JSON:\n"
+        "- \"conoce\": true solo si tienes información concreta sobre ESA empresa (no sobre otra con nombre parecido). "
+        "false si no la conoces o solo puedes suponer por el nombre.\n"
+        f"- \"descripcion\": si conoce=true, una frase de máximo 30 palabras sobre qué hace, que empiece por \"{brand}\". "
+        "Si false, cadena vacía.\n"
+        "- \"sector\": en 2-4 palabras, a qué se dedica según lo que sabes. Vacío si no sabes.\n"
+        "- \"pais\": país donde opera según lo que sabes. Vacío si no sabes.\n"
+        "- \"confianza\": \"alta\", \"media\" o \"baja\".\n"
+        "No inventes. Es preferible conoce=false que una suposición.")
+
+
+# --------------------------------------------------------------------------- #
+# Utilidades de comparación
+# --------------------------------------------------------------------------- #
+_STOPW = {"de", "del", "la", "el", "los", "las", "y", "en", "para", "con", "a", "the", "of", "and",
+          "tienda", "empresa", "servicios", "store", "company", "shop", "online"}
+
+
+# Sinónimos frecuentes -> raíz canónica (para comparar el sector que cree la IA con el medido)
+_SYN = [
+    ("mueble", ("mueble", "muebles", "mobiliario", "furniture", "interiorismo", "interior", "decoracion", "decor", "hogar", "home")),
+    ("legal", ("abogado", "abogados", "juridico", "juridica", "legal", "law", "lawyer", "lawyers", "bufete", "despacho")),
+    ("dental", ("dental", "dentista", "odontologia", "odontologo", "dentist", "dentistry", "clinica")),
+    ("salud", ("salud", "medico", "medica", "medicina", "health", "clinic", "terapia", "fisioterapia", "acupuntura")),
+    ("moda", ("ropa", "moda", "fashion", "clothing", "apparel", "textil", "prendas", "boutique")),
+    ("calzado", ("calzado", "zapatos", "zapateria", "shoes", "footwear", "sneakers")),
+    ("belleza", ("estetica", "belleza", "beauty", "peluqueria", "salon", "spa", "cosmetica")),
+    ("marketing", ("marketing", "publicidad", "agencia", "agency", "advertising", "digital", "seo", "branding")),
+    ("software", ("software", "tecnologia", "technology", "tech", "app", "saas", "informatica", "ia", "inteligencia")),
+    ("inmobiliaria", ("inmobiliaria", "inmuebles", "real", "estate", "propiedades", "pisos", "viviendas")),
+    ("restauracion", ("restaurante", "restaurant", "gastronomia", "comida", "food", "cafeteria", "bar", "catering")),
+    ("turismo", ("hotel", "turismo", "tourism", "travel", "viajes", "alojamiento", "hostel")),
+    ("formacion", ("academia", "formacion", "educacion", "school", "escuela", "cursos", "training", "colegio")),
+    ("automocion", ("taller", "coches", "automocion", "automotive", "vehiculos", "car", "cars", "mecanica")),
+    ("construccion", ("reformas", "construccion", "construction", "obras", "arquitectura", "contractor")),
+    ("finanzas", ("seguros", "insurance", "asesoria", "contable", "fiscal", "gestoria", "finanzas", "accounting")),
+    ("mascotas", ("veterinario", "veterinaria", "mascotas", "pet", "pets", "animales")),
+    ("deporte", ("gimnasio", "gym", "fitness", "deporte", "sports", "entrenamiento")),
+    ("plastico", ("plastico", "plasticos", "plastic", "inyeccion", "moldes", "envases", "packaging")),
+]
+_SYN_MAP = {w: root for root, ws in _SYN for w in ws}
+
+
+def _tokens(s: str) -> set[str]:
+    out = set()
+    for w in re.split(r"[^a-z0-9]+", _places._norm(s)):
+        if len(w) > 2 and w not in _STOPW:
+            out.add(_SYN_MAP.get(w, w))
+    return out
+
+
+def sector_compatible(ai_sector: str, category: str, snippet: str = "") -> bool:
+    """True si el sector que cree la IA casa con la categoría medida (o no hay categoría)."""
+    if not category and not snippet:
         return True
-    words = [w for w in re.split(r"\s+", n) if w]
-    # una sola palabra genérica, o todas las palabras son genéricas/lugares comunes
-    non_generic = [w for w in words if w not in _GENERIC_WORDS]
-    if not non_generic:
+    a = _tokens(ai_sector)
+    if not a:
+        return False
+    ref = _tokens(category) | _tokens(snippet)
+    if a & ref:
         return True
-    if len(words) == 1 and words[0] in _GENERIC_WORDS:
+    # raíces (muebl~mueble~mobiliario no casan por token; usa prefijos de 5)
+    pa = {w[:5] for w in a}
+    pr = {w[:5] for w in ref}
+    return bool(pa & pr)
+
+
+def country_compatible(ai_country: str, country: str, cc: str) -> bool:
+    if not country and not cc:
         return True
-    return False
+    if not ai_country:
+        return True  # la IA no se pronuncia: no penaliza
+    g = gl_from_name(ai_country)
+    if g and cc:
+        return g == cc.lower()
+    return _places._norm(ai_country) == _places._norm(country)
 
 
-def _is_brand_row(c: dict, brand_l: str, dom_root: str) -> bool:
-    """True si esta fila de la lista ES la marca (por nombre o por dominio)."""
-    nm = (c.get("name") or "").lower()
-    dom = (c.get("domain") or "").lower().replace("www.", "")
-    if brand_l and (brand_l in nm or nm in brand_l) and len(nm) >= 3:
+def _host(u: str) -> str:
+    return _places._host(u)
+
+
+def _is_brand(item: dict, brand: str, dom: str) -> bool:
+    d = _host(item.get("dominio") or item.get("domain") or "")
+    if d and dom and (d == dom or d.endswith("." + dom) or dom.endswith("." + d)):
         return True
-    if dom_root and dom and (dom_root == dom or dom_root in dom or dom in dom_root):
-        return True
-    return False
+    return _places.name_similarity(item.get("nombre") or item.get("name") or "", brand) >= 0.85
 
 
-async def _query_engine(client, eng: dict, q_know: str, q_reco: str, brand: str) -> dict:
-    try:
-        know, reco = await asyncio.gather(
-            _ask(client, eng["provider"], eng["key"], eng["model"], q_know,
-                 max_tokens=1024, grounded=eng["grounded"]),
-            _ask(client, eng["provider"], eng["key"], eng["model"], q_reco,
-                 max_tokens=1024, grounded=eng["grounded"]),
-            return_exceptions=True,
-        )
-    except Exception as exc:  # noqa: BLE001
-        return {"name": eng["name"], "error": str(exc)}
-
-    know_err = isinstance(know, Exception)
-    know_txt = "" if know_err else (know or "")
-    reco_txt = "" if isinstance(reco, Exception) else (reco or "")
-
-    # Si el motor no dio respuesta util a la marca, es INCONCLUSO (no "no te conoce")
-    if not know_txt.strip():
-        reason = str(know) if know_err else "sin respuesta"
-        limited = "429" in reason or "quota" in reason.lower() or "rate" in reason.lower()
-        return {"name": eng["name"], "grounded": eng["grounded"],
-                "error": "limite temporal de la IA" if limited else "sin respuesta",
-                "knows": None, "know_raw": "", "recommended": None, "competitors": [], "reco_raw": ""}
-
-    knows, know_raw = _parse_know(know_txt)
-    included, comps, reco_raw = _parse_reco(reco_txt, brand)
-    return {"name": eng["name"], "grounded": eng["grounded"], "error": None,
-            "knows": knows, "know_raw": know_raw,
-            "recommended": included, "competitors": comps, "reco_raw": reco_raw}
-
-
-async def run_ai_geo(domain: str, meta: dict) -> dict | None:
-    """GEO con UN solo motor: ChatGPT (OpenAI) con busqueda web en vivo.
-
-    Hace 3 preguntas de CATEGORIA reales (las que escribiria un cliente en su pais)
-    y comprueba en cada una si la marca aparece. Al probar el mismo sitio con 3
-    fraseos, el veredicto deja de contradecirse. Competencia enfocada en el pais
-    del dominio real.
-    """
-    # Web bloqueada por anti-bots: no pudimos leer el contenido real. NO inventamos
-    # marca, país ni competidores a partir de una página de reto (Cloudflare/WAF).
-    if meta.get("blocked"):
-        _root = re.sub(r"^www\.", "", domain).split(".")[0]
-        return {"available": True, "blocked": True, "limited": True, "brand": _root.capitalize(),
-                "error": "blocked",
-                "note": ("No pudimos leer tu web porque tiene una protección anti-bots "
-                         "(Cloudflare/WAF) que bloquea el análisis automático. Para un "
-                         "diagnóstico de IA fiable hay que revisarla con acceso o permitir "
-                         "el rastreo.")}
-
-    eng = await _pick_working_engine()
-    if not eng:
-        return None
-    prov, key, model = eng["provider"], eng["key"], eng["model"]
-    strong = eng.get("strong") or model  # modelo preciso para lo grounded
-
-    brand = derive_brand(meta, domain)
-    service = derive_service(meta) or f"servicios de {brand}"
-    sector_guess = derive_sector(meta)
-    full_url = domain if domain.startswith("http") else f"https://{domain}"
-
-    # Pais REAL: primero lo detectado por contenido (telefono/menciones) en el crawl;
-    # si no, por TLD; si no, se lo preguntamos a ChatGPT (entra al sitio y lo deduce).
-    meta_country = (meta.get("country") or "").strip()
-    meta_gl = (meta.get("gl") or "").strip()
-    det = _country_from_domain(domain)
-    if meta_country:
-        country, gl = meta_country, (meta_gl or (det[1] if det else "es"))
-    elif det:
-        country, gl = det
-    else:
-        country, gl = "", ""
-    have_country = bool(country)
-
-    # SIN búsqueda web a proposito: mide si la IA CONOCE la marca de por si (no si
-    # encuentra la URL). Es el reconocimiento real que importa para el GEO.
-    q_know = L(
-        f"Sin usar búsqueda web, solo con lo que ya sabes: ¿conoces la empresa o marca \"{brand}\" "
-        f"(sitio {domain})? Si la conoces con certeza, describe en 2-3 frases a qué se dedica. "
-        f"Si NO tienes información fiable propia sobre ella, responde EXACTAMENTE con NO_LA_CONOZCO "
-        f"y nada más. No inventes ni supongas por el nombre.",
-        f"Without using web search, only from what you already know: do you know the company or brand "
-        f"\"{brand}\" (site {domain})? If you know it for sure, describe in 2-3 sentences what it does. "
-        f"If you do NOT have reliable knowledge of it, reply EXACTLY with NO_LA_CONOZCO and nothing else. "
-        f"Do not invent or guess from the name.")
-    q_country = L(
-        f"Usa búsqueda web y entra en {full_url}. ¿En qué PAÍS está basado y opera principalmente este "
-        f"negocio? Fíjate SOLO en evidencia real del sitio: idioma, prefijo telefónico, direcciones o "
-        f"ciudades, moneda y dominio. Responde SOLO así, sin nada más: Nombre del país|cc|evidencia  "
-        f"(cc = código ISO de 2 letras; evidencia = el dato concreto que lo prueba, p. ej. 'teléfono +57' "
-        f"o 'precios en COP' o 'dirección en Bogotá'). Si NO encuentras evidencia clara, responde "
-        f"EXACTAMENTE DESCONOCIDO y nada más. No supongas por el nombre de la marca.",
-        f"Use web search and open {full_url}. In which COUNTRY is this business based and mainly operating? "
-        f"Look ONLY at real evidence on the site: language, phone prefix, addresses or cities, currency and "
-        f"domain. Reply ONLY like this, nothing else: Country name|cc|evidence  (cc = 2-letter ISO code; "
-        f"evidence = the concrete fact that proves it, e.g. 'phone +57' or 'prices in COP' or 'address in "
-        f"Bogotá'). If you find no clear evidence, reply EXACTLY DESCONOCIDO and nothing else. Do not guess "
-        f"from the brand name.")
-
-    try:
-        async with httpx.AsyncClient() as client:
-            # Ronda 0: si el analisis del sitio no determino el pais, ChatGPT lo intenta,
-            # pero SOLO se acepta si aporta evidencia (si no, queda desconocido -> idioma).
-            if not have_country:
-                try:
-                    rc = await _ask(client, prov, key, model, q_country, max_tokens=80, grounded=True)
-                    if rc and "DESCONOCIDO" not in rc.upper():
-                        mc = re.search(r"([A-Za-zÁÉÍÓÚÑÜáéíóúñü .'-]{2,40})\|\s*([A-Za-z]{2})\s*\|\s*(.+)", rc)
-                        if mc and len(mc.group(3).strip()) >= 3:
-                            country = mc.group(1).strip(" .|-")[:40]
-                            gl = mc.group(2).lower()
-                            have_country = bool(country)
-                except Exception:  # noqa: BLE001
-                    pass
-            if not country:
-                # Ultimo recurso: idioma-region declarado; si no, no forzamos ningun pais
-                lang = (meta.get("lang") or "").lower()
-                mreg = re.match(r"[a-z]{2}-([a-z]{2})", lang)
-                if mreg:
-                    gl = mreg.group(1)
-                elif lang.startswith("es"):
-                    country, gl = "", "es"
-            if not gl:
-                gl = "es"
-            ctx_pais = (f"en {country}" if country else "en su país") if not is_en() else (f"in {country}" if country else "in their area")
-            pais_txt = country or (L("su país", "their area"))
-
-            # BRIEFING (con búsqueda web, modelo preciso): entra al sitio y devuelve
-            # el sector concreto, la ZONA (ciudad+país) y 3 búsquedas de categoría
-            # locales. Así la competencia se enfoca de verdad (belleza, abogados...).
-            q_brief = L(
-                f"Usa búsqueda web y entra en {full_url}. Analiza el negocio \"{brand}\" y responde "
-                f"EXACTAMENTE en este formato, sin nada más:\n"
-                f"SECTOR: <sector concreto, p. ej. 'clínica de acupuntura', 'bufete de abogados laboralistas', "
-                f"'agencia de marketing digital', 'centro de estética'>\n"
-                f"ZONA: <SOLO ciudad y país donde presta servicio, p. ej. 'Alcobendas, España' o 'Medellín, "
-                f"Colombia'; si no hay ciudad clara, pon solo el país. NADA de parentesis, 'con expansión a', "
-                f"'y alrededores' ni explicaciones>\n"
-                f"BUSQUEDAS: <exactamente 3 búsquedas, separadas por el carácter |, que un cliente de esa ZONA "
-                f"escribiría en Google o en un asistente de IA para encontrar ESE tipo de servicio SIN conocer la "
-                f"marca; incluye la ciudad o zona en cada una>\n"
-                f"Pista de sector (por si ayuda): {sector_guess or 'dedúcelo del sitio'}. "
-                f"IMPORTANTE: responde en texto plano, SIN enlaces, SIN citas y SIN markdown.",
-                f"Use web search and open {full_url}. Analyze the business \"{brand}\" and reply EXACTLY in this "
-                f"format, nothing else. KEEP the labels SECTOR/ZONA/BUSQUEDAS exactly as written, but the CONTENT "
-                f"in English:\n"
-                f"SECTOR: <specific sector, e.g. 'acupuncture clinic', 'employment law firm', 'digital marketing "
-                f"agency', 'beauty salon'>\n"
-                f"ZONA: <ONLY city and country where it serves, e.g. 'Alcobendas, Spain' or 'Medellín, Colombia'; "
-                f"if no clear city, put only the country. NO parentheses, no 'expanding to', no 'and surroundings', "
-                f"no explanations>\n"
-                f"BUSQUEDAS: <exactly 3 searches, separated by the character |, that a customer in that ZONA would "
-                f"type in Google or an AI assistant to find THAT kind of service WITHOUT knowing the brand; include "
-                f"the city or area in each one>\n"
-                f"Sector hint (if helpful): {sector_guess or 'deduce it from the site'}. "
-                f"IMPORTANT: reply in plain text, NO links, NO citations, NO markdown.")
-            q_gap = L(
-                f"Usa búsqueda web sobre {full_url}. En 2 frases y en lenguaje sencillo de negocio: "
-                f"¿qué le falta a \"{brand}\" para que la IA la reconozca y la recomiende cuando alguien pide su "
-                f"tipo de servicio {ctx_pais} (sin nombrar la marca)? Sé concreto y accionable. Sin viñetas.",
-                f"Use web search on {full_url}. In 2 sentences, in plain business language: what does \"{brand}\" "
-                f"need so that AI recognizes and recommends it when someone asks for its type of service {ctx_pais} "
-                f"(without naming the brand)? Be concrete and actionable. No bullet points.")
-            # Reconocimiento CON la web (buscando): para el contraste "sin web / con web"
-            q_know_web = L(
-                f"Usa búsqueda web y visita {full_url}. En UNA sola frase, di qué es \"{brand}\" y a qué se dedica. "
-                f"Empieza DIRECTAMENTE por el nombre o por el qué (por ejemplo: \"{brand} es...\"). "
-                f"NO escribas preámbulos como 'he podido acceder', 'el sitio web' o 'en una frase', ni uses markdown "
-                f"(** o *). Si no encuentras el sitio, responde solo NO_ENCONTRADO.",
-                f"Use web search and visit {full_url}. In ONE single sentence, say what \"{brand}\" is and what it "
-                f"does. Start DIRECTLY with the name or the what (e.g. \"{brand} is...\"). Do NOT write preambles "
-                f"like 'I could access', 'the website' or 'in one sentence', and do not use markdown (** or *). "
-                f"If you can't find the site, reply only NO_ENCONTRADO.")
-
-            # Ronda 1: briefing + reconocimiento (sin y con web) + gap
-            ai_sources: list = []   # fuentes que la IA cita al describir la marca
-            r_brief, r_know, r_gap, r_kw = await asyncio.gather(
-                _ask(client, prov, key, strong, q_brief, max_tokens=320, grounded=True),
-                _ask(client, prov, key, model, q_know, max_tokens=500, grounded=False),
-                _ask(client, prov, key, strong, q_gap, max_tokens=300, grounded=True),
-                _ask(client, prov, key, strong, q_know_web, max_tokens=300, grounded=True, sink=ai_sources),
-                return_exceptions=True,
-            )
-            brief_txt = "" if isinstance(r_brief, Exception) else (r_brief or "")
-            know_txt = "" if isinstance(r_know, Exception) else (r_know or "")
-            gap_txt = "" if isinstance(r_gap, Exception) else (r_gap or "")
-            kw_txt = ("" if isinstance(r_kw, Exception) else (r_kw or "")).strip()
-            knows_with_web = bool(kw_txt) and "NO_ENCONTRADO" not in kw_txt.upper()
-            web_desc = _clean_desc(kw_txt)[:320] if knows_with_web else ""
-
-            # Parseo del briefing: sector, zona (ciudad+país) y búsquedas (limpiando citas)
-            sector, zona, cat_queries = sector_guess, "", []
-            in_busq = False
-            for ln in brief_txt.splitlines():
-                lu = ln.strip()
-                m_s = re.match(r"(?i)^SECTOR:\s*(.+)", lu)
-                m_z = re.match(r"(?i)^ZONA:\s*(.+)", lu)
-                m_b = re.match(r"(?i)^BUSQUEDAS:\s*(.*)", lu)
-                if m_s:
-                    sector = _strip_cites(m_s.group(1))[:60]; in_busq = False
-                elif m_z:
-                    zona = _clean_zona(m_z.group(1)); in_busq = False
-                elif m_b:
-                    in_busq = True
-                    rest = m_b.group(1)
-                    parts = re.split(r"\||\n", rest)
-                    for q in parts:
-                        q = _strip_cites(q).strip(" -•\t.\"0123456789)")
-                        if 4 < len(q) < 100:
-                            cat_queries.append(q)
-                elif in_busq and lu:
-                    # búsquedas que continúan en líneas siguientes
-                    q = _strip_cites(re.sub(r"^\s*[-•*\d.)]+\s*", "", lu)).strip(" .\"")
-                    if 4 < len(q) < 100:
-                        cat_queries.append(q)
-            # dedupe conservando orden
-            _seenq = set(); cat_queries = [q for q in cat_queries if not (q.lower() in _seenq or _seenq.add(q.lower()))][:3]
-            # La ZONA del briefing MANDA: la IA entró al sitio y leyó la ubicación real
-            # (p. ej. "consulta en Alcobendas"), más fiable que la heurística de moneda.
-            if zona:
-                zc = zona.split(",")[-1].strip()
-                if len(zc) >= 3:
-                    country = zc[:40]
-                    zg = _gl_from_name(country)
-                    if zg:
-                        gl = zg
-            place = zona or pais_txt          # dónde recomendar (ciudad si la hay)
-            sec_txt = sector or "este tipo de servicio"
-            if not cat_queries:               # reserva coherente (mostrada = preguntada)
-                cat_queries = [f"{sec_txt} en {place}"]
-
-            # Ronda 2: por cada búsqueda, ¿a quién recomienda la IA? (SIN nombrar la
-            # marca, para no inducir que la incluya: el "apareces" lo comprobamos
-            # nosotros parseando su lista. Antes se colaba un falso positivo.)
-            def _q_cat(search: str) -> str:
-                return L(
-                    f"Usa búsqueda web. Un cliente en {place} busca en un asistente de IA: \"{search}\". "
-                    f"Respóndele EXACTAMENTE como lo harías de verdad: recomienda 4-5 EMPRESAS o profesionales "
-                    f"REALES de {sec_txt} en {place}, cada una en una línea con el formato 'Nombre real | dominio.com'. "
-                    f"Reglas estrictas: (1) solo negocios REALES que existan y tengan web propia; (2) el 'Nombre' es "
-                    f"el nombre de la empresa, NO una categoría, servicio, ciudad ni término genérico (nada de "
-                    f"'Acupuntura', 'Clínica', 'Fisioterapia Medellín'); (3) si no encuentras 4-5 reales, pon solo "
-                    f"las que sean reales. No añadas explicaciones ni una línea de conclusión.",
-                    f"Use web search. A customer in {place} asks an AI assistant: \"{search}\". "
-                    f"Answer EXACTLY as you really would: recommend 4-5 REAL companies or professionals of "
-                    f"{sec_txt} in {place}, each on one line in the format 'Real name | domain.com'. "
-                    f"Strict rules: (1) only REAL businesses that exist and have their own website; (2) the 'Name' is "
-                    f"the company name, NOT a category, service, city or generic term; (3) if you can't find 4-5 real "
-                    f"ones, list only the real ones. Do not add explanations or a conclusion line.")
-            # Ficha de Google Business: se busca BIEN — por NOMBRE+zona y por DOMINIO
-            # (muchos negocios la tienen aunque el sitio no la enlace).
-            q_gbp = L(
-                f"Abre Google Maps y busca a fondo la ficha de este negocio LOCAL. Prueba varias busquedas: "
-                f"\"{brand}\", \"{brand} {place}\" y el dominio {domain}. Muchos negocios locales TIENEN ficha de "
-                f"Google aunque su web no la enlace: buscala bien antes de decir que no. Si encuentras una ficha de "
-                f"Google (con direccion, telefono, horario, reseñas o valoracion) que sea de ESTE negocio, responde "
-                f"'SI | <nº de reseñas o la valoracion si la ves>'. Responde 'NO' SOLO si tras buscarla de verdad no "
-                f"existe ninguna. No respondas DUDOSO.",
-                f"Open Google Maps and search thoroughly for this LOCAL business listing. Try several searches: "
-                f"\"{brand}\", \"{brand} {place}\" and the domain {domain}. Many local businesses HAVE a Google "
-                f"listing even if their site doesn't link it: search well before saying no. If you find a Google "
-                f"listing (with address, phone, hours, reviews or rating) that belongs to THIS business, reply "
-                f"'SI | <number of reviews or the rating if you see it>'. Reply 'NO' ONLY if after really searching "
-                f"none exists. Do not reply DUDOSO.")
-            gbp_task = _ask(client, prov, key, strong, q_gbp, max_tokens=90, grounded=True)
-            cat_tasks = [_ask(client, prov, key, strong, _q_cat(s), max_tokens=700, grounded=True)
-                         for s in cat_queries]
-            _all = await asyncio.gather(*cat_tasks, gbp_task, return_exceptions=True)
-            cat_results = list(_all[:len(cat_tasks)])
-            r_gbp = _all[-1]
-            gbp_line = _strip_cites("" if isinstance(r_gbp, Exception) else (r_gbp or ""))
-            gu = gbp_line.strip().upper()
-            # Parseo estricto: SOLO cuenta como evidencia una señal CUANTITATIVA (nº de reseñas
-            # o valoración). Mencionar "dirección/teléfono/google maps" en prosa no prueba nada:
-            # la IA suele nombrarlos justo cuando explica que NO encontró la ficha. Y un "NO"
-            # explícito se respeta siempre (antes un "NO ... en google maps" daba None o True).
-            mrev = re.search(r"(\d[\d.,]*)\s*(reseñas|resenas|reviews|opiniones)", gbp_line, re.I)
-            mval = re.search(r"([0-5][.,]\d)\s*(?:★|estrellas|de 5|/5)", gbp_line)
-            quant_evidence = bool(mrev or mval)
-            if gu.startswith(("SI", "SÍ", "YES")):
-                gbp = True
-            elif gu.startswith("NO"):
-                gbp = False
-            else:
-                gbp = True if quant_evidence else None
-            gbp_reviews = ""
-            gbp_reviews_n = None
-            if gbp:
-                gbp_reviews = (mrev.group(0) if mrev else (mval.group(0) if mval else ""))
-                if mrev:
-                    try:
-                        gbp_reviews_n = int(re.sub(r"[^\d]", "", mrev.group(1)))
-                    except Exception:  # noqa: BLE001
-                        gbp_reviews_n = None
-    except Exception as exc:  # noqa: BLE001
-        return {"available": True, "error": str(exc), "brand": brand}
-
-    if not know_txt.strip() and all(isinstance(x, Exception) or not x for x in cat_results):
-        low = (str(r_know) if isinstance(r_know, Exception) else "").lower()
-        limited = any(t in low for t in ("429", "quota", "rate"))
-        return {"available": True, "brand": brand,
-                "error": "límite temporal de la IA" if limited else "sin respuesta de la IA"}
-
-    knows_brand, know_raw = _parse_know(know_txt)
-
-    # Agrega los 3 fraseos: aparece / no aparece + competencia (union, del pais)
-    brand_l = brand.lower().strip()
-    dom_root = domain.lower().split("/")[0].replace("www.", "")
-    questions = []
-    comps, seen = [], set()
-    appears = 0
-    valid = 0
-    for i, search in enumerate(cat_queries or [service]):
-        res = cat_results[i] if i < len(cat_results) else None
-        txt = "" if (res is None or isinstance(res, Exception)) else (res or "")
-        if not txt.strip():
-            questions.append({"q": search, "appears": None, "named": [], "answer": ""})
-            continue
-        valid += 1
-        # Solo la LISTA de recomendadas (antes de 'INCLUIDA:'). "Apareces" SOLO si la
-        # marca esta en esa lista parseada; NO si tu nombre sale suelto en el texto
-        # (la IA suele nombrarte para decir que NO te recomienda -> falso positivo).
-        body = re.split(r"\bINCLUIDA:", txt, 1)[0]
-        rows = _parse_companies(body)
-        appears_here = any(_is_brand_row(c, brand_l, dom_root) for c in rows)
-        if appears_here:
-            appears += 1
-        named = []
-        for c in rows:
-            if _is_brand_row(c, brand_l, dom_root):
-                continue
-            nm = (c.get("name") or "").strip()
-            if not nm or _looks_generic(nm):   # fuera términos genéricos/categorías
-                continue
-            named.append(nm)
-            if nm.lower() not in seen:
-                seen.add(nm.lower())
-                comps.append(c)
-        # Guarda un extracto legible de la respuesta real de la IA (para mostrarlo)
-        excerpt = re.sub(r"[*_`]+", "", _strip_cites(body))[:300]
-        questions.append({"q": search, "appears": appears_here,
-                          "named": named[:4], "answer": excerpt})
-
-    if valid == 0 and not know_txt.strip():
-        return {"available": True, "brand": brand, "error": "sin respuesta de la IA"}
-
-    recommended = None
-    if valid:
-        recommended = True if appears >= 2 else (False if appears == 0 else None)
-    reco_frac = (appears / valid) if valid else 0.0
-    score = round(100 * (0.5 * (1 if knows_brand else 0) + 0.5 * reco_frac))
-    gap = _strip_cites(gap_txt)[:400]
-    know_raw = _clean_desc(know_raw)
-
-    # ¿Cómo te reconoce la IA? (para mostrarlo en verde/ámbar/rojo, no un frío "no la conozco")
-    if knows_brand:
-        recognition = "strong"      # te conoce por su cuenta
-    elif knows_with_web:
-        recognition = "weak"        # solo te encuentra si le das/visita tu web
-    else:
-        recognition = "none"        # ni encontrándote te reconoce
-    # Lo que la IA MENCIONA de ti (lo que de verdad "sabe"): su descripción real
-    mentions = know_raw if knows_brand else (web_desc if knows_with_web else "")
-
-    # Fuentes que la IA citó al describir la marca (con qué fuentes te cita)
-    _own = (domain or "").split("/")[0].replace("www.", "").lower()
-    sources_out = []
-    _seen_src = set()
-    for _s in (ai_sources if "ai_sources" in dir() else []):
-        _u = _s.get("url") if isinstance(_s, dict) else _s
-        _m = re.search(r"https?://([^/]+)", _u or "")
-        _h = _m.group(1).replace("www.", "").lower() if _m else ""
-        if not _h or _h in _seen_src or "vertexaisearch" in _h or "googleusercontent" in _h:
-            continue
-        _seen_src.add(_h)
-        sources_out.append({"domain": _h,
-                            "own": bool(_own and (_h == _own or _h.endswith("." + _own))),
-                            "title": (_s.get("title") if isinstance(_s, dict) else "") or ""})
-        if len(sources_out) >= 8:
-            break
-
-    return {
-        "available": True,
-        "brand": brand,
-        "service": service,
-        "sector": sector or sector_guess or "",
-        "zona": zona or "",
-        "country": country or "",
-        "engine_names": ["ChatGPT"],
-        "answered_names": ["ChatGPT"],
-        "knows_brand": knows_brand,
-        "brand_description": know_raw[:400] if knows_brand else "",
-        "knows_with_web": knows_with_web,
-        "web_description": web_desc,
-        "recognition": recognition,
-        "mentions": (mentions or "")[:400],
-        "recommended": recommended,
-        "gbp": gbp,
-        "gbp_reviews": gbp_reviews,
-        "gbp_reviews_n": gbp_reviews_n,
-        "competitors": comps[:6],
-        "questions": questions,
-        "gap": gap,
-        "category_queries": cat_queries,
-        "gl": gl,
-        "sources": sources_out,
-        "ai_score": score,
+# --------------------------------------------------------------------------- #
+# Motor principal
+# --------------------------------------------------------------------------- #
+async def run_geo(identity: dict, lang: str = "es") -> dict:
+    """identity = {brand, domain, city, country, cc, gl, scope('ciudad'|'pais'),
+    category (de Places, en lenguaje de cliente), snippet (título+desc+H1), places_found}.
+    Devuelve el dict geo_ai (claves legacy + nuevas)."""
+    t0 = time.monotonic()
+    brand = identity.get("brand") or identity.get("domain")
+    domain = _host(identity.get("domain", ""))
+    engines = _engines()
+    mini = _mini()
+    base = {
+        "available": bool(engines or mini), "status": "skipped", "prompts_version": PROMPTS_VERSION,
+        "brand": brand, "domain": domain, "sector": identity.get("category") or "",
+        "zona": ", ".join(x for x in (identity.get("city"), identity.get("country")) if x),
+        "country": identity.get("country") or "", "gl": identity.get("gl") or "",
+        "engine_names": [e["name"] for e in engines], "answered_names": [], "engines": [],
+        "recognition": "none", "knows": False, "knows_brand": False, "knows_with_web": False,
+        "brand_description": "", "mentions": "", "recommended": None, "reco_hits": 0, "reco_total": 0,
+        "share_of_voice": None, "questions": [], "competitors": [], "sources": [],
+        "category_queries": [], "keywords": [], "entities": [], "gap": "", "content": None,
+        "gbp": None, "gbp_reviews_n": None, "gbp_rating": None, "gbp_category": "",
+        "ai_score": None, "limited": False, "error": None, "note": "", "by_engine": {},
+        "debug": [], "elapsed_ms": 0,
     }
+    if not engines or not mini:
+        base["note"] = "Sin motores de IA configurados"
+        base["error"] = "no_engines"
+        return base
 
+    where = identity.get("city") if identity.get("scope") == "ciudad" else identity.get("country")
+    where = where or identity.get("country") or ""
 
-async def analyze_content(domain: str, meta: dict, lang: str = "es") -> dict | None:
-    """Capa SEMÁNTICA con la IA que ya tenemos (1 llamada, con búsqueda web): evalúa la
-    calidad del contenido, sus temas y las mejoras concretas. None si no hay motor."""
-    eng = await _pick_working_engine()
-    if not eng:
-        return None
-    brand = derive_brand(meta or {}, domain) or domain
-    full = domain if str(domain).startswith("http") else f"https://{domain}"
-    if lang == "en":
-        prompt = (f"Use web search and open {full}. Assess the CONTENT quality of \"{brand}\" for SEO "
-                  f"and for AI answers. Reply EXACTLY in this format, plain text, no markdown, no links:\n"
-                  f"TEMAS: <3-5 main topics the site covers, separated by |>\n"
-                  f"EVALUACION: <one honest sentence: is the content useful, deep and original, or thin, "
-                  f"salesy or repetitive?>\n"
-                  f"MEJORAS: <2-3 concrete content improvements, separated by |>")
-    else:
-        prompt = (f"Usa búsqueda web y entra en {full}. Evalúa la CALIDAD del contenido de \"{brand}\" "
-                  f"para SEO y para las respuestas de la IA. Responde EXACTAMENTE en este formato, en "
-                  f"texto plano, sin markdown y sin enlaces:\n"
-                  f"TEMAS: <3-5 temas principales que cubre el sitio, separados por |>\n"
-                  f"EVALUACION: <una frase honesta: ¿el contenido es útil, profundo y original, o flojo, "
-                  f"comercial o repetitivo?>\n"
-                  f"MEJORAS: <2-3 mejoras concretas de contenido, separadas por |>")
-    try:
-        async with httpx.AsyncClient(headers={"User-Agent": "Mozilla/5.0"}) as client:
-            txt = await _ask(client, eng["provider"], eng["key"], eng.get("strong") or eng["model"],
-                             prompt, max_tokens=380, grounded=True)
-    except Exception:  # noqa: BLE001
-        return None
-    txt = _strip_cites(txt or "")
-    if not txt.strip():
-        return None
-
-    def _field(label):
-        m = re.search(label + r"\s*:\s*(.+?)(?:\n[A-ZÁÉÍÓÚ]+\s*:|$)", txt, re.S | re.I)
-        return (m.group(1).strip() if m else "")
-
-    topics = [t.strip(" .-•") for t in _field("TEMAS").split("|") if t.strip()][:5]
-    assessment = re.sub(r"\s+", " ", _field("EVALUACION")).strip()[:300]
-    gaps = [g.strip(" .-•") for g in _field("MEJORAS").split("|") if g.strip()][:3]
-    if not (topics or assessment or gaps):
-        # sin formato claro: usa el texto como evaluación
-        assessment = re.sub(r"\s+", " ", txt).strip()[:300]
-    return {"topics": topics, "assessment": assessment, "gaps": gaps}
-
-
-# --------------------------------------------------------------------------- #
-# Motor GEO OPTIMIZADO: 1 sola búsqueda en vivo por análisis (coste mínimo)
-# --------------------------------------------------------------------------- #
-def _f(label: str, txt: str) -> str:
-    m = re.search(r"(?im)^\s*" + label + r"\s*:\s*(.+?)\s*$", txt or "")
-    return m.group(1).strip() if m else ""
-
-
-def _measure_appearances(combo: str, cat_queries: list, brand: str, domain: str):
-    """Parsea la respuesta combinada de las búsquedas de cliente (bloques @@n@@) y mide
-    en cuántas aparece la marca. Devuelve (questions, appears, valid, competitors)."""
-    combo = combo if isinstance(combo, str) else ""
-    cat_results = [""] * len(cat_queries)
-    if combo.strip():
-        parts = re.split(r"@@\s*(\d+)\s*@@", combo)
-        for _k in range(1, len(parts) - 1, 2):
-            try:
-                _idx = int(parts[_k]) - 1
-            except Exception:  # noqa: BLE001
+    async with httpx.AsyncClient(headers={"User-Agent": "Mozilla/5.0"}) as client:
+        # ---- P1: categoría en lenguaje de cliente + 3 búsquedas reales ----
+        p1 = await _call(client, mini, prompt_p1(identity, lang), schema=SCHEMA_P1, schema_name="p1",
+                         max_tokens=300)
+        queries: list[str] = []
+        category = identity.get("category") or ""
+        if p1["json"]:
+            category = (p1["json"].get("categoria") or category or "").strip().lower()[:60]
+            queries = [q.strip() for q in (p1["json"].get("busquedas") or []) if q and q.strip()][:3]
+        else:
+            base["debug"].append(f"P1: {p1['error']}")
+        # Filtro anti-eslogan: ninguna búsqueda puede contener la marca ni una frase de la web
+        snip_tok = _tokens(identity.get("snippet", ""))
+        clean = []
+        for q in queries:
+            qt = _tokens(q)
+            if brand and _places._norm(brand) in _places._norm(q):
                 continue
-            if 0 <= _idx < len(cat_results):
-                cat_results[_idx] = parts[_k + 1]
-        if not any(cat_results):
-            cat_results[0] = combo
-    brand_l = brand.lower().strip()
-    dom_root = (domain or "").lower().split("/")[0].replace("www.", "")
-    questions, comps, seen = [], [], set()
-    appears = valid = 0
-    for i, search in enumerate(cat_queries):
-        txt = cat_results[i] if i < len(cat_results) else ""
-        if not txt.strip():
-            questions.append({"q": search, "appears": None, "named": [], "answer": ""})
-            continue
-        valid += 1
-        body = re.split(r"\bINCLUIDA:", txt, 1)[0]
-        rows = _parse_companies(body)
-        here = any(_is_brand_row(c, brand_l, dom_root) for c in rows)
-        if here:
-            appears += 1
-        _sl = re.sub(r"\s+", " ", (search or "").lower()).strip()
-        named = []
-        for c in rows:
-            if _is_brand_row(c, brand_l, dom_root):
+            if snip_tok and len(qt & snip_tok) >= max(4, int(len(qt) * 0.7)):
                 continue
-            nm = (c.get("name") or "").strip()
-            if not nm or _looks_generic(nm):
-                continue
-            nml = nm.lower()
-            if nml == _sl or (len(_sl) > 8 and (_sl in nml or nml in _sl)):
-                continue
-            if not c.get("domain"):
-                _wc = len(nml.split())
-                if (" en " in f" {nml} ") or _wc >= 5 or (not any(ch.isupper() for ch in nm) and _wc >= 3):
-                    continue
-            named.append(nm)
-            if nml not in seen:
-                seen.add(nml)
-                comps.append(c)
-        questions.append({"q": search, "appears": here, "named": named[:4],
-                          "answer": re.sub(r"[*_`]+", "", _strip_cites(body))[:300]})
-    return questions, appears, valid, comps
+            clean.append(q)
+        queries = clean
+        if len(queries) < 3:
+            cat = category or (L("este tipo de negocio", "this kind of business"))
+            fill = ([L(f"dónde encontrar {cat} en {where}", f"where to find {cat} in {where}"),
+                     L(f"recomiéndame {cat} en {where}", f"recommend me {cat} in {where}"),
+                     L(f"qué {cat} hay en {where}", f"which {cat} are there in {where}")]
+                    if where else [f"{L('mejores', 'best')} {cat}", L(f"recomiéndame {cat}", f"recommend me {cat}"),
+                                   L(f"qué {cat} hay", f"which {cat} are there")])
+            for f in fill:
+                if len(queries) >= 3:
+                    break
+                if f not in queries:
+                    queries.append(f)
+        base["category_queries"] = queries
+        base["sector"] = category or base["sector"]
 
+        # ---- P2 (cliente, por motor y búsqueda) + P4 (reconocimiento, motor primario) ----
+        primary = engines[0]
+        tasks = {}
+        for e in engines:
+            for i, q in enumerate(queries):
+                tasks[(e["name"], i)] = _call(client, e, prompt_p2(q, where, lang), grounded=True, max_tokens=700)
+        tasks["p4_mem"] = _call(client, mini, prompt_p4(brand, domain, lang, False), schema=SCHEMA_P4,
+                                schema_name="p4", max_tokens=250)
+        # Con búsqueda: JSON estricto no se combina con web_search en todos los proveedores;
+        # se pide JSON en el prompt y se parsea con tolerancia.
+        tasks["p4_web"] = _call(client, primary, prompt_p4(brand, domain, lang, True), grounded=True,
+                                max_tokens=300)
+        keys = list(tasks.keys())
+        try:
+            results = await asyncio.wait_for(asyncio.gather(*tasks.values(), return_exceptions=True),
+                                             timeout=AI_BUDGET)
+        except asyncio.TimeoutError:
+            results = [Exception("timeout global IA")] * len(keys)
+        res = {k: (r if isinstance(r, dict) else {"text": "", "json": None, "citations": [], "error": str(r)})
+               for k, r in zip(keys, results)}
 
-async def _engine_probe(client, eng, brand, domain, q_mem, q_brand, cat_prompt, cat_queries):
-    """Sonda un motor de IA para la matriz multi-IA:
-      - q_mem (de memoria, sin buscar salvo Perplexity): ¿te reconoce por tu cuenta?
-      - q_brand (con búsqueda en vivo): PRUEBA REAL de cómo te cita — qué dice de TU marca
-        y en qué fuentes se apoya (esas son las 'fuentes' que mostramos, sobre ti).
-      - cat_prompt (con búsqueda): ¿apareces cuando piden tu servicio? (X/N)
-    """
-    prov, key = eng["provider"], eng["key"]
-    strong = eng.get("strong") or eng["model"]
-    model = eng["model"]
-    srcs: list = []
-    web = bool(eng.get("always_web"))
-    # Consulta de MARCA CON búsqueda en vivo (prueba real: qué dice de ti + fuentes) y la
-    # medición de categoría. 2 llamadas por motor.
-    # 3 consultas por motor:
-    #  - q_mem  (SIN búsqueda): ¿te reconoce DE MEMORIA? -> reconocimiento real.
-    #  - q_brand(CON búsqueda): prueba de cómo te cita + fuentes.
-    #  - cat_prompt (CON búsqueda): ¿apareces cuando piden tu servicio? (X/N).
-    try:
-        mem_ans, brand_ans, combo = await asyncio.gather(
-            _ask(client, prov, key, model, q_mem, max_tokens=200, grounded=False),
-            _ask(client, prov, key, strong, q_brand, max_tokens=240, grounded=True, sink=srcs),
-            _ask(client, prov, key, strong, cat_prompt, max_tokens=900, grounded=True),
-            return_exceptions=True)
-    except Exception:  # noqa: BLE001
-        mem_ans, brand_ans, combo = Exception("e"), Exception("e"), Exception("e")
-    if isinstance(brand_ans, Exception) and isinstance(combo, Exception) and isinstance(mem_ans, Exception):
-        return {"name": eng["name"], "provider": prov, "failed": True}
-    mem_ans = _strip_cites(mem_ans).strip() if isinstance(mem_ans, str) else ""
-    brand_ans = _strip_cites(brand_ans).strip() if isinstance(brand_ans, str) else ""
+        # ---- P3: extracción de negocios de todas las respuestas del cliente ----
+        answers, amap = [], []
+        for e in engines:
+            for i in range(len(queries)):
+                r = res[(e["name"], i)]
+                if r["text"] and not r["error"]:
+                    answers.append(r["text"])
+                    amap.append((e["name"], i))
+        extracted: dict[tuple, list[dict]] = {}
+        if answers:
+            p3 = await _call(client, mini, prompt_p3(answers, lang), schema=SCHEMA_P3, schema_name="p3",
+                             max_tokens=1500)
+            if p3["json"]:
+                for row in p3["json"].get("respuestas") or []:
+                    try:
+                        idx = int(row.get("id")) - 1
+                    except Exception:  # noqa: BLE001
+                        continue
+                    if 0 <= idx < len(amap):
+                        extracted[amap[idx]] = [b for b in (row.get("negocios") or []) if b.get("nombre")]
+            else:
+                base["debug"].append(f"P3: {p3['error']}")
 
-    def _affirms(a: str) -> bool:
-        a = (a or "").lower()
-        return bool(a) and "no_lo_se" not in a and "no lo s" not in a and "no tengo" not in a and len(a) > 25
+    # ---- Medición por motor ----
+    by_engine, engines_out, questions = {}, [], []
+    comp_agg: dict[str, dict] = {}
+    total_mentions = 0
+    brand_mentions = 0
+    for e in engines:
+        rows, hits, valid, named_all = [], 0, 0, []
+        for i, q in enumerate(queries):
+            r = res[(e["name"], i)]
+            ok = bool(r["text"]) and not r["error"]
+            items = extracted.get((e["name"], i), [])
+            appears = None
+            pos = None
+            named = []
+            if ok:
+                valid += 1
+                appears = False
+                for k, it in enumerate(items, 1):
+                    if _is_brand(it, brand, domain):
+                        appears = True
+                        pos = pos or k
+                    else:
+                        nm = (it.get("nombre") or "").strip()
+                        if nm:
+                            named.append(nm)
+                            key = _places._norm(nm)
+                            c = comp_agg.setdefault(key, {"name": nm, "domain": _host(it.get("dominio") or ""),
+                                                          "cited_by": set(), "hits": 0})
+                            if not c["domain"] and it.get("dominio"):
+                                c["domain"] = _host(it["dominio"])
+                            c["cited_by"].add(e["name"])
+                            c["hits"] += 1
+                if appears:
+                    hits += 1
+                total_mentions += len(items)
+                brand_mentions += 1 if appears else 0
+            rows.append({"q": q, "appears": appears, "position": pos, "named": named[:5],
+                         "answer": (r["text"] or "")[:600], "error": r["error"]})
+            named_all += named
+        by_engine[e["name"]] = {"provider": e["provider"], "model": e["model"], "hits": hits, "valid": valid,
+                                "rows": rows, "error": None if valid else "sin respuesta"}
+        engines_out.append({"name": e["name"], "provider": e["provider"], "knows": None, "recognition": None,
+                            "recommended": (None if not valid else (True if hits >= max(1, (valid + 1) // 2) else
+                                                                  (False if hits == 0 else None))),
+                            "reco_hits": hits, "reco_total": valid, "cites": 0, "sources": [], "proof": ""})
+        if valid:
+            base["answered_names"].append(e["name"])
 
-    knows_mem = _affirms(mem_ans)        # te conoce por su cuenta (de memoria)
-    knows_web = _affirms(brand_ans)      # lo encuentra buscando / con el dominio
-    knows = knows_mem or knows_web
-    recognition = "strong" if knows_mem else ("weak" if knows_web else "none")
-    combo = combo if isinstance(combo, str) else ""
-    questions, appears, valid, comps = _measure_appearances(combo, cat_queries, brand, domain)
-    _own = (domain or "").split("/")[0].replace("www.", "").lower()
-    _srcs, _seen = [], set()
-    for s in srcs:
-        u = s.get("url") or ""
-        m = re.search(r"([a-z0-9.\-]+\.[a-z]{2,})", u.lower())
-        h = m.group(1).replace("www.", "") if m else ""
-        if h and _own not in h and "vertexaisearch" not in h and "googleusercontent" not in h and h not in _seen:
-            _seen.add(h)
-            _srcs.append({"domain": h, "url": u})
-    cites = len(_srcs)
-    recommended = None
-    if valid:
-        recommended = True if appears >= max(2, valid // 2 + 1) else (False if appears == 0 else None)
-    _pf = ""
-    if knows:
-        _pf = re.sub(r"[*_`#>]+", "", brand_ans).strip()
-        _pf = re.sub(r"\d+\s*$", "", _pf).strip()   # quita citas numéricas al final ("...12")
-        if len(_pf) > 230:
-            _pf = _pf[:230].rsplit(" ", 1)[0].rstrip(" ,;:") + "…"
-    return {"name": eng["name"], "provider": prov, "web_only": web,
-            "knows": knows, "recognition": recognition,
-            "recommended": recommended, "reco_hits": appears, "reco_total": valid,
-            "cites": cites, "sources": _srcs[:8], "proof": _pf,
-            "competitors": comps, "questions": questions}
-
-
-async def run_ai_geo_fast(domain: str, meta: dict, lang: str = "es") -> dict | None:
-    """GEO en 1 búsqueda en vivo: reconocimiento, recomendación, competencia, fuentes,
-    ficha/reseñas y evaluación de contenido, en una sola llamada grounded + una barata
-    sin búsqueda para el reconocimiento 'de memoria'. Devuelve el mismo shape que
-    run_ai_geo (+ 'content'). None si no hay motor de IA."""
-    # NOTA: si NUESTRO rastreador no pudo leer la web (anti-bots/WAF), NO cortamos aquí:
-    # la IA tiene su propia búsqueda web y su conocimiento, que NO dependen de que
-    # nosotros alcancemos el sitio. Marcas conocidas (Mario Hernández, Arturo Calle...)
-    # se resuelven igual por nombre. Si la IA tampoco encuentra nada fiable, degrada
-    # sola a 'no reconocida' (sin inventar), gracias a los prompts estrictos.
-    _engines = _pick_engines()
-    eng = _engines[0] if _engines else await _pick_working_engine()
-    if not eng:
-        return None
-    prov, key = eng["provider"], eng["key"]
-    strong = eng.get("strong") or eng["model"]
-    model = eng["model"]
-    brand = derive_brand(meta or {}, domain) or domain
-    service = derive_service(meta or {}) or (derive_sector(meta or {}) or "")
-    cc = _country_from_domain(domain)
-    # País base: 1) detección multiseñal del sitio (meta: teléfono/moneda/idioma-región/
-    # menciones), 2) ccTLD. NUNCA forzar España por defecto (bug histórico con .app/.com).
-    _mc = (meta or {}).get("country") or ""
-    _mg = (meta or {}).get("gl") or ""
-    if _mc or _mg:
-        country = _mc or (cc[0] if cc else "")
-        gl = _mg or (cc[1] if cc else "")
-    elif cc:
-        country, gl = cc
-    else:
-        country, gl = "", ""
-    country_hint = country or "ninguna señal clara"
-    full = domain if str(domain).startswith("http") else f"https://{domain}"
-
-    if lang == "en":
-        q_mega = (
-            f"Use web search and open {full}. Act as an SEO and GEO analyst. Analyze the company "
-            f'"{brand}". Reply EXACTLY in this format, plain text, no markdown, no links, each field on ONE line:\n'
-            f"SECTOR: <specific sector>\n"
-            f"ZONA: <city and COUNTRY where it operates. Infer the country from the address, the phone "
-            f"country code (+57 Colombia, +34 Spain, +52 Mexico, +54 Argentina, +56 Chile, +51 Peru...), "
-            f"currency, language-region and explicit mentions on the site. Prior signal detected: "
-            f"{country_hint}; confirm or correct it by reading the site. NEVER assume Spain by default>\n"
-            f"RECOMIENDA: <SI, NO or AVECES> if someone asks for that service in that area WITHOUT naming the brand, "
-            f"would you recommend it?\n"
-            f"COMPETENCIA: <For THIS field do NOT use search results: use YOUR OWN market knowledge. Name 4-6 of the "
-            f"BIGGEST, best-known leading brands that truly compete with \"{brand}\" in its country (the ZONA one) and "
-            f"same segment; the ones a customer would name from memory. E.g. women's fashion in Colombia: Studio F, "
-            f"Koaj, Arturo Calle, Chevignon, Americanino, Tennis, Pilatos, Gef. FORBIDDEN to list small shops, unknown "
-            f"local boutiques or businesses without national prominence. Also no generic global giants (Amazon, Shein, "
-            f"Temu) if there are leading brands in the country. Separated by |>\n"
-            f"FUENTES: <up to 4 web domains you rely on to describe the brand, separated by |>\n"
-            f"BUSQUEDAS: <3 searches a customer would type for that service, with the city, separated by |>\n"
-            f"FICHA_GOOGLE: <Search Google and Google Maps for \"{brand}\". SI if it HAS a Google Business profile "
-            f"(a business listing with map, reviews, hours). Well-known brands and chains almost always have one with "
-            f"many reviews; check their stores by name. Answer SI only if you are sure a real listing exists (with "
-            f"reviews or a rating); NO only if after searching well it truly has none>\n"
-            f"CATEGORIA: <the main category of that Google listing (e.g. 'Clothing store'); its line of business if none>\n"
-            f"RESENAS: <approx TOTAL number of reviews on that Google listing (for a chain, the main location or the "
-            f"sum of its main stores); 0 if it has no listing. Only the number>\n"
-            f"VALORACION: <the listing's average rating 0-5 if you see it; empty if not>\n"
-            f"KEYWORDS: <3-5 keywords/searches this site should rank for, separated by |>\n"
-            f"ENTIDADES: <3-5 key topics or entities the content covers, separated by |>\n"
-            f"CONTENIDO: <one honest sentence about the site content quality>\n"
-            f"MEJORAS: <2-3 concrete content improvements, separated by |>")
-        q_mem = (f'In one sentence, what is "{brand}" and what does it do? Start with the name. '
-                 f"If you have NO reliable info about that brand, reply only NO_LO_SE.")
-    else:
-        q_mega = (
-            f"Usa búsqueda web y entra en {full}. Actúa como analista SEO y GEO. Analiza la empresa "
-            f'"{brand}". Responde EXACTAMENTE en este formato, en texto plano, sin markdown y sin enlaces, '
-            f"cada campo en UNA línea:\n"
-            f"SECTOR: <sector concreto>\n"
-            f"ZONA: <ciudad y PAÍS donde opera. Deduce el país por la dirección, el prefijo telefónico "
-            f"(+57 Colombia, +34 España, +52 México, +54 Argentina, +56 Chile, +51 Perú...), la moneda, "
-            f"el idioma-región y las menciones del sitio. Señal previa detectada: {country_hint}; "
-            f"confírmala o corrígela leyendo el sitio. NUNCA asumas España por defecto>\n"
-            f"RECOMIENDA: <SI, NO o AVECES> si alguien pide ese tipo de servicio en esa zona SIN nombrar la "
-            f"marca, ¿la recomendarías?\n"
-            f"COMPETENCIA: <Para ESTE campo NO uses los resultados de búsqueda: usa TU CONOCIMIENTO del mercado. "
-            f"Nombra 4-6 de las marcas MÁS GRANDES, CONOCIDAS y líderes que compiten de verdad con \"{brand}\" en su "
-            f"país (el de ZONA) y su MISMO segmento; las que un cliente nombraría de memoria. Ej. ropa femenina en "
-            f"Colombia: Studio F, Koaj, Arturo Calle, Chevignon, Americanino, Tennis, Pilatos, Gef. PROHIBIDO listar "
-            f"tiendas pequeñas, boutiques locales desconocidas o negocios sin notoriedad nacional. Tampoco gigantes "
-            f"globales genéricos (Amazon, Shein, Temu) si hay marcas líderes del país. Separadas por |>\n"
-            f"FUENTES: <hasta 4 dominios web en los que te apoyas para describir a la marca, separadas por |>\n"
-            f"BUSQUEDAS: <3 búsquedas que un cliente escribiría para ese servicio, con la ciudad, separadas por |>\n"
-            f"FICHA_GOOGLE: <Busca en Google y Google Maps \"{brand}\". SI si TIENE ficha de Google Business (perfil "
-            f"de empresa con mapa, reseñas y horario). Las marcas y cadenas conocidas casi siempre tienen una con "
-            f"muchas reseñas; revisa sus tiendas por nombre. Responde SI solo si estás seguro de que existe una ficha "
-            f"real (con reseñas o valoración); NO solo si tras buscar bien de verdad no tiene ninguna>\n"
-            f"CATEGORIA: <la categoría principal de esa ficha de Google (p. ej. 'Tienda de ropa'); su rubro si no hay ficha>\n"
-            f"RESENAS: <número TOTAL aproximado de reseñas de esa ficha de Google (si es cadena, la sede principal o "
-            f"la suma de sus tiendas principales); 0 si no tiene ficha. SOLO el número>\n"
-            f"VALORACION: <la valoración media de la ficha 0-5 si la ves; vacío si no>\n"
-            f"KEYWORDS: <3-5 palabras clave/búsquedas por las que este sitio debería posicionar, separadas por |>\n"
-            f"ENTIDADES: <3-5 temas o entidades clave que cubre el contenido, separadas por |>\n"
-            f"CONTENIDO: <una frase honesta sobre la calidad del contenido del sitio>\n"
-            f"MEJORAS: <2-3 mejoras concretas de contenido, separadas por |>")
-        q_mem = (f'En una frase, ¿qué es "{brand}" y a qué se dedica? Empieza por el nombre. '
-                 f"Si NO tienes información fiable de esa marca, responde solo NO_LO_SE.")
-
-    # Consulta de MARCA con búsqueda en vivo: sirve de PRUEBA REAL de cómo te cita cada
-    # IA (qué dice de ti y en qué fuentes se apoya). Distinta de q_mem (que es de memoria).
-    q_brand = L(
-        f'Usa búsqueda web. En 2-3 frases, ¿qué es "{brand}" ({domain}) y a qué se dedica? '
-        f"Básate SOLO en lo que encuentres en la web sobre ESA empresa; no inventes. Si no "
-        f"encuentras información fiable de esa empresa, responde solo NO_LO_SE.",
-        f'Use web search. In 2-3 sentences, what is "{brand}" ({domain}) and what does it do? '
-        f"Base it ONLY on what you find on the web about THAT company; do not make it up. If you "
-        f"cannot find reliable information about that company, reply only NO_LO_SE.")
-
-    sources: list = []
-    cat_results: list = []
-    cat_queries: list = []
-    gbp_lines: list = []
-    gbp_line = ""
-    _brand_srcs: list = []
-    primary_brand_ans = ""
-    _probes: list = []
-    _tried = []
-    mega = mem = ""
-    # cat_queries LOCALES (no dependen del briefing): permiten lanzar TODO en UNA sola
-    # ronda paralela (mucho más rápido). El país viene de la detección multiseñal del sitio.
-    place = (country or "").strip()
-    # Categoría CORTA (no el eslogan del negocio) para que el "¿apareces?" sea real.
-    sec_txt = short_category(meta or {}) or "este tipo de servicio"
-    _base = ([f"mejores {sec_txt} en {place}",
-              f"¿qué {sec_txt} me recomiendas en {place}?",
-              f"quiero {sec_txt} en {place}, ¿qué marcas o empresas hay?"]
-             if place else [f"mejores {sec_txt}", f"¿qué {sec_txt} me recomiendas?", f"empresas de {sec_txt}"])
-    cat_queries = list(dict.fromkeys([q.strip() for q in _base if q.strip()]))[:3]
-    _qlist = "\n".join(f"@@{i+1}@@ {q}" for i, q in enumerate(cat_queries))
-    q_cat = L(
-        f"Usa búsqueda web. Un cliente en {place or 'tu país'} podría escribir estas búsquedas en un asistente "
-        f"de IA. Para CADA búsqueda, recomienda 4-5 EMPRESAS o profesionales REALES de {sec_txt} en "
-        f"{place or 'ese país'}. Devuelve EXACTAMENTE este formato y nada más:\n{_qlist}\n"
-        f"Debajo de cada marcador @@n@@, una empresa por línea como 'Nombre real | dominio.com'. "
-        f"Reglas: solo negocios REALES con web propia; el 'Nombre' es la empresa, NO una categoría, "
-        f"servicio ni ciudad; si no hay 4-5 reales, pon solo las reales. Sin explicaciones.",
-        f"Use web search. A customer in {place or 'their country'} might type these searches into an AI assistant. For "
-        f"EACH search, recommend 4-5 REAL companies or professionals of {sec_txt} in {place or 'that country'}. Return "
-        f"EXACTLY this format and nothing else:\n{_qlist}\n"
-        f"Under each @@n@@ marker, one company per line as 'Real name | domain.com'. Rules: only REAL "
-        f"businesses with their own site; the Name is the company, NOT a category/service/city; if fewer "
-        f"than 4-5 real, list only the real ones. No explanations.")
-
-    # CONOCIMIENTO del modelo (SIN búsqueda web): competidores líderes + ficha de Google.
-    # La búsqueda en vivo daba tiendas pequeñas/SEO y una ficha inconsistente; el
-    # conocimiento del modelo da las marcas que un cliente reconoce (Studio F, Koaj...) y
-    # sabe que las marcas/cadenas establecidas casi siempre tienen ficha de Google.
-    q_comp = L(
-        f"Sin usar búsqueda web, solo con tu conocimiento. Primero identifica a qué se dedica EXACTAMENTE la "
-        f"marca \"{brand}\": su SEGMENTO concreto de producto (p. ej. marroquinería y bolsos de cuero, ropa "
-        f"interior, calzado deportivo, joyería, trajes de baño...), NO un genérico como 'moda' o 'ropa'. "
-        f"Responde EXACTAMENTE en 4 líneas y nada más:\n"
-        f"SEGMENTO: <el segmento concreto de \"{brand}\">\n"
-        f"COMPETIDORES: <6 marcas competidoras DIRECTAS que vendan EXACTAMENTE lo mismo que ese SEGMENTO (si "
-        f"vende bolsos de cuero -> marcas de bolsos de cuero; si vende trajes de baño -> marcas de trajes de "
-        f"baño), del MISMO país ({place or 'su país'}) y nivel similar, que un cliente de ahí reconocería. "
-        f"Marcas NACIONALES de ese país; NO cadenas globales (Zara, H&M, Amazon, Nike...) ni tiendas diminutas. "
-        f"IMPORTANTE: deben ROTAR según la marca y su segmento, no repitas siempre las mismas. Separadas por |. "
-        f"Si no conoces marcas de ese segmento y país, deja vacío>\n"
-        f"FICHA: <¿tiene ficha de Google Business / perfil en Google Maps con reseñas? Las marcas conocidas "
-        f"y los negocios locales establecidos casi siempre tienen. Responde SI, NO o NOSE>\n"
-        f"RESENAS: <número aproximado de reseñas de su ficha si lo sabes; vacío si no>",
-        f"Without web search, only from your knowledge. First identify what the brand \"{brand}\" EXACTLY sells: "
-        f"its specific product SEGMENT (e.g. leather goods and bags, underwear, athletic footwear, jewelry, "
-        f"swimwear...), NOT a generic like 'fashion' or 'clothing'. Reply EXACTLY in 4 lines and nothing else:\n"
-        f"SEGMENTO: <the specific segment of \"{brand}\">\n"
-        f"COMPETIDORES: <6 DIRECT competitor brands selling EXACTLY the same as that SEGMENT (leather bags -> "
-        f"leather bag brands; swimwear -> swimwear brands), from the SAME country ({place or 'its country'}) and "
-        f"similar tier, that a local customer would recognize. NATIONAL brands of that country; NO global chains "
-        f"(Zara, H&M, Amazon, Nike...) or tiny shops. IMPORTANT: they must ROTATE per brand and segment, do not "
-        f"always repeat the same ones. Separated by |. If you know no brands of that segment and country, leave empty>\n"
-        f"FICHA: <does it have a Google Business profile / Google Maps listing with reviews? Well-known brands "
-        f"and established local businesses almost always do. Reply SI, NO or NOSE>\n"
-        f"RESENAS: <approx number of reviews on its listing if you know it; empty if not>")
-
-    eng = _engines[0]
-    prov, key = eng["provider"], eng["key"]
-    strong = eng.get("strong") or eng["model"]
-    model = eng["model"]
-    try:
-        async with httpx.AsyncClient(headers={"User-Agent": "Mozilla/5.0"}) as client:
-            # UNA SOLA RONDA en paralelo: briefing (mega) + competidores por conocimiento +
-            # sonda de TODAS las IA (reconocimiento/prueba + medición de recomendación).
-            _res = await asyncio.gather(
-                _ask(client, prov, key, strong, q_mega, max_tokens=600, grounded=True, sink=sources),
-                _ask(client, prov, key, model, q_comp, max_tokens=120, grounded=False),
-                *[_engine_probe(client, e, brand, domain, q_mem, q_brand, q_cat, cat_queries)
-                  for e in _engines],
-                return_exceptions=True)
-            mega = _strip_cites(_res[0]) if isinstance(_res[0], str) else ""
-            comp_know = _res[1] if isinstance(_res[1], str) else ""
-            _probes = list(_res[2:])
-    except Exception as exc:  # noqa: BLE001
-        return {"available": True, "error": str(exc), "brand": brand}
-
-    # refina sector/zona desde el briefing (solo para mostrar); el país ya lo teníamos
-    sector = _f("SECTOR", mega)[:60] or sec_txt
-    zona = _clean_zona(_f("ZONA", mega)) or place
-    if zona:
-        zc = zona.split(",")[-1].strip()
-        if len(zc) >= 3:
-            _zg = _gl_from_name(zc[:40])
-            if _zg:
-                country, gl = zc[:40], _zg
-
-    # ---- Resultados por motor (todas las IA sondeadas en paralelo) ----
-    _valid = [(e, p) for e, p in zip(_engines, _probes) if isinstance(p, dict) and not p.get("failed")]
-    if not _valid:
-        _tried = [f"{e['name']}: {(str(p)[:80] if isinstance(p, Exception) else 'sin respuesta')}"
-                  for e, p in zip(_engines, _probes)]
-        return {"available": True, "brand": brand, "error": "sin respuesta de la IA",
-                "debug_engines": _tried}
-    prim = _valid[0][1]
-    recognition = prim.get("recognition") or "none"
-    knows_brand = bool(prim.get("knows"))
-    knows_with_web = knows_brand
-    mem_c = prim.get("proof") or ""
-    recommended = prim.get("recommended")
-    reco_hits = prim.get("reco_hits") or 0
-    reco_total = prim.get("reco_total") or 0
-    questions = prim.get("questions") or []
-    appears, valid = reco_hits, reco_total
-    comps = list(prim.get("competitors") or [])
-    _brand_srcs = prim.get("sources") or []
-    primary_brand_ans = mem_c
-
-    # ---- Matriz multi-IA: una fila por motor (todas sondeadas en paralelo) ----
-    engines_out = []
-    _have = set()
-    for _e, _p in _valid:
-        engines_out.append({
-            "name": _p["name"], "provider": _p["provider"], "web_only": _p.get("web_only"),
-            "knows": _p.get("knows"), "recognition": _p.get("recognition"),
-            "recommended": _p.get("recommended"), "reco_hits": _p.get("reco_hits"),
-            "reco_total": _p.get("reco_total"), "cites": _p.get("cites"),
-            "sources": _p.get("sources") or [], "proof": _p.get("proof") or "",
+    # Preguntas agregadas (legacy: una fila por búsqueda; appears = en algún motor)
+    for i, q in enumerate(queries):
+        per = [by_engine[e["name"]]["rows"][i] for e in engines]
+        valid_rows = [p for p in per if p["appears"] is not None]
+        questions.append({
+            "q": q,
+            "appears": (any(p["appears"] for p in valid_rows) if valid_rows else None),
+            "named": list(dict.fromkeys(n for p in valid_rows for n in p["named"]))[:5],
+            "answer": next((p["answer"] for p in valid_rows if p["answer"]), ""),
+            "by_engine": {e["name"]: {"appears": per[j]["appears"], "position": per[j]["position"]}
+                          for j, e in enumerate(engines)},
         })
-    # Competidores: PRIMERO los de conocimiento (marcas líderes reconocidas); si el modelo
-    # no dio, caemos a la recomendación real del motor y luego al campo del briefing.
-    # Gigantes genéricos que casi nunca son la respuesta útil de "competencia local":
-    # si aparecen, se descartan (y si la lista queda corta, se cae al respaldo).
-    _GLOBAL_DENY = {"amazon", "shein", "temu", "aliexpress", "ebay", "walmart", "mercadolibre",
-                    "google", "microsoft", "apple", "ibm", "oracle", "sap", "salesforce",
-                    "meta", "facebook", "openai", "chatgpt"}
-    # Etiquetas del propio prompt que NO son competidores (por si el modelo no respeta
-    # el formato y se cuelan "FICHA: NO", "RESENAS: 0", etc.).
-    _LABELS = ("ficha", "resenas", "reseñas", "competidores", "valoracion", "valoración",
-               "categoria", "categoría", "sector", "zona", "recomienda", "keywords",
-               "entidades", "contenido", "mejoras", "no conozco", "no se", "ninguna",
-               "no aplica", "no hay")
-    def _clean_comps(raw: str) -> list:
-        out = []
-        for c in (raw or "").replace("\n", "|").split("|"):
-            c = c.strip(" -•\"'.").strip()
-            cl = c.lower()
-            # descarta etiquetas del prompt, campos "algo: valor", y no-marcas
-            if ":" in c:
-                continue
-            if any(cl == lb or cl.startswith(lb + " ") for lb in _LABELS):
-                continue
-            if (c and 2 <= len(c) <= 40 and cl not in ("nada", "none", "n/a")
-                    and cl not in _GLOBAL_DENY
-                    and not _looks_generic(c) and brand.lower() not in cl):
-                out.append({"name": c})
-        # dedup por nombre
-        seen, dd = set(), []
-        for c in out:
-            k = c["name"].lower()
-            if k not in seen:
-                seen.add(k); dd.append(c)
-        return dd[:6]
+    valid_total = sum(v["valid"] for v in by_engine.values())
+    hits_total = sum(v["hits"] for v in by_engine.values())
 
-    comps = _clean_comps(_f("COMPETIDORES", comp_know))
-    if not comps:
-        comps = list(prim.get("competitors") or [])
-    if not comps:
-        comps = [{"name": c.strip()} for c in _f("COMPETENCIA", mega).split("|")
-                 if c.strip() and not _looks_generic(c.strip())][:6]
-    engine_names = [x["name"] for x in engines_out]
+    # ---- Reconocimiento (P4) ----
+    mem = res["p4_mem"]["json"] or {}
+    webj = res["p4_web"]["json"] or _json_from_text(res["p4_web"]["text"]) or {}
+    cat_ref = identity.get("category") or base["sector"]
 
-    # Ficha de Google Business: la IA (con búsqueda en vivo) es la fuente PRIMARIA y
-    # fiable — no depende de cuota de la Places API ni del scraping que Google bloquea.
-    # main.py luego enriquece con la Places API/scraping SI están disponibles (para un
-    # número de reseñas exacto), pero NUNCA baja a "sin ficha" un SI seguro de la IA.
-    def _yn(s: str):
-        s = (s or "").strip().upper()
-        if s.startswith(("SI", "SÍ", "YES")):
-            return True
-        if s.startswith("NO") and not s.startswith("NOSE"):
-            return False
-        return None
-    # Ficha por DOS vías: el briefing en vivo (mega, grounded) y el conocimiento del
-    # modelo (comp_know). Cualquier SÍ fiable gana (las marcas/cadenas establecidas casi
-    # siempre tienen ficha, y el grounded a veces la falla, como pasó con NAF NAF).
-    _fmega = _yn(_f("FICHA_GOOGLE", mega))
-    _fknow = _yn(_f("FICHA", comp_know))
-    if True in (_fmega, _fknow):
-        gbp = True
-    elif False in (_fmega, _fknow):
-        gbp = False
-    else:
-        gbp = None
-    gbp_category = _f("CATEGORIA", mega)[:80]
-    # nº de reseñas: primero el del briefing en vivo; si no, el del conocimiento. Un "0"
-    # se trata como DESCONOCIDO (None), no como "0 reseñas": la IA pone 0 cuando no da el
-    # dato, y sería falso decir "sin reseñas" en una ficha que sí las tiene.
-    _rm = re.search(r"\d[\d.,]*", _f("RESENAS", mega)) or re.search(r"\d[\d.,]*", _f("RESENAS", comp_know))
-    _rn = int(re.sub(r"[^\d]", "", _rm.group(0))) if _rm else None
-    gbp_reviews_n = (_rn if (_rn and _rn > 0) else None) if gbp else None
-    _rt = re.search(r"([0-5][.,]\d)", _f("VALORACION", mega))
-    gbp_rating = _rt.group(1).replace(",", ".") if (_rt and gbp) else None
-    kw_ai = [k.strip(" -•\"") for k in _f("KEYWORDS", mega).split("|") if k.strip()][:5]
-    entities_ai = [e.strip(" -•\"") for e in _f("ENTIDADES", mega).split("|") if e.strip()][:5]
+    def _ok(j: dict) -> bool:
+        return bool(j.get("conoce")) and j.get("confianza") != "baja" \
+            and sector_compatible(j.get("sector", ""), cat_ref, identity.get("snippet", "")) \
+            and country_compatible(j.get("pais", ""), identity.get("country", ""), identity.get("cc", ""))
+    knows_mem = _ok(mem)
+    knows_web = _ok(webj)
+    recognition = "strong" if knows_mem else ("weak" if knows_web else "none")
+    desc = (webj.get("descripcion") if knows_web else "") or (mem.get("descripcion") if knows_mem else "") or ""
+    desc = re.sub(r"\s+", " ", desc).strip()[:300]
+    if mem.get("conoce") and not knows_mem:
+        base["debug"].append(f"P4 mem descartado: sector='{mem.get('sector')}' pais='{mem.get('pais')}' conf={mem.get('confianza')}")
 
-    _own = (domain or "").split("/")[0].replace("www.", "").lower()
-    src_out, seen = [], set()
-    extra = [{"url": "https://" + d.strip()} for d in _f("FUENTES", mega).split("|") if d.strip()]
-    for s in list(sources) + extra:
-        u = s.get("url") if isinstance(s, dict) else s
-        m = re.search(r"([a-z0-9.\-]+\.[a-z]{2,})", (u or "").lower())
-        h = m.group(1).replace("www.", "") if m else ""
+    # Fuentes que cita la IA al describir la marca (externas al propio dominio)
+    srcs, seen = [], set()
+    for c in res["p4_web"]["citations"]:
+        h = _host(c.get("url", ""))
         if not h or h in seen or "vertexaisearch" in h or "googleusercontent" in h:
             continue
         seen.add(h)
-        src_out.append({"domain": h, "url": (u or ("https://" + h)),
-                        "own": bool(_own and (h == _own or h.endswith("." + _own))), "title": ""})
-        if len(src_out) >= 8:
-            break
+        own = bool(domain and (h == domain or h.endswith("." + domain)))
+        srcs.append({"domain": h, "url": c.get("url"), "own": own, "title": c.get("title", "")})
+    if engines_out:
+        engines_out[0].update(knows=knows_mem or knows_web, recognition=recognition,
+                              cites=len([s for s in srcs if not s["own"]]), sources=srcs[:8], proof=desc)
 
-    reco_frac = (appears / valid) if valid else (1.0 if recommended is True else (0.5 if recommended is None else 0.0))
-    score = round(100 * (0.5 * (1 if knows_brand else 0) + 0.5 * reco_frac))
-    content = {"topics": entities_ai, "keywords": kw_ai, "entities": entities_ai,
-               "assessment": re.sub(r"\s+", " ", _f("CONTENIDO", mega)).strip()[:300],
-               "gaps": [g.strip(" -•") for g in _f("MEJORAS", mega).split("|") if g.strip()][:3]}
+    # ---- Competidores citados de verdad por las IAs ----
+    comps = sorted(comp_agg.values(), key=lambda c: (-len(c["cited_by"]), -c["hits"]))
+    competitors = [{"name": c["name"], "domain": c["domain"] or None, "cited_by": sorted(c["cited_by"]),
+                    "hits": c["hits"], "source": "ai"} for c in comps[:8]]
 
-    return {
-        "available": True, "brand": brand, "service": service, "sector": sector,
-        "zona": zona, "country": country, "engine_names": engine_names, "answered_names": engine_names,
-        "engines": engines_out,
-        "gbp_category": gbp_category, "keywords": kw_ai, "entities": entities_ai,
-        "knows_brand": knows_brand, "brand_description": mem_c[:400] if knows_brand else "",
-        "knows_with_web": knows_with_web, "recognition": recognition,
-        "mentions": (mem_c if knows_brand else "")[:400],
-        "recommended": recommended, "gbp": gbp, "gbp_reviews_n": gbp_reviews_n,
-        "gbp_rating": gbp_rating,
-        "reco_hits": reco_hits, "reco_total": reco_total, "questions": questions,
-        "competitors": comps, "gap": "; ".join(content["gaps"])[:400],
-        "category_queries": cat_queries, "gl": gl, "sources": src_out,
-        "ai_score": score, "content": content, "engine": eng["name"],
-        "debug_engines": _tried,   # motores que fallaron en la ronda 1 (diagnóstico)
-        # Si el grounding falló por cuota/límite y no obtuvimos datos, marcamos
-        # 'limited' para NO decir en falso que "la IA no te reconoce".
-        "limited": bool(_LAST_GROUNDING.get("fell_back")
-                        and _LAST_GROUNDING.get("status") in (401, 403, 429)
-                        and not knows_brand and not knows_with_web and not comps),
-    }
+    # ---- Agregados ----
+    share = (brand_mentions / total_mentions) if total_mentions else None
+    if valid_total:
+        recommended = True if hits_total >= max(1, (valid_total + 1) // 2) else (False if hits_total == 0 else None)
+    else:
+        recommended = None
+    knows = knows_mem or knows_web
+    reco_frac = (hits_total / valid_total) if valid_total else 0.0
+    ai_score = round(100 * (0.4 * (1 if knows_mem else (0.55 if knows_web else 0)) + 0.6 * reco_frac)) \
+        if (valid_total or knows) else None
+    failed_engines = [n for n, v in by_engine.items() if not v["valid"]]
+    limited = bool(valid_total == 0 and any("límite" in (r.get("error") or "") or "429" in (r.get("error") or "")
+                                             for k, r in res.items() if isinstance(k, tuple)))
+
+    base.update({
+        "status": "ok" if valid_total else ("failed" if failed_engines else "partial"),
+        "recognition": recognition, "knows": knows, "knows_brand": knows, "knows_with_web": knows_web,
+        "brand_description": desc, "mentions": desc, "proof": desc,
+        "recommended": recommended, "reco_hits": hits_total, "reco_total": valid_total,
+        "share_of_voice": (round(share, 3) if share is not None else None),
+        "questions": questions, "competitors": competitors, "sources": srcs[:8],
+        "engines": engines_out, "by_engine": by_engine, "ai_score": ai_score, "limited": limited,
+        "note": ("" if not failed_engines else L(f"Sin respuesta de: {', '.join(failed_engines)}",
+                                                 f"No answer from: {', '.join(failed_engines)}")),
+        "error": ("sin respuesta de la IA" if valid_total == 0 and not knows else None),
+        "elapsed_ms": round((time.monotonic() - t0) * 1000),
+    })
+    return base
+
+
+# Compat: main.py v1 importaba estos nombres.
+run_ai_geo_fast = None  # eliminado en v2 (usar run_geo)

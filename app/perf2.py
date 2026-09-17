@@ -92,14 +92,44 @@ async def _psi(client: httpx.AsyncClient, url: str, strategy: str) -> dict | Non
         return None
 
 
-async def _psi_retry(url: str, strategy: str, tries: int = 4) -> dict | None:
+PSI_BUDGET = float(os.getenv("STAGE_BUDGET_PSI", "60"))   # tope por estrategia (móvil / escritorio)
+
+
+async def _psi_retry(url: str, strategy: str, tries: int = 2) -> tuple[dict | None, str]:
+    """(datos, nota). Con tope de tiempo: PSI tarda 15-40 s por estrategia; más de 2
+    intentos dentro de 60 s no aporta y antes dejaba la barra clavada minutos."""
+    note = ""
+    key = os.getenv("GOOGLE_PSI_API_KEY", "").strip()
+    if not key:
+        return None, "Sin clave de PageSpeed"
+    t0 = asyncio.get_event_loop().time()
     async with httpx.AsyncClient(headers={"User-Agent": _UA}) as client:
         for i in range(tries):
-            data = await _psi(client, url, strategy)
-            if data and data.get("lighthouseResult"):
-                return data
-            await asyncio.sleep(2.0 + i)  # backoff ante rate-limit
-    return None
+            left = PSI_BUDGET - (asyncio.get_event_loop().time() - t0)
+            if left < 8:
+                note = "PageSpeed no respondió dentro del tiempo"
+                break
+            try:
+                r = await client.get(PSI_API, params={"url": url, "strategy": strategy, "key": key,
+                                                      "category": "performance"},
+                                     timeout=min(55.0, left))
+                if r.status_code == 200:
+                    data = r.json()
+                    if data.get("lighthouseResult"):
+                        return data, ""
+                    note = "PageSpeed devolvió una respuesta sin datos"
+                else:
+                    try:
+                        msg = (r.json().get("error") or {}).get("message", "")[:120]
+                    except Exception:  # noqa: BLE001
+                        msg = ""
+                    note = f"PageSpeed HTTP {r.status_code}" + (f": {msg}" if msg else "")
+                    if r.status_code in (400, 403):
+                        break  # URL no analizable / clave sin permiso: no insistir
+            except Exception as exc:  # noqa: BLE001
+                note = f"PageSpeed: {type(exc).__name__}"
+            await asyncio.sleep(2.0 + i)
+    return None, note or "PageSpeed no disponible"
 
 
 # --------------------------------------------------------------------------- #
@@ -285,21 +315,29 @@ async def _headers_probe(url: str) -> dict:
 # --------------------------------------------------------------------------- #
 # Entrada principal
 # --------------------------------------------------------------------------- #
-async def measure(url: str) -> dict | None:
-    """Modelo completo de rendimiento (movil + escritorio + infra). None si PSI
-    no está disponible (sin API key o caído)."""
-    m_raw, d_raw, infra = await asyncio.gather(
-        _psi_retry(url, "mobile", tries=4),
-        _psi_retry(url, "desktop", tries=2),
+async def measure(url: str) -> dict:
+    """Modelo completo de rendimiento (móvil + escritorio + infra). SIEMPRE devuelve
+    un dict con `status` y `notes`: si una estrategia falla, esa clave va a None (la
+    pantalla la oculta) y `notes[estrategia]` explica por qué; main.py lo convierte en
+    una entrada de `not_measured` para que el cliente vea "No medido (motivo)"."""
+    m_res, d_res, infra = await asyncio.gather(
+        _psi_retry(url, "mobile"),
+        _psi_retry(url, "desktop"),
         _headers_probe(url),
         return_exceptions=True,
     )
-    m_raw = m_raw if isinstance(m_raw, dict) else None
-    d_raw = d_raw if isinstance(d_raw, dict) else None
+    m_raw, m_note = m_res if isinstance(m_res, tuple) else (None, f"{type(m_res).__name__}")
+    d_raw, d_note = d_res if isinstance(d_res, tuple) else (None, f"{type(d_res).__name__}")
     infra = infra if isinstance(infra, dict) else {}
+    notes = {}
+    if not m_raw:
+        notes["mobile"] = m_note
+    if not d_raw:
+        notes["desktop"] = d_note
 
     if not m_raw and not d_raw:
-        return None
+        return {"engine": "psi", "status": "failed", "score": None, "mobile": None, "desktop": None,
+                "infra": infra, "notes": notes}
 
     mobile = _parse(m_raw) if m_raw else None
     desktop = _parse(d_raw) if d_raw else None
@@ -316,15 +354,15 @@ async def measure(url: str) -> dict | None:
     else:
         score = None
 
-    return {"engine": "psi", "score": score,
-            "mobile": mobile, "desktop": desktop, "infra": infra}
+    return {"engine": "psi", "status": "ok" if (mobile and desktop) else "partial", "score": score,
+            "mobile": mobile, "desktop": desktop, "infra": infra, "notes": notes}
 
 
 def to_legacy_psi(model: dict | None) -> dict | None:
     """Adapta el modelo perf2 a la forma antigua `psi_full` (mobile/desktop con
     performance/lcp/…) para que el cálculo de score y el correo sigan funcionando
     sin duplicar llamadas a PageSpeed."""
-    if not model:
+    if not model or not (model.get("mobile") or model.get("desktop")):
         return None
 
     def _state(sc):

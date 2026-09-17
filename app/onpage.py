@@ -28,14 +28,15 @@ _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
        "(KHTML, like Gecko) Chrome/124.0 Safari/537.36")
 _HEADERS = {"User-Agent": _UA, "Accept-Language": "es-ES,es;q=0.9,en;q=0.6"}
 
-MAX_PAGES = 120         # analizamos a fondo TODO el sitio (hasta este tope alto)
-CRAWL_BUDGET = 35.0     # segundos máx. de rastreo profundo (para no eternizar webs enormes)
+MAX_PAGES = 60          # analizamos a fondo TODO el sitio (hasta este tope alto)
+CRAWL_BUDGET = 25.0     # segundos máx. de rastreo profundo (para no eternizar webs enormes)
 CONCURRENCY = 8
 PAGE_TIMEOUT = 10.0
 SITEMAP_CAP = 300       # URLs máximas a leer del sitemap para sembrar
-BROKEN_CAP = 400        # URLs máximas a comprobar por 404 (todo el sitio)
-BROKEN_CONC = 10
-BROKEN_TIMEOUT = 9.0
+BROKEN_CAP = 150        # URLs máximas a comprobar por 404 (todo el sitio)
+BROKEN_CONC = 12
+BROKEN_TIMEOUT = 7.0
+BROKEN_BUDGET = 18.0    # segundos máx. para la pasada de 404 (v2)
 
 TITLE_MIN, TITLE_MAX = 25, 65
 DESC_MIN, DESC_MAX = 60, 165
@@ -387,7 +388,11 @@ async def _check_broken(links: list[str]) -> dict:
     try:
         async with httpx.AsyncClient(headers=_HEADERS, verify=False, follow_redirects=True,
                                      limits=httpx.Limits(max_connections=BROKEN_CONC + 2)) as c:
-            res = await asyncio.gather(*(_status(c, u, sem) for u in links))
+            # Tope de tiempo: comprobar 404 no puede eternizar el análisis (v2)
+            try:
+                res = await asyncio.wait_for(asyncio.gather(*(_status(c, u, sem) for u in links)), timeout=BROKEN_BUDGET)
+            except asyncio.TimeoutError:
+                return {"checked": 0, "broken": [], "count": 0, "errors": 0, "note": "timeout"}
     except Exception:  # noqa: BLE001
         return {"checked": 0, "broken": [], "count": 0, "errors": 0}
     # Códigos que NO son enlace roto: piden auth, bloquean bots o limitan tasa. Contarlos

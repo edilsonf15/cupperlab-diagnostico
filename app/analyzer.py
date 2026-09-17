@@ -101,6 +101,7 @@ class Result:
     psi: dict | None = None
     geo_ai: dict | None = None
     authority: dict | None = None
+    html: str = ""  # HTML final de la home (no se serializa: main lo saca del dict)
 
 
 # ---- Fetchers ----------------------------------------------------------------
@@ -1013,6 +1014,7 @@ async def analyze(raw_url: str) -> Result:
         meta["country"] = country.get("name", "")
         meta["gl"] = country.get("gl", "")
         meta["country_source"] = country.get("source", "")
+        res.html = home_html or ""
         # Analitica / pixeles instalados (y si estan duplicados)
         analytics = detect_analytics(home_html)
         res.meta = meta
@@ -1461,6 +1463,7 @@ def _score(res: Result) -> None:
 
 def result_to_dict(res: Result) -> dict:
     d = res.__dict__.copy()
+    d.pop("html", None)
     return d
 
 
@@ -1512,15 +1515,7 @@ def apply_ai_to_result(data: dict, ai: dict | None) -> dict:
     if not (ai and ai.get("available") and not ai.get("error")):
         return data
 
-    # La IA entró al sitio y leyó la ubicación real (zona/ciudad): si trae país,
-    # corrige el del crawl para que TODO el informe sea coherente.
-    if ai.get("country"):
-        meta = data.setdefault("meta", {})
-        meta["country"] = ai["country"]
-        if ai.get("gl"):
-            meta["gl"] = ai["gl"]
-        if ai.get("zona"):
-            meta["zona"] = ai["zona"]
+    # v2: el país/zona ya vienen MEDIDOS (crawl + Places). La IA no los toca.
 
     # El GEO se queda como HEURISTICO puro (preparacion de la web para la IA).
     # El reconocimiento real de la IA (ai_score) es su PROPIA dimension y entra en
@@ -1554,7 +1549,7 @@ def apply_ai_to_result(data: dict, ai: dict | None) -> dict:
     if ai.get("gbp") is False:
         improve.append({
             "title": L("No encontramos tu ficha de Google Business", "We couldn't find your Google Business profile"),
-            "detail": L("Buscamos tu negocio en Google/Maps y no aparece una ficha activa. Crearla y verificarla es "
+            "detail": L("Buscamos tu negocio en Google Maps (Places API) y no aparece una ficha con tu web. Crearla y verificarla es "
                         "clave para salir en el mapa, en las busquedas locales y en la IA local.",
                         "We searched Google/Maps and found no active listing. Creating and verifying it is key to "
                         "appear on the map, in local searches and in local AI."),
