@@ -315,6 +315,20 @@ async def _headers_probe(url: str) -> dict:
 # --------------------------------------------------------------------------- #
 # Entrada principal
 # --------------------------------------------------------------------------- #
+def _from_device(dev: dict | None) -> dict | None:
+    """Convierte la medición del navegador propio (perf.measure_device) a la forma de una
+    estrategia perf2 {score, metrics, audits}, para el respaldo cuando PageSpeed cae."""
+    if not dev or dev.get("performance") is None:
+        return None
+    lcp_v = dev.get("lcp_ms") or None
+    ttfb_v = dev.get("ttfb_ms") or None
+    metrics = {"lcp": _metric("lcp", lcp_v, *TH["lcp"], "navegador propio")}
+    if ttfb_v:
+        metrics["ttfb"] = _metric("ttfb", ttfb_v, *TH["ttfb"], "navegador propio")
+    return {"score": int(dev["performance"]), "field_source": "navegador propio",
+            "metrics": metrics, "audits": {}}
+
+
 async def measure(url: str) -> dict:
     """Modelo completo de rendimiento (móvil + escritorio + infra). SIEMPRE devuelve
     un dict con `status` y `notes`: si una estrategia falla, esa clave va a None (la
@@ -336,6 +350,26 @@ async def measure(url: str) -> dict:
         notes["desktop"] = d_note
 
     if not m_raw and not d_raw:
+        # RESPALDO: si PageSpeed (Google) no respondió en ninguna estrategia, medimos la
+        # velocidad con NUESTRO navegador (Playwright, con throttling tipo Lighthouse), para
+        # que las dos fichas SIEMPRE salgan. La velocidad es el dato clave: nunca falta.
+        try:
+            import perf as _perf  # noqa: PLC0415
+            dm, dd = await asyncio.gather(_perf.measure_device(url, mobile=True),
+                                          _perf.measure_device(url, mobile=False),
+                                          return_exceptions=True)
+            dm = dm if isinstance(dm, dict) else None
+            dd = dd if isinstance(dd, dict) else None
+        except Exception:  # noqa: BLE001
+            dm = dd = None
+        mob_fb, des_fb = _from_device(dm), _from_device(dd)
+        if mob_fb or des_fb:
+            parts_fb = [(s["score"], w) for s, w in ((mob_fb, 0.7), (des_fb, 0.3))
+                        if s and s.get("score") is not None]
+            sc = round(sum(v * w for v, w in parts_fb) / sum(w for _, w in parts_fb)) if parts_fb else None
+            return {"engine": "device", "status": "ok" if (mob_fb and des_fb) else "partial",
+                    "score": sc, "mobile": mob_fb, "desktop": des_fb, "infra": infra,
+                    "notes": {"engine": "Medido con navegador propio (PageSpeed no disponible)"}}
         return {"engine": "psi", "status": "failed", "score": None, "mobile": None, "desktop": None,
                 "infra": infra, "notes": notes}
 

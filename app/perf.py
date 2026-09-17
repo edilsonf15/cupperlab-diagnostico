@@ -250,6 +250,8 @@ def _measure(url: str, mobile: bool = True) -> dict | None:
         "tbt": "—",
         "si": _fmt(ttfb),
         "source": "device",
+        # valores numéricos crudos (ms) para construir métricas compatibles como respaldo
+        "lcp_ms": lcp, "fcp_ms": fcp, "load_ms": load, "ttfb_ms": ttfb,
     }
     if mobile and analytics is not None:
         out["analytics"] = analytics
