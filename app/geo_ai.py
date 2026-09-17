@@ -359,8 +359,9 @@ def prompt_p1(idt: dict, lang: str) -> str:
             "adjectives and no brand name (a generic industry category, not a slogan).\n"
             f"- \"busquedas\": exactly 3 different sentences, 5 to 12 words, exactly as a customer in {idt.get('country') or 'that country'} "
             f"would type them into an AI chat. If scope is city, all 3 include \"{idt.get('city')}\"; if country, none includes a city and "
-            f"at most one mentions \"{idt.get('country')}\". One of the three must explicitly ask for recommendations "
-            "(\"recommend me\", \"which are the best\", \"where can I\"). Do not use the brand or phrases from its website.")
+            f"at most one mentions \"{idt.get('country')}\". One of the three must explicitly ask for recommendations of the "
+            "best-known / leading brands in the sector (\"recommend me the best brands of…\", \"which are the most recognized\", "
+            "\"what are the leading brands of…\"). Do not use the brand or phrases from its website.")
     return (
         "Eres un cliente potencial, no un analista. Con los datos de abajo, escribe cómo buscaría un cliente "
         "este tipo de negocio en un asistente de IA si NO conociera la marca.\n\n"
@@ -376,7 +377,8 @@ def prompt_p1(idt: dict, lang: str) -> str:
         f"- \"busquedas\": exactamente 3 frases distintas, de 5 a 12 palabras, tal y como las escribiría un cliente en "
         f"{idt.get('country') or 'ese país'} en un chat de IA. Si el ámbito es \"ciudad\", las 3 incluyen \"{idt.get('city')}\"; "
         f"si es \"pais\", ninguna incluye ciudad y como mucho una menciona \"{idt.get('country')}\". Una de las tres debe pedir "
-        "explícitamente recomendaciones (\"recomiéndame\", \"cuáles son los mejores\", \"dónde puedo\"). "
+        "explícitamente recomendaciones de las marcas o empresas más conocidas/líderes del sector "
+        "(\"recomiéndame las mejores marcas de…\", \"cuáles son las más reconocidas\", \"qué marcas líderes de…\"). "
         "No uses la marca ni frases de su web.")
 
 
@@ -526,6 +528,12 @@ async def run_geo(identity: dict, lang: str = "es") -> dict:
     category (de Places, en lenguaje de cliente), snippet (título+desc+H1), places_found}.
     Devuelve el dict geo_ai (claves legacy + nuevas)."""
     t0 = time.monotonic()
+    # Marca NACIONAL (ámbito país): la ciudad de su sede (p. ej. la de una cadena) NO debe
+    # localizar las búsquedas ni la zona; si no, la IA devuelve tienditas de ese municipio en
+    # vez de sus competidores reales de nivel nacional. Solo los negocios "ciudad" usan ciudad.
+    identity = dict(identity)
+    if (identity.get("scope") or "pais") == "pais":
+        identity["city"] = ""
     brand = identity.get("brand") or identity.get("domain")
     domain = _host(identity.get("domain", ""))
     engines = _engines()
