@@ -1132,7 +1132,7 @@ def _local_section(r: dict) -> str:
     <div class="keep">
     <div class="eyebrow" style="margin-top:16px"><span class="bar"></span>{L('Presencia local y reputación', 'Local presence and reputation')}</div>
     <h2 class="sec">{L('Cómo te encuentran cerca de ti (y por qué las reseñas mandan)', 'How people find you nearby (and why reviews rule)')}</h2>
-    <p class="sub">{L('Tu presencia local es lo que te hace salir en el mapa y en las búsquedas "cerca de mi", y de lo que más miran los clientes y la IA para elegir. En rojo lo que falta, en verde lo que ya tienes.', 'Your local presence is what puts you on the map and in "near me" searches, and one of the top things customers and AI look at to choose. In red what is missing, in green what you already have.')}</p>
+    <p class="sub">{L('Lo que te hace salir en el mapa y en "cerca de mí". En rojo lo que falta, en verde lo que ya tienes.', 'What puts you on the map and in "near me" searches. In red what is missing, in green what you have.')}</p>
     {_check_list(rows)}
     </div>"""
 
@@ -1791,7 +1791,7 @@ def build_report_html(r: dict, contact: dict, name: str = "") -> str:
   <div class="keep">
   <div class="eyebrow"><span class="bar"></span>02 · {L('Salud técnica de tu web', 'Your site technical health')}</div>
   <h2 class="sec">{L('Qué falla (y qué funciona) por dentro', 'What fails (and what works) under the hood')}</h2>
-  <p class="sub">{L('Lo tecnico que Google mira para decidir si te muestra: seguridad, respuesta del servidor, robots, mapa del sitio y enlaces rotos. En rojo lo que falla, en verde lo que ya funciona.', 'The technical signals Google looks at to decide whether to show you: security, server response, robots, sitemap and broken links. In red what fails, in green what already works.')}</p>
+  <p class="sub">{L('En rojo lo que falla, en verde lo que funciona.', 'In red what fails, in green what works.')}</p>
   </div>
   {_tech_rows(r)}
   {_robots_block(r)}
@@ -1805,7 +1805,7 @@ def build_report_html(r: dict, contact: dict, name: str = "") -> str:
   <div class="keep">
   <div class="eyebrow"><span class="bar"></span>03 · {L('SEO on-page', 'On-page SEO')}</div>
   <h2 class="sec">{L('Qué le falta a tus páginas para posicionar', 'What your pages are missing to rank')}</h2>
-  <p class="sub">{L('Analizamos TODAS las páginas de tu sitio, no solo la portada. Estas son las señales que deciden si Google te muestra y si la IA te cita, con ejemplos reales de páginas a corregir.', 'We analyze ALL pages of your site, not just the homepage. These are the signals that decide whether Google shows you and whether AI cites you, with real examples of pages to fix.')}</p>
+  <p class="sub">{L('Revisamos todas tus páginas (no solo la portada). Ejemplos reales a corregir.', 'We check every page (not just the homepage). Real examples to fix.')}</p>
   </div>
   {_onpage_multi(r) or _onpage_rows(r)}
   {_porque_como(r)}
@@ -1829,7 +1829,7 @@ def build_report_html(r: dict, contact: dict, name: str = "") -> str:
   <div class="keep">
   <div class="eyebrow"><span class="bar"></span>06 · {L('Plan de acción', 'Action plan')}</div>
   <h2 class="sec">{L('Todo lo que hay que mejorar, del más crítico al medio', 'Everything to improve, from most critical to softest')}</h2>
-  <p class="sub">{L('Una sola lista con todo lo que hay que hacer, ordenada por prioridad. Cada acción lleva su etiqueta: SEO (para Google) o IA (para los buscadores con inteligencia artificial).', 'One single list with everything to do, ordered by priority. Each action is tagged: SEO (for Google) or AI (for AI search engines).')}</p>
+  <p class="sub">{L('Todo lo que hay que hacer, ordenado por prioridad. Etiqueta SEO (Google) o IA.', 'Everything to do, by priority. Tagged SEO (Google) or AI.')}</p>
   </div>
   {_plan_unificado(r)}
   <div class="keep">
