@@ -481,7 +481,17 @@ async def _pipeline(job_id: str, url: str, lang: str, forced_cc: str = "") -> No
                     confirmed.append(c)
                     used.add(g["domain"])
                     break
-        google_only = [{"name": g["title"].split(" - ")[0].split(" | ")[0][:48], "domain": g["domain"],
+        # El título de la página suele ser genérico ("Tienda de ropa", "Ropa para mujer"),
+        # así que el nombre de marca lo tomamos del DOMINIO (studiof.com.co -> "Studiof"),
+        # salvo que el título empiece por un nombre corto que casa con el dominio.
+        def _brand_from(g):
+            root = g["domain"].split(".")[0]
+            first = re.split(r"[|\-–—:]", g["title"])[0].strip()
+            ft = _tok(first)
+            if 2 <= len(first) <= 22 and ft and (ft in _tok(root) or _tok(root) in ft):
+                return first
+            return root[:1].upper() + root[1:]
+        google_only = [{"name": _brand_from(g), "domain": g["domain"],
                         "cited_by": ["Google"], "hits": g["hits"], "source": "google"}
                        for g in gdoms if g["domain"] not in used][:5]
         ai_only = [c for c in comps if c not in confirmed]
