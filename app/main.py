@@ -181,7 +181,7 @@ async def reporte(token: str):
 
 @app.get("/salud")
 async def salud():
-    return {"ok": True, "engine": store.ENGINE_VERSION, "smtp": emailer.smtp_configured(),
+    return {"ok": True, "engine": store.ENGINE_VERSION, "cache_rev": store._CACHE_REV, "smtp": emailer.smtp_configured(),
             "places": bool(places._key()), "serper": serp.enabled(),
             "ai_engines": [e["name"] for e in geo_ai._engines()],
             "psi": bool(os.getenv("GOOGLE_PSI_API_KEY", "").strip()),
