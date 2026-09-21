@@ -36,6 +36,11 @@
   /* Modo embebido en cupperlab.com (bloque del CMS): sin doble cabecera/pie;
      el sitio ya pone su header/footer. Alinea el contenido al ancho del sitio (1180). */
   html.cl-embedded header, html.cl-embedded footer{display:none!important}
+  /* Embebido dentro de cupperlab.com: se apagan las animaciones de aparicion al
+     hacer scroll (data-rv). Fuera del iframe estan bien, pero dentro dejaban
+     huecos en blanco que "cargaban" el texto al bajar y se veia raro. Todo
+     visible de una. */
+  html.cl-embedded [data-rv]{opacity:1!important;transform:none!important;transition:none!important}
   /* Mismo ancho y color de fondo que el resto del sitio cupperlab (1468/34px,
      #F5F5F5) para que no queden bandas blancas a los lados. */
   html.cl-embedded, html.cl-embedded body{background:#F5F5F5}
