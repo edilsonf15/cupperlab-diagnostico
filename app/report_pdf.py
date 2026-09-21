@@ -142,8 +142,9 @@ def build_plan(r: dict) -> list[dict]:
             "Medio", "Bajo", 2)
     # --- GEO / IA (que la IA te lea, te entienda y te recomiende) ---
     if rb.get("ai_blocked"):
-        add(L("URGENTE: tu robots.txt BLOQUEA a los bots de IA (", "URGENT: your robots.txt BLOCKS the AI bots (") + ", ".join(rb["ai_blocked"][:4]) +
-            L("). La IA no puede leerte ni citarte. Permitir su rastreo.", "). AI cannot read or cite you. Allow their crawling."), "Alto", "Bajo", 1)
+        add(L("A revisar (decisión con trade-off): tu robots.txt bloquea bots de IA (", "To review (a trade-off decision): your robots.txt blocks AI bots (") + ", ".join(rb["ai_blocked"][:4]) +
+            L("). Si quieres que los asistentes te citen, conviene permitirlos; si es una decisión deliberada para proteger tu contenido de su entrenamiento, es válida. Revísala a conciencia.",
+              "). If you want assistants to cite you, allowing them helps; if it's a deliberate choice to protect your content from their training, it's valid. Review it deliberately."), "Medio", "Bajo", 2)
     if not m.get("schema_types"):
         add(L("Anadir los datos estructurados (schema: organizacion, servicios) para que Google y la IA entiendan tu negocio.",
             "Add structured data (schema: organization, services) so Google and AI understand your business."),

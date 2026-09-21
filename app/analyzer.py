@@ -253,15 +253,23 @@ def parse_home(html: str, base_url: str) -> dict:
     # o la clave "streetAddress" vacía (una Organization con solo addressCountry daba
     # dirección en falso, p. ej. ainoa.app).
     html_low = (html or "").lower()
+    has_geo = ("geocoordinates" in schema_low or '"latitude"' in html_low)
     _itemprop_addr = soup.find(attrs={"itemprop": re.compile("streetAddress", re.I)})
+    # Dirección válida si hay una calle real (JSON-LD o itemprop) O si el schema
+    # declara PostalAddress/LocalBusiness ACOMPAÑADO de una señal real (geo o
+    # localidad con valor). Esto acepta la dirección del schema como fuente NAP
+    # valida (p. ej. dielco: PostalAddress + GeoCoordinates) sin caer en el falso
+    # de una Organization con solo addressCountry (p. ej. ainoa.app).
+    _addr_schema = ("postaladdress" in schema_low or "localbusiness" in schema_low)
+    _addr_locality = bool(re.search(r'"address(?:locality|region)"\s*:\s*"[^"]{2,}"', html_low))
     has_address = (
         bool(re.search(r'"streetaddress"\s*:\s*"[^"]{4,}"', html_low))
-        or (bool(_itemprop_addr) and len((_itemprop_addr.get_text(strip=True) or "")) >= 4))
+        or (bool(_itemprop_addr) and len((_itemprop_addr.get_text(strip=True) or "")) >= 4)
+        or (_addr_schema and (has_geo or _addr_locality)))
     # Mapa incrustado: solo cuenta un iframe de mapa (un enlace a Maps NO es un mapa incrustado).
     has_map = bool(soup.find("iframe", src=re.compile(
         r"google\.[a-z.]+/maps|maps\.google|/maps/embed|openstreetmap|mapbox", re.I)))
     has_hours = ("openinghours" in html_low or "opening_hours" in html_low)
-    has_geo = ("geocoordinates" in schema_low or '"latitude"' in html_low)
 
     return {
         "title": title,
@@ -327,7 +335,12 @@ def parse_sitemap_locs(xml_text: str) -> tuple[list[str], bool]:
         tag = root.tag.lower()
         is_index = tag.endswith("sitemapindex")
         for loc in root.iter():
-            if loc.tag.lower().endswith("loc") and loc.text:
+            # Solo los <loc> de URL/sitemap. Se excluyen los <image:loc>,
+            # <video:loc>, etc. (sitemaps de imagen de HubSpot y otros CMS los
+            # traen), que inflaban el conteo x4-5 (dielco: 4029 URLs reales pero
+            # 18015 con las imagenes).
+            t = loc.tag.lower()
+            if t.endswith("loc") and "image" not in t and "video" not in t and loc.text:
                 locs.append(loc.text.strip())
     except Exception:  # noqa: BLE001
         locs = re.findall(r"<loc>\s*([^<\s]+)\s*</loc>", xml_text or "")
@@ -672,19 +685,21 @@ def detect_analytics(html: str) -> dict:
     if re.search(r"snap\.licdn\.com|_linkedin_partner_id", h):
         tools.append("LinkedIn Insight")
 
+    # Duplicado REAL = dos o mas IDs DISTINTOS del mismo tipo (dos GA4, dos
+    # contenedores GTM, dos pixeles). NO se marca como duplicado el caso normal:
+    # GTM cargando GA4, la libreria gtag.js cargando varias veces, o que el ID
+    # aparezca 2 veces (la instalacion oficial de GTM son 2 etiquetas: gtm.js en
+    # <head> + el iframe ns.html en <noscript>). Contar ocurrencias marcaba como
+    # error la instalacion correcta.
     dup = []
     if len(ga4) > 1:
         dup.append(f"{len(ga4)} mediciones GA4 distintas ({', '.join(ga4)})")
-    if gtag_loads > 1:
-        dup.append(f"la libreria de Google (gtag.js) se carga {gtag_loads} veces")
-    if ga4 and gtm:
-        dup.append("GA4 cargado directo Y por Tag Manager (posible doble conteo)")
+    if len(gtm) > 1:
+        dup.append(f"{len(gtm)} contenedores de Tag Manager distintos ({', '.join(gtm)})")
+    if len(ua) > 1:
+        dup.append(f"{len(ua)} propiedades Universal Analytics distintas")
     if len(fb_ids) > 1:
-        dup.append(f"{len(fb_ids)} Meta Pixel distintos")
-    for _id in ga4:
-        if len(re.findall(re.escape(_id), h)) >= 3:
-            dup.append(f"el ID {_id} aparece repetido en la pagina")
-            break
+        dup.append(f"{len(fb_ids)} pixeles de Meta distintos")
 
     return {"tools": tools, "ga4": ga4, "ua": ua, "gtm": gtm, "fb": fb_ids,
             "has_any": bool(tools), "duplicated": bool(dup), "dup_notes": dup[:3]}
@@ -1066,11 +1081,18 @@ async def analyze(raw_url: str) -> Result:
         analytics = detect_analytics(home_html)
         res.meta = meta
 
-        # Archivos clave en paralelo
-        robots_task = fetch_text(client, urljoin(url + "/", "robots.txt"))
-        sitemap_task = fetch_text(client, urljoin(url + "/", "sitemap.xml"))
-        sitemap_idx_task = fetch_text(client, urljoin(url + "/", "sitemap_index.xml"))
-        llms_task = fetch_text(client, urljoin(url + "/", "llms.txt"))
+        # Archivos clave en paralelo, contra el host CANONICO (la raiz del host
+        # final tras seguir las redirecciones de la home), no contra lo que teclea
+        # el usuario. Si escribe el apex (p. ej. dielco.co) y este redirige a www,
+        # el apex puede servir 404 o un stub en /llms.txt y /sitemap.xml aunque el
+        # sitio real (www.dielco.co) si los tenga. Escanear el canonico evita esos
+        # falsos negativos (llms.txt "no existe", "sitemap con 4 URLs").
+        _cf = urlparse(res.final_url or url)
+        canon = f"{_cf.scheme}://{_cf.netloc}/" if _cf.netloc else (url.rstrip("/") + "/")
+        robots_task = fetch_text(client, urljoin(canon, "robots.txt"))
+        sitemap_task = fetch_text(client, urljoin(canon, "sitemap.xml"))
+        sitemap_idx_task = fetch_text(client, urljoin(canon, "sitemap_index.xml"))
+        llms_task = fetch_text(client, urljoin(canon, "llms.txt"))
 
         (robots_status, robots_text), (sm_status, sm_text), \
             (smi_status, smi_text), (llms_status, llms_text), https_forced, www_info = await asyncio.gather(
