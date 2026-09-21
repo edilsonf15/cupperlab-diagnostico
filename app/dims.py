@@ -114,7 +114,10 @@ def _schema(data) -> int | None:
         return None
     def has(p): return _rx(types, p)
     org = has(r"organization|localbusiness|professionalservice")
-    website = has(r"website"); searchaction = has(r"searchaction")
+    # SearchAction (caja de busqueda en Google) exige tener un buscador propio en
+    # el sitio, algo que muchos negocios no quieren ni necesitan. No se exige: basta
+    # con marcar WebSite para llevarse los puntos y no penalizar por no tener buscador.
+    website = has(r"website")
     breadcrumb = has(r"breadcrumblist") or bool(((op.get("issues") or {}).get("breadcrumbs") or {}).get("present"))
     faq = has(r"faqpage|qapage"); article = has(r"article|blogposting|newsarticle")
     prodserv = has(r"product|service|offer"); review = has(r"review|aggregaterating|rating")
@@ -122,7 +125,7 @@ def _schema(data) -> int | None:
     errs = sc.get("errors") or 0
     incompl = sc.get("incomplete") or []
     any_schema = bool((sc.get("pages_with") or 0) > 0 or len(types))
-    st = [("org", org, 22), ("website", website and searchaction, 10), ("breadcrumb", breadcrumb, 12),
+    st = [("org", org, 22), ("website", website, 10), ("breadcrumb", breadcrumb, 12),
           ("faq", faq, 16), ("article", article, 8), ("prodserv", prodserv, 14), ("review", review, 14)]
     if any_schema:
         st.append(("valid", errs == 0 and len(incompl) == 0, 8))

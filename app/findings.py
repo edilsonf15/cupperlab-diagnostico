@@ -385,7 +385,7 @@ def _schema_points(r):
         return _rx(types, p)
     by = {
         "org": has(r"organization|localbusiness|professionalservice"),
-        "website": has(r"website") and has(r"searchaction"),
+        "website": has(r"website"),
         "prodserv": has(r"product|service|offer"),
         "review": has(r"review|aggregaterating|rating"),
     }
