@@ -452,10 +452,40 @@ async def _fetch(client, url, sem, base_net):
 # --------------------------------------------------------------------------- #
 # Sitemap (siembra del crawl)
 # --------------------------------------------------------------------------- #
-async def _sitemap_urls(client, home_url) -> list[str]:
+def _entries_with_lastmod(xml_text: str) -> list[tuple[str, str]]:
+    """(loc, lastmod) por cada <url>/<sitemap> del XML. lastmod puede venir vacio.
+    Se lee por bloque (no con dos findall sueltos) para no cruzar el loc de una
+    entrada con el lastmod de otra."""
+    out: list[tuple[str, str]] = []
+    for block in re.findall(r"<(?:url|sitemap)\b[^>]*>(.*?)</(?:url|sitemap)>",
+                            xml_text or "", re.S | re.I):
+        mloc = re.search(r"<loc>\s*([^<\s]+)\s*</loc>", block, re.I)
+        if not mloc:
+            continue
+        mmod = re.search(r"<lastmod>\s*([^<\s]+)\s*</lastmod>", block, re.I)
+        out.append((mloc.group(1).strip(), (mmod.group(1).strip() if mmod else "")))
+    return out
+
+
+def _by_recency(pairs: list[tuple[str, str]]) -> list[tuple[str, str]]:
+    """Ordena (loc, lastmod) por fecha desc; las sin fecha, al final (en su orden)."""
+    with_date = [p for p in pairs if p[1]]
+    without = [p for p in pairs if not p[1]]
+    with_date.sort(key=lambda p: p[1], reverse=True)  # ISO -> orden lexico = cronologico
+    return with_date + without
+
+
+async def _sitemap_urls(client, home_url) -> tuple[list[str], dict[str, str]]:
+    """URLs del sitemap para sembrar el crawl, PRIORIZANDO las mas recientes por
+    <lastmod>. Asi los articulos nuevos del blog (que en el sitemap suelen ir al
+    final) entran en el crawl aunque el sitio tenga miles de URLs, y la frescura
+    del contenido se mide sobre lo realmente reciente, no sobre lo primero listado.
+    Devuelve tambien un mapa {url_normalizada: lastmod} para que la frescura pueda
+    usar el <lastmod> del sitemap cuando la pagina no trae fecha en el HTML (webs de
+    catalogo/SPA sin datePublished, donde el sitemap es el unico signo fiable)."""
     pr = urlparse(home_url)
     base = f"{pr.scheme}://{pr.netloc}"
-    locs: list[str] = []
+    pairs: list[tuple[str, str]] = []
     for path in ("/sitemap.xml", "/sitemap_index.xml", "/sitemap-index.xml"):
         try:
             r = await client.get(base + path, timeout=PAGE_TIMEOUT, follow_redirects=True)
@@ -463,27 +493,44 @@ async def _sitemap_urls(client, home_url) -> list[str]:
             continue
         if r.status_code != 200 or "<" not in r.text:
             continue
-        found = re.findall(r"<loc>\s*([^<\s]+)\s*</loc>", r.text)
         if "<sitemapindex" in r.text.lower():
-            for child in found[:5]:
+            # Indice: abre primero los sub-sitemaps mas recientes (el del blog suele
+            # tener el lastmod mas nuevo), asi no se gasta el cupo en los estaticos.
+            children = _by_recency(_entries_with_lastmod(r.text))
+            for child, _ in children[:6]:
                 try:
                     rc = await client.get(child, timeout=PAGE_TIMEOUT, follow_redirects=True)
-                    locs += re.findall(r"<loc>\s*([^<\s]+)\s*</loc>", rc.text)
+                    pairs += _entries_with_lastmod(rc.text)
                 except Exception:  # noqa: BLE001
                     pass
-                if len(locs) >= SITEMAP_CAP:
+                if len(pairs) >= SITEMAP_CAP * 3:
                     break
         else:
-            locs += found
-        if locs:
+            pairs += _entries_with_lastmod(r.text)
+        if pairs:
             break
-    return locs[:SITEMAP_CAP]
+    # mapa url_normalizada -> lastmod (todas las entradas, no solo las sembradas)
+    mod_map: dict[str, str] = {}
+    for loc, mod in pairs:
+        if mod:
+            mod_map.setdefault(_norm(loc), mod)
+    # dedup conservando el primero (mas reciente tras ordenar)
+    ordered = _by_recency(pairs)
+    seen: set[str] = set()
+    locs: list[str] = []
+    for loc, _ in ordered:
+        if loc not in seen:
+            seen.add(loc)
+            locs.append(loc)
+        if len(locs) >= SITEMAP_CAP:
+            break
+    return locs, mod_map
 
 
 # --------------------------------------------------------------------------- #
 # Agregación
 # --------------------------------------------------------------------------- #
-def _aggregate(pages: list[dict], norm_home: str = "") -> dict:
+def _aggregate(pages: list[dict], norm_home: str = "", crawl_complete: bool = True) -> dict:
     def ex(items, n=5):
         return items[:n]
 
@@ -541,10 +588,15 @@ def _aggregate(pages: list[dict], norm_home: str = "") -> dict:
         if p.get("breadcrumb"):
             breadcrumb_pages += 1
         poor_anchor_total += p.get("poor_anchor", 0)
-        # arquitectura: huérfanas (nadie las enlaza) y profundidad de clics
+        # arquitectura: huérfanas (nadie las enlaza) y profundidad de clics.
+        # OJO: "inbound" solo cuenta enlaces DESDE las páginas que rastreamos. En un
+        # sitio grande rastreamos una fracción, así que una página sin enlaces
+        # entrantes DENTRO de la muestra casi nunca es huérfana de verdad (la enlaza
+        # otra página que no llegamos a rastrear). Solo afirmamos "huérfana" cuando el
+        # rastreo cubrió el sitio entero (crawl_complete); si no, no se reporta.
         k = _norm(p["url"])
         if k != norm_home:
-            if p.get("inbound", 0) == 0:
+            if crawl_complete and p.get("inbound", 0) == 0:
                 orphans.append(u)
             if isinstance(p.get("depth"), int) and p["depth"] > 3:
                 deep_pages.append({"url": u, "depth": p["depth"]})
@@ -766,7 +818,8 @@ async def audit(url: str, home_html: str | None = None,
 
             seen.add(_norm(url))
             queue.append(url)  # home primero
-            for u in await _sitemap_urls(client, url):
+            sm_locs, sitemap_mod = await _sitemap_urls(client, url)
+            for u in sm_locs:
                 enqueue(u)
             if home_html:
                 hs = BeautifulSoup(home_html, "html.parser")
@@ -790,6 +843,13 @@ async def audit(url: str, home_html: str | None = None,
                     if key in final_seen:
                         continue
                     final_seen.add(key)
+                    # frescura de respaldo: si la pagina no trae fecha en el HTML,
+                    # usa el <lastmod> del sitemap (unico signo fiable en catalogos/SPA).
+                    if not p.get("date"):
+                        _lm = sitemap_mod.get(key) or sitemap_mod.get(_norm(p["url"]))
+                        if _lm:
+                            p["date"] = _lm[:10]
+                            p["date_src"] = "sitemap"
                     for l in p.get("_links", []):
                         enqueue(l)
                     pages.append(p)
@@ -841,7 +901,12 @@ async def audit(url: str, home_html: str | None = None,
     # suma las páginas rastreadas como comprobadas (son 200)
     broken["checked"] = broken.get("checked", 0) + len(pages)
 
-    model = _aggregate(pages, norm_home)
+    # ¿Rastreamos el sitio entero? Solo entonces las "huérfanas" son fiables. Si el
+    # sitemap o los enlaces descubiertos superan lo rastreado, el sitio es mayor que
+    # la muestra y no podemos afirmar que nadie enlaza una página.
+    site_size_hint = max(len(sm_locs), len(all_links), len(pages))
+    crawl_complete = len(pages) >= site_size_hint and len(pages) < MAX_PAGES
+    model = _aggregate(pages, norm_home, crawl_complete)
     model["broken"] = broken
     try:
         model["content"] = _content(pages)

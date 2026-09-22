@@ -18,6 +18,13 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "app"))
 os.environ.setdefault("DATA_DIR", str(Path(__file__).resolve().parent.parent / "data"))
 
+# La consola de Windows (cp1252) no puede imprimir ✓/✗/·; que no reviente el bench.
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:  # noqa: BLE001
+    pass
+
 import yaml  # noqa: E402
 
 import main  # noqa: E402
@@ -48,6 +55,36 @@ def check(case: dict, r: dict, elapsed: float, max_seconds: float) -> list[str]:
         f.append(f"categoría {idt.get('category') or ai.get('sector')!r} no contiene {exp['category_contains']!r}")
     if "blocked" in exp and bool((r.get("meta") or {}).get("blocked")) != exp["blocked"]:
         f.append("blocked no coincide")
+
+    # ---- Aserciones anti-falsos-positivos (auditoría dielco 2026-09) ----------
+    sig = r.get("signals") or {}
+    op = r.get("onpage") or {}
+    oc = (op.get("content") or {}) if isinstance(op, dict) else {}
+    ot = (op.get("totals") or {}) if isinstance(op, dict) else {}
+    an = sig.get("analytics") or {}
+    # sitemap: no infravalorar el nº de URLs (bug del host ápex / conteo de <image:loc>)
+    if "sitemap_min" in exp:
+        st = sig.get("sitemap_total") or 0
+        if st < exp["sitemap_min"]:
+            f.append(f"sitemap_total {st} < {exp['sitemap_min']}")
+    # frescura: la fecha más nueva debe alcanzar el año esperado (bug de muestreo)
+    if "newest_year_min" in exp:
+        newest = str(oc.get("newest") or "")
+        yr = int(newest[:4]) if newest[:4].isdigit() else 0
+        if yr < exp["newest_year_min"]:
+            f.append(f"frescura: newest {newest!r} < año {exp['newest_year_min']}")
+    # huérfanas: no sobre-reportar en sitios grandes (crawl parcial)
+    if "orphans_max" in exp:
+        orph = ot.get("orphans") or 0
+        if orph > exp["orphans_max"]:
+            f.append(f"huérfanas {orph} > {exp['orphans_max']} (¿crawl parcial marcado como huérfano?)")
+    # analítica: la instalación normal (GTM+GA4, tag+noscript) NO es duplicado
+    if "analytics_dup" in exp and bool(an.get("duplicated")) != bool(exp["analytics_dup"]):
+        f.append(f"analytics duplicated={an.get('duplicated')} != {exp['analytics_dup']} "
+                 f"(notas: {an.get('dup_notes')})")
+    # llms.txt: reconocerlo cuando existe (bug de no seguir 301 / host ápex)
+    if "llms" in exp and bool(sig.get("llms_txt")) != bool(exp["llms"]):
+        f.append(f"llms_txt {sig.get('llms_txt')} != {exp['llms']}")
     # Invariantes del motor (siempre)
     keys = {d["key"] for d in r.get("dims") or []} | {x["key"] for x in r.get("not_measured") or []}
     for k in ("tech", "schema", "security", "local"):

@@ -142,13 +142,17 @@ def _analytics_from(js: dict, reqs: list[str], html: str = "") -> dict:
     if linkedin:
         tools.append("LinkedIn Insight")
 
+    # Duplicado REAL = dos o mas IDs DISTINTOS del mismo tipo (dos GA4, dos GTM, dos
+    # pixeles). NO es duplicado la instalacion normal: GTM que carga GA4, gtag.js que
+    # se pide varias veces, o el par tag+noscript. Ese falso positivo marcaba como
+    # "error" la instalacion correcta de casi todos los sitios.
     dup = []
     if len(ga4) > 1:
         dup.append(f"{len(ga4)} mediciones GA4 distintas ({', '.join(sorted(ga4))})")
-    if gtag_loads > 1:
-        dup.append(f"la libreria de Google (gtag.js) se carga {gtag_loads} veces")
-    if ga4 and gtm:
-        dup.append("GA4 cargado directo Y por Tag Manager (posible doble conteo)")
+    if len(gtm) > 1:
+        dup.append(f"{len(gtm)} contenedores GTM distintos ({', '.join(sorted(gtm))})")
+    if len(ua) > 1:
+        dup.append(f"{len(ua)} propiedades Universal Analytics distintas")
     if len(fb) > 1:
         dup.append(f"{len(fb)} Meta Pixel distintos")
 

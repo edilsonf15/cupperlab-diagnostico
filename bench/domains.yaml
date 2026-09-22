@@ -14,6 +14,12 @@ cases:
   - domain: koaj.co
     expect: {country: Colombia, scope: pais, gbp: true}
   - domain: cupperlab.com
-    expect: {country: España}
+    expect: {country: España, analytics_dup: false, llms: true}
+  # dielco.co: cliente propio = banco de pruebas de la auditoría 2026-09. Fija las
+  # verdades que destaparon los falsos positivos (host ápex->www, <image:loc>,
+  # muestreo de frescura, huérfanas de crawl parcial, analítica GTM+GA4).
+  - domain: dielco.co
+    expect: {country: Colombia, sitemap_min: 3000, newest_year_min: 2026,
+             orphans_max: 5, analytics_dup: false, llms: true}
   # Añade: un negocio pequeño SIN ficha (expect gbp: false), uno con Cloudflare challenge
   # (expect blocked: true), uno en México y uno en inglés (lang: en).
