@@ -36,9 +36,13 @@ import httpx
 from i18n import L
 import places as _places
 
-PROMPTS_VERSION = "2.0"
+PROMPTS_VERSION = "2.1"
 AI_BUDGET = float(os.getenv("AI_GEO_BUDGET", "45"))          # tope global del bloque IA
 CALL_TIMEOUT = float(os.getenv("AI_CALL_TIMEOUT", "30"))      # tope por llamada
+# Nº de búsquedas de cliente que se prueban en la IA. Más preguntas = medida más
+# precisa de si te recomienda (a costa de más llamadas). Cada una se hace a CADA
+# motor, así que el total de comprobaciones es GEO_QUERIES x nº de motores.
+GEO_QUERIES = max(3, int(os.getenv("GEO_QUERIES", "6")))
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")      # mini: P1/P3/P4 y P2 en ChatGPT
 OPENAI_MODEL_STRONG = os.getenv("OPENAI_MODEL_STRONG", OPENAI_MODEL)
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
@@ -363,9 +367,11 @@ def prompt_p1(idt: dict, lang: str) -> str:
             "Be SPECIFIC about the style, segment and price tier if the text shows it (e.g. \"affordable casual "
             "youth fashion\", \"men's formal wear\", \"jeans and streetwear\", \"fast-food restaurant\"), so competitors "
             "match its SAME tier; avoid an over-generic category and slogans.\n"
-            f"- \"busquedas\": exactly 3 different sentences, 5 to 12 words, exactly as a customer in {idt.get('country') or 'that country'} "
-            f"would type them into an AI chat. If scope is city, all 3 include \"{idt.get('city')}\"; if country, none includes a city and "
-            f"at most one mentions \"{idt.get('country')}\". One of the three must ask for recommendations of good brands or "
+            f"- \"busquedas\": exactly {GEO_QUERIES} DIFFERENT sentences (vary the angle: some ask for recommendations, some for "
+            f"where to buy/find, some for the best options, some a specific need or use case), 5 to 12 words, exactly as a customer "
+            f"in {idt.get('country') or 'that country'} "
+            f"would type them into an AI chat. If scope is city, all include \"{idt.get('city')}\"; if country, none includes a city and "
+            f"at most one mentions \"{idt.get('country')}\". At least one must ask for recommendations of good brands or "
             "businesses of that SAME type, style and price range (\"recommend me good brands of…\", \"which shops of … do you "
             "suggest\", \"what are good options for …\"): direct competitors at its same tier, NOT luxury/designer if the brand "
             "isn't, NOR much smaller businesses. Do not use the brand or phrases from its website.")
@@ -383,9 +389,11 @@ def prompt_p1(idt: dict, lang: str) -> str:
         "Sé ESPECÍFICO con el estilo, el segmento y el nivel de precio si se nota en el texto (p. ej. \"moda casual "
         "juvenil asequible\", \"ropa formal de hombre\", \"jeans y ropa urbana\", \"restaurante de comida rápida\"), "
         "para acertar con competidores de su MISMO nivel; evita una categoría demasiado genérica y los eslóganes.\n"
-        f"- \"busquedas\": exactamente 3 frases distintas, de 5 a 12 palabras, tal y como las escribiría un cliente en "
-        f"{idt.get('country') or 'ese país'} en un chat de IA. Si el ámbito es \"ciudad\", las 3 incluyen \"{idt.get('city')}\"; "
-        f"si es \"pais\", ninguna incluye ciudad y como mucho una menciona \"{idt.get('country')}\". Una de las tres debe pedir "
+        f"- \"busquedas\": exactamente {GEO_QUERIES} frases DISTINTAS (varía el enfoque: unas piden recomendaciones, otras dónde "
+        f"comprar/encontrar, otras las mejores opciones, otras una necesidad o caso de uso concreto), de 5 a 12 palabras, tal y "
+        f"como las escribiría un cliente en "
+        f"{idt.get('country') or 'ese país'} en un chat de IA. Si el ámbito es \"ciudad\", todas incluyen \"{idt.get('city')}\"; "
+        f"si es \"pais\", ninguna incluye ciudad y como mucho una menciona \"{idt.get('country')}\". Al menos una debe pedir "
         "recomendaciones de buenas marcas o negocios de ESE MISMO tipo, estilo y rango de precio "
         "(\"recomiéndame buenas marcas de…\", \"qué tiendas de … me recomiendas\", \"cuáles son buenas opciones de …\"): "
         "competidores directos a su mismo nivel, NI de lujo/diseñador si la marca no lo es, NI negocios mucho más pequeños. "
@@ -578,7 +586,7 @@ async def run_geo(identity: dict, lang: str = "es") -> dict:
         category = identity.get("category") or ""
         if p1["json"]:
             category = (p1["json"].get("categoria") or category or "").strip().lower()[:60]
-            queries = [q.strip() for q in (p1["json"].get("busquedas") or []) if q and q.strip()][:3]
+            queries = [q.strip() for q in (p1["json"].get("busquedas") or []) if q and q.strip()][:GEO_QUERIES]
         else:
             base["debug"].append(f"P1: {p1['error']}")
         # Filtro anti-eslogan: ninguna búsqueda puede contener la marca ni una frase de la web
@@ -592,15 +600,24 @@ async def run_geo(identity: dict, lang: str = "es") -> dict:
                 continue
             clean.append(q)
         queries = clean
-        if len(queries) < 3:
+        if len(queries) < GEO_QUERIES:
             cat = category or (L("este tipo de negocio", "this kind of business"))
             fill = ([L(f"dónde encontrar {cat} en {where}", f"where to find {cat} in {where}"),
                      L(f"recomiéndame {cat} en {where}", f"recommend me {cat} in {where}"),
-                     L(f"qué {cat} hay en {where}", f"which {cat} are there in {where}")]
-                    if where else [f"{L('mejores', 'best')} {cat}", L(f"recomiéndame {cat}", f"recommend me {cat}"),
-                                   L(f"qué {cat} hay", f"which {cat} are there")])
+                     L(f"qué {cat} hay en {where}", f"which {cat} are there in {where}"),
+                     L(f"mejores {cat} en {where}", f"best {cat} in {where}"),
+                     L(f"buenas opciones de {cat} en {where}", f"good options for {cat} in {where}"),
+                     L(f"empresas de {cat} confiables en {where}", f"reliable {cat} companies in {where}"),
+                     L(f"dónde comprar {cat} en {where}", f"where to buy {cat} in {where}"),
+                     L(f"quién ofrece {cat} en {where}", f"who offers {cat} in {where}")]
+                    if where else [
+                     f"{L('mejores', 'best')} {cat}", L(f"recomiéndame {cat}", f"recommend me {cat}"),
+                     L(f"qué {cat} hay", f"which {cat} are there"),
+                     L(f"buenas opciones de {cat}", f"good options for {cat}"),
+                     L(f"empresas de {cat} confiables", f"reliable {cat} companies"),
+                     L(f"dónde comprar {cat}", f"where to buy {cat}")])
             for f in fill:
-                if len(queries) >= 3:
+                if len(queries) >= GEO_QUERIES:
                     break
                 if f not in queries:
                     queries.append(f)

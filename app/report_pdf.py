@@ -868,28 +868,58 @@ def _ai_section(r: dict) -> str:
         <span class="v {_c2_v}">{_c2_lab}</span></div>
     </div>"""
 
-    # UNA búsqueda real de cliente como ejemplo (la IA repite los mismos competidores
-    # en todas, así que mostrar más es redundante). El veredicto X/N sí resume las N.
+    # TODAS las búsquedas reales de cliente, con el detalle POR IA: en cuáles sales tú
+    # y a quién nombra en cada una. Es la prueba precisa que da valor al PDF (antes se
+    # mostraba solo una de ejemplo; el cliente pide ver el detalle completo).
     questions = ai.get("questions") or []
-    q_cards = ""
-    for q in questions[:1]:
-        ap = q.get("appears")
-        named = ", ".join(q.get("named", [])[:4]) or "—"
-        vt = L("APARECES", "YOU APPEAR") if ap is True else (L("NO APARECES", "YOU DON'T APPEAR") if ap is False else L("SIN DATO", "NO DATA"))
-        vc = "yes" if ap is True else ("no" if ap is False else "")
-        q_cards += f"""
+    eng_names = ai.get("engine_names") or ai.get("answered_names") or []
+
+    def _cell(ap):
+        if ap is True:
+            return f'<span style="color:{GREEN};font-weight:700">✓</span>'
+        if ap is False:
+            return f'<span style="color:{RED};font-weight:700">✕</span>'
+        return '<span style="color:#b7c0c9">–</span>'
+
+    q_rows = ""
+    for q in questions:
+        be = q.get("by_engine") or {}
+        chips = "".join(
+            f'<td style="padding:6px 8px;border-top:1px solid #e7ebf0;text-align:center;font-size:11px">'
+            f'{_cell((be.get(en) or {}).get("appears"))}</td>' for en in eng_names)
+        named = ", ".join(q.get("named", [])[:3]) or "—"
+        q_rows += (f'<tr><td style="padding:6px 10px;border-top:1px solid #e7ebf0;font-size:10px;color:{INK9}">'
+                   f'"{_esc(q.get("q",""))}"'
+                   f'<div style="font-size:8.5px;color:#7b8694;margin-top:1px">{L("nombra a:","names:")} {_esc(named)}</div></td>'
+                   f'{chips}</tr>')
+    q_block = ""
+    if q_rows and eng_names:
+        heads = "".join(f'<td class="mono" style="padding:6px 8px;font-size:8px;text-align:center;color:#7b8694">'
+                        f'{_esc(en)}</td>' for en in eng_names)
+        _hits = ai.get("reco_hits"); _tot = ai.get("reco_total")
+        cap = (f'{L("apareces en","you appear in")} {_hits}/{_tot} {L("búsquedas","searches")}'
+               if isinstance(_hits, int) and isinstance(_tot, int) and _tot else "")
+        q_block = (f'<div class="sectic" style="margin-top:12px">'
+                   f'{L("Las búsquedas reales de cliente que probamos","The real customer searches we tested")}'
+                   f'{(" · " + cap) if cap else ""}</div>'
+                   f'<table role="presentation" width="100%" style="border-collapse:collapse;border:1px solid #e7ebf0;margin-top:6px">'
+                   f'<tr style="background:#f7f9fb"><td class="mono" style="padding:6px 10px;font-size:8px;color:#7b8694">'
+                   f'{L("BÚSQUEDA (SIN NOMBRARTE)","SEARCH (WITHOUT NAMING YOU)")}</td>{heads}</tr>'
+                   f'{q_rows}</table>'
+                   f'<div style="font-size:8.5px;color:#7b8694;margin-top:5px">'
+                   f'{L("✓ = la IA te incluye en esa búsqueda · ✕ = nombra a otros, no a ti","✓ = AI includes you in that search · ✕ = it names others, not you")}</div>')
+
+    # Lo que la IA dice de ti, TEXTUAL (descripción de marca). Da precisión: el cliente
+    # ve la frase real, no un resumen.
+    desc_card = ""
+    if mentions and recg != "none":
+        desc_card = f"""
     <div class="aiq">
       <div class="q"><div class="ico">{L('IA','AI')}</div><div>
-        <div class="ask">{L('Un cliente busca:', 'A customer searches:')} "{_esc(q.get('q',''))}"</div>
-        <div class="qt">{L('La IA recomienda a:', 'AI recommends:')} {_esc(named)}.</div></div></div>
-      <div class="src"><span>{L('Búsqueda de categoría', 'Category search')}{(' · ' + _esc(country)) if country else ''}</span>
-        <span class="v {vc}">{vt}</span></div>
+        <div class="ask">{L("Esto es lo que la IA dice de ti, textual", "This is what AI literally says about you")}</div>
+        <div class="qt">"{_esc(mentions[:400])}"</div></div></div>
+      <div class="src"><span>{L("Descripción de tu marca por la IA (en vivo)", "Your brand described by AI (live)")}</span></div>
     </div>"""
-    _hits = ai.get("reco_hits"); _tot = ai.get("reco_total")
-    _hits_txt = (f' · {L("apareces en", "you appear in")} {_hits}/{_tot}'
-                 if isinstance(_hits, int) and isinstance(_tot, int) and _tot else f' · {L("¿sales tú?", "do you show up?")}')
-    q_block = (f'<div class="sectic" style="margin-top:12px">{L("Ejemplo de búsqueda real de un cliente", "Example of a real customer search")}'
-               f'{(L(" en ", " in ") + _esc(country)) if country else ""}{_hits_txt}</div>{q_cards}') if q_cards else ""
 
     # Veredicto CONSISTENTE con los datos: reconocimiento (parte 1) + recomendación
     # REAL (parte 2). Antes el texto de "no te cita" salía aunque recommended fuese
@@ -929,6 +959,7 @@ def _ai_section(r: dict) -> str:
     <p class="sub">{L('Le preguntamos EN VIVO a la IA: por tu marca, por tu servicio y con búsquedas reales de cliente en', 'We asked AI LIVE: about your brand, your service and with real customer searches in')} {_esc(zona or L('tu zona','your area'))}. {L('Cada vez más gente busca así antes de decidir.', 'More and more people search this way before deciding.')}</p>
     <div class="block callout {vcol}"><b>{L('Veredicto IA.', 'AI verdict.')}</b> {verdict}</div>
     {card1}
+    {desc_card}
     {card2}
     {q_block}
     </div>
